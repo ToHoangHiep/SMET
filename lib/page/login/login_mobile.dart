@@ -1,46 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
-class LoginMobile extends StatefulWidget {
-  const LoginMobile({super.key});
-
-  @override
-  State<LoginMobile> createState() => _LoginMobileState();
-}
-
-class _LoginMobileState extends State<LoginMobile> {
-
-  void login() {
-    context.go('/home');
-  }
+class LoginMobile extends StatelessWidget {
+  final Widget formContent;
+  const LoginMobile({super.key, required this.formContent});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-            width: double.infinity,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text('Login'),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Username',
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.school, size: 56, color: Color(0xFF2563EB)),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Sign In",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -1),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Please enter your account details to log in to the system.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.blueGrey, fontSize: 15),
+                      ),
+                      const SizedBox(height: 32),
+                      formContent,
+                      const SizedBox(height: 24),
+                      const Text(
+                        "Don't have an account? Contact Admin",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                      ),
+                    ],
                   ),
                 ),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: () {
-                   
-                  },
-                  child: Text('Login'),
-                ),
-              ],
+              ),
             ),
           );
+        },
+      ),
+    );
   }
 }

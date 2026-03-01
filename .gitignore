@@ -1,0 +1,24 @@
+# Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+
+# Web build
+build/web/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/build/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+*.tmp
