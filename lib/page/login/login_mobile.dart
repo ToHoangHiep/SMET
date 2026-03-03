@@ -12,7 +12,9 @@ class LoginMobile extends StatelessWidget {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - 48,
+              ),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
@@ -20,12 +22,20 @@ class LoginMobile extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(Icons.school, size: 56, color: Color(0xFF2563EB)),
+                      const Icon(
+                        Icons.school,
+                        size: 56,
+                        color: Color(0xFF2563EB),
+                      ),
                       const SizedBox(height: 20),
                       const Text(
                         "Sign In",
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -1),
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -1,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
@@ -36,11 +46,6 @@ class LoginMobile extends StatelessWidget {
                       const SizedBox(height: 32),
                       formContent,
                       const SizedBox(height: 24),
-                      const Text(
-                        "Don't have an account? Contact Admin",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
                     ],
                   ),
                 ),
