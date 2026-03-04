@@ -109,7 +109,7 @@ class ProfilePageWeb extends StatelessWidget {
               context.go('/home');
             },
             icon: const Icon(Icons.close, size: 28, color: Colors.grey),
-            tooltip: 'Close',
+            tooltip: 'Đóng',
           ),
         ],
       ),
@@ -123,7 +123,7 @@ class ProfilePageWeb extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Settings",
+            "Cài đặt",
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -132,7 +132,7 @@ class ProfilePageWeb extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            "Manage your account preferences",
+            "Quản lý tùy chọn tài khoản của bạn",
             style: TextStyle(color: Colors.grey[500], fontSize: 14),
           ),
           const SizedBox(height: 24),
@@ -147,7 +147,7 @@ class ProfilePageWeb extends StatelessWidget {
               contentPadding: EdgeInsets.symmetric(horizontal: 14),
               leading: Icon(Icons.manage_accounts, color: Color(0xFF137FEC)),
               title: Text(
-                "My Account",
+                "Tài khoản của tôi",
                 style: TextStyle(
                   color: Color(0xFF137FEC),
                   fontWeight: FontWeight.w600,
@@ -165,7 +165,7 @@ class ProfilePageWeb extends StatelessWidget {
             contentPadding: const EdgeInsets.symmetric(horizontal: 14),
             leading: Icon(Icons.notifications_none, color: Colors.grey[600]),
             title: Text(
-              "Notifications",
+              "Thông báo",
               style: TextStyle(
                 color: Colors.grey[600],
                 fontWeight: FontWeight.w500,
@@ -246,7 +246,7 @@ class ProfilePageWeb extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  currentUser?.fullName ?? "Loading...",
+                  currentUser?.fullName ?? "Đang tải...",
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,

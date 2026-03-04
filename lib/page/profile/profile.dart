@@ -236,8 +236,8 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         // --- SECTION 1: CONTACT DETAILS ---
         _buildSectionCard(
-          title: "Contact Details",
-          subtitle: "Update your personal information and address.",
+          title: "Thông tin liên hệ",
+          subtitle: "Cập nhật thông tin cá nhân và địa chỉ của bạn.",
           child: Column(
             children: [
               // Hàng Tên (Responsive: Mobile dọc, Web ngang)
@@ -250,7 +250,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Expanded(
                         flex: isWide ? 1 : 0,
                         child: _buildTextField(
-                          "First Name",
+                          "Tên",
                           _firstNameController,
                         ),
                       ),
@@ -258,7 +258,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Expanded(
                         flex: isWide ? 1 : 0,
                         child: _buildTextField(
-                          "Last Name",
+                          "Họ",
                           _lastNameController,
                         ),
                       ),
@@ -269,14 +269,14 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 16),
 
               _buildTextField(
-                "Email Address",
+                "Địa chỉ email",
                 _emailController,
                 icon: Icons.mail_outline,
                 readOnly: true,
               ), // Email thường không cho sửa
               const SizedBox(height: 16),
               _buildTextField(
-                "Phone Number",
+                "Số điện thoại",
                 _phoneController,
                 icon: Icons.phone,
               ),
@@ -301,7 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       child: const Text(
-                        "Cancel",
+                        "Hủy",
                         style: TextStyle(color: Colors.grey),
                       ),
                     ),
@@ -329,7 +329,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                              : const Text("Save Changes"),
+                              : const Text("Lưu thay đổi"),
                     ),
                   ],
                 ),
@@ -342,8 +342,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
         // --- SECTION 2: SECURITY ---
         _buildSectionCard(
-          title: "Security & Authentication",
-          subtitle: "Manage your password and keep your account secure.",
+          title: "Bảo mật & Xác thực",
+          subtitle: "Quản lý mật khẩu và giữ tài khoản của bạn an toàn.",
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -367,7 +367,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          "Update Password",
+                          "Cập nhật mật khẩu",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.grey[900],
@@ -388,7 +388,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             Expanded(
                               flex: isWide ? 1 : 0,
                               child: _buildSmallTextField(
-                                "Old Password",
+                                "Mật khẩu cũ",
                                 _oldPassController,
                                 obscure: true,
                               ),
@@ -400,7 +400,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             Expanded(
                               flex: isWide ? 1 : 0,
                               child: _buildSmallTextField(
-                                "New Password",
+                                "Mật khẩu mới",
                                 _newPassController,
                                 obscure: true,
                               ),
@@ -412,7 +412,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             Expanded(
                               flex: isWide ? 1 : 0,
                               child: _buildSmallTextField(
-                                "Confirm Password",
+                                "Xác nhận mật khẩu",
                                 _confirmPassController,
                                 obscure: true,
                               ),
@@ -467,7 +467,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "Two-Factor Authentication (2FA)",
+                          "Xác thực hai yếu tố (2FA)",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -475,7 +475,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "Add an extra layer of security to your account.",
+                          "Thêm một lớp bảo mật bổ sung cho tài khoản của bạn.",
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 13,
@@ -494,7 +494,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             const SizedBox(width: 6),
                             const Text(
-                              "Currently Enabled",
+                              "Hiện đang bật",
                               style: TextStyle(
                                 color: Colors.green,
                                 fontWeight: FontWeight.bold,
@@ -508,7 +508,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   OutlinedButton(
                     onPressed: () {},
-                    child: const Text("Configure"),
+                    child: const Text("Cấu hình"),
                   ),
                 ],
               ),

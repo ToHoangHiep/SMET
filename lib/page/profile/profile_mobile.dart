@@ -18,7 +18,7 @@ class ProfilePageMobile extends StatelessWidget {
       backgroundColor: const Color(0xFFF6F7F8),
       appBar: AppBar(
         title: const Text(
-          "My Account",
+          "Tài khoản của tôi",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
@@ -124,7 +124,7 @@ class ProfilePageMobile extends StatelessWidget {
 
           // Info
           Text(
-            currentUser?.fullName ?? "Loading...",
+            currentUser?.fullName ?? "Đang tải...",
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 20,
