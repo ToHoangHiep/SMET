@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/service/user_management/api_user_management.dart';
+import 'package:smet/service/admin/user_management/api_user_management.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
