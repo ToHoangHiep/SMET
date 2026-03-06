@@ -17,6 +17,7 @@ class ApiService {
       email: 'john.doe@smets.com',
       phone: '0901234567',
       role: UserRole.admin,
+      createdAt: DateTime.now().subtract(const Duration(days: 120)),
       lastUpdated: DateTime.now(),
     ),
     UserModel(
@@ -27,6 +28,7 @@ class ApiService {
       email: 'sarah.miller@smets.com',
       phone: '0909876543',
       role: UserRole.projectManager,
+      createdAt: DateTime.now().subtract(const Duration(days: 90)),
       lastUpdated: DateTime.now().subtract(const Duration(days: 2)),
     ),
     UserModel(
@@ -37,6 +39,7 @@ class ApiService {
       email: 'david.kim@smets.com',
       phone: '0912345678',
       role: UserRole.mentor,
+      createdAt: DateTime.now().subtract(const Duration(days: 60)),
       lastUpdated: DateTime.now().subtract(const Duration(days: 5)),
     ),
   ];
@@ -56,6 +59,16 @@ class ApiService {
     return user;
   }
 
+  // Cập nhật user
+  Future<UserModel?> updateUser(UserModel user) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    final index = _mockDatabase.indexWhere((u) => u.id == user.id);
+    if (index == -1) return null;
+
+    _mockDatabase[index] = user;
+    return user;
+  }
+
   // Giả lập Import Excel
   // Lưu ý: Trong thực tế cần package 'file_picker' và 'excel'
   Future<List<UserModel>> importExcelFile() async {
@@ -71,6 +84,7 @@ class ApiService {
         email: 'excel.one@smets.com',
         phone: '0000000001',
         role: UserRole.employee,
+        createdAt: DateTime.now(),
         lastUpdated: DateTime.now(),
       ),
       UserModel(
@@ -81,6 +95,7 @@ class ApiService {
         email: 'excel.two@smets.com',
         phone: '0000000002',
         role: UserRole.employee,
+        createdAt: DateTime.now(),
         lastUpdated: DateTime.now(),
       ),
     ];

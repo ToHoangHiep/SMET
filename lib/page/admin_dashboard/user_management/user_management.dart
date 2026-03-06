@@ -23,6 +23,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
   int _currentPage = 1;
   int _rowsPerPage = 5;
 
+  bool _isCreateMode = false;
+  bool _isUpdateMode = false;
+  String? _editingUserId;
+  final _createFormKey = GlobalKey<FormState>();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  UserRole _createRole = UserRole.employee;
+
   final Color _primaryColor = const Color(0xFF137FEC);
   final Color _bgLight = const Color(0xFFF3F6FC);
 
@@ -66,6 +77,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
   void initState() {
     super.initState();
     _fetchUsers();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUsers() async {
@@ -127,23 +148,108 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
-  void _showCreateUserDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return _CreateUserDialog(
-          primaryColor: _primaryColor,
-          onSave: (newUser) async {
-            await _apiService.createUser(newUser);
-            _fetchUsers();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tạo nhân viên thành công!')),
-              );
-            }
-          },
-        );
-      },
+  void _openCreateUserScreen() {
+    setState(() {
+      _isCreateMode = true;
+      _isUpdateMode = false;
+      _editingUserId = null;
+      _usernameController.clear();
+      _firstNameController.clear();
+      _lastNameController.clear();
+      _emailController.clear();
+      _phoneController.clear();
+      _createRole = UserRole.employee;
+    });
+  }
+
+  void _openUpdateUserScreen(UserModel user) {
+    setState(() {
+      _isCreateMode = false;
+      _isUpdateMode = true;
+      _editingUserId = user.id;
+      _usernameController.text = user.username;
+      _firstNameController.text = user.firstName;
+      _lastNameController.text = user.lastName;
+      _emailController.text = user.email;
+      _phoneController.text = user.phone;
+      _createRole = user.role;
+    });
+  }
+
+  void _closeCreateUserScreen() {
+    setState(() {
+      _isCreateMode = false;
+      _isUpdateMode = false;
+      _editingUserId = null;
+    });
+  }
+
+  Future<void> _submitCreateUser() async {
+    if (!_createFormKey.currentState!.validate()) return;
+
+    final newUser = UserModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      username: _usernameController.text.trim(),
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
+      role: _createRole,
+      createdAt: DateTime.now(),
+      lastUpdated: DateTime.now(),
+    );
+
+    await _apiService.createUser(newUser);
+    await _fetchUsers();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isCreateMode = false;
+      _currentPage = 1;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tạo nhân viên thành công!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _submitUpdateUser() async {
+    if (!_createFormKey.currentState!.validate()) return;
+    if (_editingUserId == null) return;
+
+    final existingUser = _users.firstWhere((u) => u.id == _editingUserId!);
+
+    final updatedUser = UserModel(
+      id: _editingUserId!,
+      username: _usernameController.text.trim(),
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
+      role: _createRole,
+      createdAt: existingUser.createdAt,
+      lastUpdated: DateTime.now(),
+    );
+
+    await _apiService.updateUser(updatedUser);
+    await _fetchUsers();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isUpdateMode = false;
+      _editingUserId = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Cập nhật nhân viên thành công!'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 
@@ -167,7 +273,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         children: [
                           _buildPageHeader(),
                           const SizedBox(height: 20),
-                          _buildUserTableCard(),
+                          (_isCreateMode || _isUpdateMode)
+                              ? _buildCreateUserScreen()
+                              : _buildUserTableCard(),
                         ],
                       ),
                     ),
@@ -232,9 +340,22 @@ class _UserManagementPageState extends State<UserManagementPage> {
               ],
             ),
           ),
-          _sidebarItem(Icons.person, 'Quản lý nhân viên', isActive: true),
-          _sidebarItem(Icons.model_training, 'Quản lý đào tạo'),
-          _sidebarItem(Icons.apartment, 'Quản lý phòng ban'),
+          _sidebarItem(
+            Icons.person,
+            'Quản lý nhân viên',
+            route: '/user_management',
+            isActive: true,
+          ),
+          _sidebarItem(
+            Icons.model_training,
+            'Quản lý đào tạo',
+            route: '/training_management',
+          ),
+          _sidebarItem(
+            Icons.apartment,
+            'Quản lý phòng ban',
+            route: '/department_management',
+          ),
           const Spacer(),
           const Divider(height: 1),
           ListTile(
@@ -268,7 +389,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  Widget _sidebarItem(IconData icon, String title, {bool isActive = false}) {
+  Widget _sidebarItem(
+    IconData icon,
+    String title, {
+    bool isActive = false,
+    required String route,
+  }) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -290,7 +416,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
             fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
-        onTap: () {},
+        onTap: () {
+          context.go(route);
+        },
       ),
     );
   }
@@ -399,7 +527,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: _showCreateUserDialog,
+                onPressed: _openCreateUserScreen,
                 icon: const Icon(Icons.add),
                 label: const Text('Tạo nhân viên mới'),
                 style: ElevatedButton.styleFrom(
@@ -418,6 +546,192 @@ class _UserManagementPageState extends State<UserManagementPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCreateUserScreen() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Form(
+        key: _createFormKey,
+        child: Center(
+          child: SizedBox(
+            width: 620,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 14),
+                    children: [
+                      TextSpan(
+                        text: 'Quản lý nhân viên',
+                        style: TextStyle(
+                          color: _primaryColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      TextSpan(
+                        text:
+                            _isUpdateMode
+                                ? ' / Cập nhật nhân viên'
+                                : ' / Tạo nhân viên mới',
+                        style: const TextStyle(color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: '* Tên đăng nhập',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Vui lòng nhập tên đăng nhập';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _firstNameController,
+                        decoration: const InputDecoration(
+                          labelText: '* Tên',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nhập tên';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _lastNameController,
+                        decoration: const InputDecoration(
+                          labelText: '* Họ',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nhập họ';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: '* Email',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Vui lòng nhập email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(
+                          labelText: 'Số điện thoại',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<UserRole>(
+                        value: _createRole,
+                        decoration: const InputDecoration(
+                          labelText: 'Vai trò',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: UserRole.admin,
+                            child: Text('Quản trị viên'),
+                          ),
+                          DropdownMenuItem(
+                            value: UserRole.projectManager,
+                            child: Text('Quản lý dự án'),
+                          ),
+                          DropdownMenuItem(
+                            value: UserRole.mentor,
+                            child: Text('Người hướng dẫn'),
+                          ),
+                          DropdownMenuItem(
+                            value: UserRole.employee,
+                            child: Text('Nhân viên'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _createRole = value);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _closeCreateUserScreen,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _primaryColor,
+                        side: BorderSide(color: _primaryColor),
+                      ),
+                      child: const Text('HỦY'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed:
+                          _isUpdateMode ? _submitUpdateUser : _submitCreateUser,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(_isUpdateMode ? 'CẬP NHẬT' : 'XÁC NHẬN'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -550,7 +864,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                   DataColumn(
                     label: Text(
-                      'TRẠNG THÁI',
+                      'HOẠT ĐỘNG',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'NGÀY TẠO',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF6B7280),
@@ -679,6 +1003,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ),
         DataCell(
           Text(
+            (user.createdAt ?? user.lastUpdated).toString().split(' ')[0],
+            style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+          ),
+        ),
+        DataCell(
+          Text(
             user.lastUpdated.toString().split(' ')[0],
             style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
           ),
@@ -689,11 +1019,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             children: [
               IconButton(
                 icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, size: 20, color: Colors.grey),
-                onPressed: () {},
+                onPressed: () => _openUpdateUserScreen(user),
               ),
             ],
           ),
@@ -744,183 +1070,5 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ),
       ),
     );
-  }
-}
-
-class _CreateUserDialog extends StatefulWidget {
-  final Color primaryColor;
-  final Function(UserModel) onSave;
-
-  const _CreateUserDialog({required this.primaryColor, required this.onSave});
-
-  @override
-  State<_CreateUserDialog> createState() => _CreateUserDialogState();
-}
-
-class _CreateUserDialogState extends State<_CreateUserDialog> {
-  final _formKey = GlobalKey<FormState>();
-
-  String _username = '';
-  String _firstName = '';
-  String _lastName = '';
-  String _email = '';
-  String _phone = '';
-  UserRole _role = UserRole.employee;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      title: const Text(
-        'Tạo nhân viên mới',
-        style: TextStyle(fontWeight: FontWeight.bold),
-      ),
-      content: SizedBox(
-        width: 500,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildTextField(
-                  'Tên đăng nhập',
-                  (v) => _username = v!,
-                  icon: Icons.person_outline,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTextField(
-                        'Tên',
-                        (v) => _firstName = v!,
-                        icon: Icons.badge_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildTextField('Họ', (v) => _lastName = v!),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildTextField(
-                  'Địa chỉ email',
-                  (v) => _email = v!,
-                  icon: Icons.email_outlined,
-                ),
-                const SizedBox(height: 12),
-                _buildTextField(
-                  'Số điện thoại',
-                  (v) => _phone = v!,
-                  icon: Icons.phone_android,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<UserRole>(
-                  value: _role,
-                  decoration: InputDecoration(
-                    labelText: 'Vai trò',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 16,
-                    ),
-                    prefixIcon: const Icon(Icons.security, size: 20),
-                  ),
-                  items:
-                      UserRole.values.map((role) {
-                        return DropdownMenuItem(
-                          value: role,
-                          child: Text(_getRoleNameVi(role)),
-                        );
-                      }).toList(),
-                  onChanged: (val) {
-                    if (val == null) return;
-                    setState(() => _role = val);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(foregroundColor: Colors.grey),
-          child: const Text('Hủy'),
-        ),
-        ElevatedButton(
-          onPressed: _submitForm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: widget.primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: const Text('Tạo nhân viên'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField(
-    String label,
-    Function(String?) onSave, {
-    IconData? icon,
-  }) {
-    return TextFormField(
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 16,
-        ),
-        prefixIcon:
-            icon != null ? Icon(icon, size: 20, color: Colors.grey) : null,
-      ),
-      validator: (value) => value == null || value.isEmpty ? 'Bắt buộc' : null,
-      onSaved: onSave,
-    );
-  }
-
-  String _getRoleNameVi(UserRole role) {
-    switch (role) {
-      case UserRole.admin:
-        return 'Quản trị viên';
-      case UserRole.projectManager:
-        return 'Quản lý dự án';
-      case UserRole.mentor:
-        return 'Người hướng dẫn';
-      default:
-        return 'Nhân viên';
-    }
-  }
-
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-
-      final newUser = UserModel(
-        id: DateTime.now().toString(),
-        username: _username,
-        firstName: _firstName,
-        lastName: _lastName,
-        email: _email,
-        phone: _phone,
-        role: _role,
-        lastUpdated: DateTime.now(),
-      );
-
-      widget.onSave(newUser);
-      Navigator.pop(context);
-    }
   }
 }
