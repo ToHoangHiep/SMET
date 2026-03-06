@@ -1,3 +1,4 @@
+import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
 import 'user_management_role_badge.dart';
@@ -121,19 +122,22 @@ class UserManagementTableCard extends StatelessWidget {
               child: CircularProgressIndicator(),
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowHeight: 50,
-                dataRowMinHeight: 64,
-                dataRowMaxHeight: 72,
+            SizedBox(
+              width: double.infinity,
+              height: 420,
+              child: DataTable2(
+                columnSpacing: 20,
                 horizontalMargin: 20,
-                columnSpacing: 28,
+                minWidth: 900,
+                headingRowHeight: 50,
+                dataRowHeight: 70,
                 headingRowColor: WidgetStateProperty.all(
                   const Color(0xFFF9FAFB),
                 ),
+                empty: const Center(child: Text('Không có dữ liệu')), 
                 columns: const [
-                  DataColumn(
+                  DataColumn2(
+                    size: ColumnSize.L,
                     label: Text(
                       'NHÂN VIÊN',
                       style: TextStyle(
@@ -143,7 +147,8 @@ class UserManagementTableCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  DataColumn(
+                  DataColumn2(
+                    size: ColumnSize.M,
                     label: Text(
                       'VAI TRÒ',
                       style: TextStyle(
@@ -153,7 +158,8 @@ class UserManagementTableCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  DataColumn(
+                  DataColumn2(
+                    size: ColumnSize.S,
                     label: Text(
                       'HOẠT ĐỘNG',
                       style: TextStyle(
@@ -163,7 +169,8 @@ class UserManagementTableCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  DataColumn(
+                  DataColumn2(
+                    size: ColumnSize.M,
                     label: Text(
                       'NGÀY TẠO',
                       style: TextStyle(
@@ -173,7 +180,8 @@ class UserManagementTableCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  DataColumn(
+                  DataColumn2(
+                    size: ColumnSize.M,
                     label: Text(
                       'CẬP NHẬT GẦN NHẤT',
                       style: TextStyle(
@@ -183,7 +191,7 @@ class UserManagementTableCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  DataColumn(label: Text(''), numeric: true),
+                  DataColumn2(size: ColumnSize.S, label: Text('')),
                 ],
                 rows:
                     paginatedUsers.map((user) => _buildDataRow(user)).toList(),
