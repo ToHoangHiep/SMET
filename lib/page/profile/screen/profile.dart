@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/api_profile.dart';
@@ -81,6 +84,63 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _handleEditAvatar() async {
+    if (_currentUser == null) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+
+    if (!mounted) return;
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể đọc ảnh đã chọn'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final extension = (file.extension ?? 'png').toLowerCase();
+    final avatarDataUrl =
+        'data:image/$extension;base64,${base64Encode(bytes)}';
+
+    setState(() => _isSaving = true);
+
+    final updatedUser = _currentUser!.copyWith(avatarUrl: avatarDataUrl);
+
+    try {
+      await _apiProfile.updateUserProfile(updatedUser);
+      if (!mounted) return;
+
+      setState(() {
+        _currentUser = updatedUser;
+        _isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cập nhật ảnh đại diện thành công!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -218,12 +278,14 @@ class _ProfilePageState extends State<ProfilePage> {
           return ProfilePageWeb(
             formContent: formContent,
             currentUser: _currentUser,
+            onEditAvatar: _handleEditAvatar,
           );
         } else {
           // Giao diện Mobile
           return ProfilePageMobile(
             formContent: formContent,
             currentUser: _currentUser,
+            onEditAvatar: _handleEditAvatar,
           );
         }
       },

@@ -8,11 +8,13 @@ enum ProfileUserHeaderVariant { web, mobile }
 class ProfileUserHeader extends StatelessWidget {
   final UserModel? currentUser;
   final ProfileUserHeaderVariant variant;
+  final VoidCallback? onEditAvatar;
 
   const ProfileUserHeader({
     super.key,
     required this.currentUser,
     required this.variant,
+    this.onEditAvatar,
   });
 
   @override
@@ -42,7 +44,10 @@ class ProfileUserHeader extends StatelessWidget {
   Widget _buildWebContent(String role) {
     return Row(
       children: [
-        ProfileUserAvatar(avatarUrl: currentUser?.avatarUrl),
+        ProfileUserAvatar(
+          avatarUrl: currentUser?.avatarUrl,
+          onEditTap: onEditAvatar,
+        ),
         const SizedBox(width: 24),
         Expanded(
           child: Column(
@@ -87,6 +92,7 @@ class ProfileUserHeader extends StatelessWidget {
           iconSize: 40,
           editIconSize: 14,
           editPadding: 4,
+          onEditTap: onEditAvatar,
         ),
         const SizedBox(height: 12),
         Text(

@@ -9,6 +9,7 @@ class UserModel {
   final String phone;
   final UserRole role;
   bool isActive;
+  final DateTime? createdAt;
   final DateTime lastUpdated;
   final String? avatarUrl;
 
@@ -21,6 +22,7 @@ class UserModel {
     required this.phone,
     required this.role,
     this.isActive = true,
+    this.createdAt,
     required this.lastUpdated,
     this.avatarUrl,
   });

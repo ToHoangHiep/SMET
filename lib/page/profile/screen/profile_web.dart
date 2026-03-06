@@ -7,11 +7,13 @@ import '../widgets/web/profile_web_sidebar.dart';
 class ProfilePageWeb extends StatelessWidget {
   final Widget formContent;
   final UserModel? currentUser; // Dữ liệu user để hiển thị Avatar/Tên
+  final VoidCallback? onEditAvatar;
 
   const ProfilePageWeb({
     super.key,
     required this.formContent,
     this.currentUser,
+    this.onEditAvatar,
   });
 
   @override
@@ -72,6 +74,7 @@ class ProfilePageWeb extends StatelessWidget {
     return ProfileUserHeader(
       currentUser: currentUser,
       variant: ProfileUserHeaderVariant.web,
+      onEditAvatar: onEditAvatar,
     );
   }
 }

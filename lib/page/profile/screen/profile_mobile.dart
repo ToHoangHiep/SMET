@@ -6,11 +6,13 @@ import '../widgets/profile_user_header.dart';
 class ProfilePageMobile extends StatelessWidget {
   final Widget formContent;
   final UserModel? currentUser;
+  final VoidCallback? onEditAvatar;
 
   const ProfilePageMobile({
     super.key,
     required this.formContent,
     this.currentUser,
+    this.onEditAvatar,
   });
 
   @override
@@ -43,6 +45,7 @@ class ProfilePageMobile extends StatelessWidget {
     return ProfileUserHeader(
       currentUser: currentUser,
       variant: ProfileUserHeaderVariant.mobile,
+      onEditAvatar: onEditAvatar,
     );
   }
 }
