@@ -1,7 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/home/home.dart';
 import 'package:smet/page/login/login.dart';
-import 'package:smet/page/profile/profile.dart';
+import 'package:smet/page/profile/screen/profile.dart';
 import 'package:smet/page/admin_dashboard/user_management/user_management.dart';
 
 class AppPages {
