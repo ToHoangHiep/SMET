@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/user_management/api_user_management.dart';
 
@@ -253,6 +254,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
               _users.isNotEmpty ? _users.first.fullName : 'Nhân viên',
               style: const TextStyle(fontSize: 12),
             ),
+            trailing: Tooltip(
+              message: 'Đăng xuất',
+              child: IconButton(
+                icon: const Icon(Icons.logout, color: Colors.grey),
+                onPressed: _handleLogout,
+              ),
+            ),
           ),
           const SizedBox(height: 10),
         ],
@@ -285,6 +293,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
         onTap: () {},
       ),
     );
+  }
+
+  void _handleLogout() {
+    context.go('/login');
   }
 
   Widget _buildTopHeader() {
