@@ -1,7 +1,7 @@
-import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/api_profile.dart';
 import 'profile_web.dart';
@@ -23,6 +23,11 @@ class _ProfilePageState extends State<ProfilePage> {
   UserModel? _currentUser;
   bool _isLoading = true; // Loading ban đầu
   bool _isSaving = false; // Loading khi ấn Save
+  /// Ảnh vừa chọn chưa lưu
+  Uint8List? _pickedAvatarBytes;
+
+  /// Ảnh đã lưu (khi backend trả avatarUrl == '__local__')
+  Uint8List? _localAvatarBytes;
 
   // Theme Color
   final Color _primaryColor = const Color(0xFF137FEC);
@@ -63,9 +68,14 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final user = await _apiProfile.getUserProfile();
       if (mounted) {
+        Uint8List? localBytes;
+        if (user.avatarUrl == '__local__') {
+          localBytes = _apiProfile.getAvatarBytes();
+        }
         setState(() {
           _currentUser = user;
           _isLoading = false;
+          _localAvatarBytes = localBytes;
 
           // Đổ dữ liệu vào Form
           _firstNameController.text = user.firstName;
@@ -87,63 +97,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _handleEditAvatar() async {
-    if (_currentUser == null) return;
-
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-      withData: true,
-    );
-
-    if (!mounted) return;
-    if (result == null || result.files.isEmpty) return;
-
-    final file = result.files.first;
-    final bytes = file.bytes;
-    if (bytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể đọc ảnh đã chọn'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final extension = (file.extension ?? 'png').toLowerCase();
-    final avatarDataUrl =
-        'data:image/$extension;base64,${base64Encode(bytes)}';
-
-    setState(() => _isSaving = true);
-
-    final updatedUser = _currentUser!.copyWith(avatarUrl: avatarDataUrl);
-
-    try {
-      await _apiProfile.updateUserProfile(updatedUser);
-      if (!mounted) return;
-
-      setState(() {
-        _currentUser = updatedUser;
-        _isSaving = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cập nhật ảnh đại diện thành công!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
   // 2. Lưu thông tin Profile
   Future<void> _handleSaveProfile() async {
     if (_currentUser == null) return;
@@ -161,19 +114,30 @@ class _ProfilePageState extends State<ProfilePage> {
 
     setState(() => _isSaving = true);
 
-    // Tạo object mới từ dữ liệu form
-    final updatedUser = _currentUser!.copyWith(
-      firstName: _firstNameController.text,
-      lastName: _lastNameController.text,
-      phone: _phoneController.text,
-    );
-
     try {
+      // Nếu có ảnh mới chọn thì cập nhật avatar trước
+      if (_pickedAvatarBytes != null) {
+        await _apiProfile.updateAvatar(_pickedAvatarBytes!);
+      }
+
+      // Tạo object mới từ dữ liệu form
+      final updatedUser = _currentUser!.copyWith(
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
+        phone: _phoneController.text,
+      );
       await _apiProfile.updateUserProfile(updatedUser);
 
       if (mounted) {
+        final newUser = await _apiProfile.getUserProfile();
+        final newLocalBytes =
+            newUser.avatarUrl == '__local__'
+                ? _apiProfile.getAvatarBytes()
+                : null;
         setState(() {
-          _currentUser = updatedUser;
+          _currentUser = newUser;
+          _pickedAvatarBytes = null;
+          _localAvatarBytes = newLocalBytes;
           _isSaving = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -254,9 +218,65 @@ class _ProfilePageState extends State<ProfilePage> {
       _lastNameController.text = _currentUser!.lastName;
       _emailController.text = _currentUser!.email;
       _phoneController.text = _currentUser!.phone;
+      setState(() => _pickedAvatarBytes = null);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Đã hủy thay đổi")));
+    }
+  }
+
+  // 5. Chọn ảnh đại diện (máy ảnh hoặc thư viện)
+  Future<void> _pickAvatar() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder:
+          (ctx) => SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Chọn từ thư viện'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Chụp ảnh'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                ),
+              ],
+            ),
+          ),
+    );
+    if (source == null || !mounted) return;
+
+    try {
+      final picker = ImagePicker();
+      final xFile = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (xFile == null || !mounted) return;
+      final bytes = await xFile.readAsBytes();
+      if (mounted) {
+        setState(() => _pickedAvatarBytes = bytes);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã chọn ảnh. Bấm "Lưu" để cập nhật.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể chọn ảnh: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -271,21 +291,23 @@ class _ProfilePageState extends State<ProfilePage> {
     // Xây dựng Widget Form để truyền xuống View
     final Widget formContent = _buildFormContent();
 
+    final avatarBytes = _pickedAvatarBytes ?? _localAvatarBytes;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 900) {
-          // Giao diện Web
           return ProfilePageWeb(
             formContent: formContent,
             currentUser: _currentUser,
-            onEditAvatar: _handleEditAvatar,
+            avatarBytes: avatarBytes,
+            onAvatarTap: _pickAvatar,
           );
         } else {
-          // Giao diện Mobile
           return ProfilePageMobile(
             formContent: formContent,
             currentUser: _currentUser,
-            onEditAvatar: _handleEditAvatar,
+            avatarBytes: avatarBytes,
+            onAvatarTap: _pickAvatar,
           );
         }
       },

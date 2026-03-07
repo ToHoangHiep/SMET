@@ -44,20 +44,6 @@ class LoginWeb extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'About',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'Contact Support',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    ),
-                  ),
                 ],
               ),
             ),

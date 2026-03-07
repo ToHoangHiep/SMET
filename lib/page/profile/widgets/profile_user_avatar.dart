@@ -1,28 +1,38 @@
-import 'dart:convert';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:flutter/material.dart';
 
 class ProfileUserAvatar extends StatelessWidget {
   final String? avatarUrl;
+
+  /// Ảnh từ bytes (ảnh vừa chọn hoặc ảnh đã lưu dạng local)
+  final Uint8List? avatarBytes;
   final double size;
   final double iconSize;
   final double editIconSize;
   final double editPadding;
-  final VoidCallback? onEditTap;
+
+  /// Bấm vào avatar để đổi ảnh (null = không cho đổi)
+  final VoidCallback? onTap;
 
   const ProfileUserAvatar({
     super.key,
     this.avatarUrl,
+    this.avatarBytes,
     this.size = 100,
     this.iconSize = 50,
     this.editIconSize = 16,
     this.editPadding = 6,
-    this.onEditTap,
+    this.onTap,
   });
+
+  bool get _hasImage =>
+      avatarBytes != null || (avatarUrl != null && avatarUrl != '__local__');
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    final content = Stack(
       children: [
         Container(
           width: size,
@@ -30,53 +40,52 @@ class ProfileUserAvatar extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: Colors.grey[100]!, width: 4),
-            image: _buildAvatarImage(),
+            image: _buildDecorationImage(),
             color: Colors.grey[200],
           ),
           child:
-              avatarUrl == null
+              !_hasImage
                   ? Icon(Icons.person, size: iconSize, color: Colors.grey)
                   : null,
         ),
         Positioned(
           bottom: 0,
           right: 0,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onEditTap,
-              customBorder: const CircleBorder(),
-              child: Container(
-                padding: EdgeInsets.all(editPadding),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF137FEC),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.edit, color: Colors.white, size: editIconSize),
-              ),
+          child: Container(
+            padding: EdgeInsets.all(editPadding),
+            decoration: const BoxDecoration(
+              color: Color(0xFF137FEC),
+              shape: BoxShape.circle,
             ),
+            child: Icon(Icons.edit, color: Colors.white, size: editIconSize),
           ),
         ),
       ],
     );
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: content,
+      );
+    }
+    return content;
   }
 
-  DecorationImage? _buildAvatarImage() {
-    if (avatarUrl == null || avatarUrl!.isEmpty) return null;
-
-    if (avatarUrl!.startsWith('data:image')) {
-      final commaIndex = avatarUrl!.indexOf(',');
-      if (commaIndex == -1) return null;
-      final base64Part = avatarUrl!.substring(commaIndex + 1);
+  DecorationImage? _buildDecorationImage() {
+    if (avatarBytes != null && avatarBytes!.isNotEmpty) {
       return DecorationImage(
-        image: MemoryImage(base64Decode(base64Part)),
+        image: MemoryImage(avatarBytes!),
         fit: BoxFit.cover,
       );
     }
-
-    return DecorationImage(
-      image: NetworkImage(avatarUrl!),
-      fit: BoxFit.cover,
-    );
+    if (avatarUrl != null && avatarUrl != '__local__') {
+      return DecorationImage(
+        image: NetworkImage(avatarUrl!),
+        fit: BoxFit.cover,
+      );
+    }
+    return null;
   }
 }

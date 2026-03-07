@@ -1,19 +1,26 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
 import '../widgets/profile_user_header.dart';
 import '../widgets/web/profile_web_header.dart';
 import '../widgets/web/profile_web_sidebar.dart';
+import '../widgets/profile_user_avatar.dart';
+import 'package:smet/page/profile/screen/profile.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ProfilePageWeb extends StatelessWidget {
   final Widget formContent;
-  final UserModel? currentUser; // Dữ liệu user để hiển thị Avatar/Tên
-  final VoidCallback? onEditAvatar;
+  final UserModel? currentUser;
+  final Uint8List? avatarBytes;
+  final VoidCallback? onAvatarTap;
 
   const ProfilePageWeb({
     super.key,
     required this.formContent,
     this.currentUser,
-    this.onEditAvatar,
+    this.avatarBytes,
+    this.onAvatarTap,
   });
 
   @override
@@ -24,7 +31,7 @@ class ProfilePageWeb extends StatelessWidget {
         child: Column(
           children: [
             // 1. Top Navigation Bar
-            const ProfileWebHeader(),
+            ProfileWebHeader(currentUser: currentUser),
 
             // 2. Main Content Area
             Expanded(
@@ -74,7 +81,8 @@ class ProfilePageWeb extends StatelessWidget {
     return ProfileUserHeader(
       currentUser: currentUser,
       variant: ProfileUserHeaderVariant.web,
-      onEditAvatar: onEditAvatar,
+      avatarBytes: avatarBytes,
+      onAvatarTap: onAvatarTap,
     );
   }
 }

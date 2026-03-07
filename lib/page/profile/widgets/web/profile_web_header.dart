@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/model/user_model.dart';
 
 class ProfileWebHeader extends StatelessWidget {
-  const ProfileWebHeader({super.key});
+  final UserModel? currentUser;
+  const ProfileWebHeader({super.key, required this.currentUser});
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +40,31 @@ class ProfileWebHeader extends StatelessWidget {
             ],
           ),
           IconButton(
-            onPressed: () => context.go('/home'),
+            onPressed: () {
+              final role = currentUser?.role;
+
+              switch (role) {
+                case UserRole.admin:
+                  context.go('/user_management');
+                  break;
+
+                case UserRole.projectManager:
+                  context.go('/');
+                  break;
+
+                case UserRole.mentor:
+                  context.go('/');
+                  break;
+
+                case UserRole.employee:
+                  context.go('/');
+                  break;
+
+                default:
+                  context.go('/');
+              }
+            },
             icon: const Icon(Icons.close, size: 28, color: Colors.grey),
-            tooltip: 'Đóng',
           ),
         ],
       ),
