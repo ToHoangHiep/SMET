@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smet/model/user.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
 
@@ -18,6 +20,30 @@ class _LoginPageState extends State<LoginPage> {
   // Hàm xử lý đăng nhập
   void _onLoginPressed() {
     print("Login with: ${_emailController.text}");
+
+    // TODO: Gọi API login thực tế ở đây
+    // Mock user cho demo - thay thế bằng logic API thực tế
+    final email = _emailController.text.toLowerCase();
+    final user = _createMockUser(email);
+
+    // Điều hướng theo role
+    context.go(user.rolePath);
+  }
+
+  // Mock tạo user từ email - thay thế bằng API thực tế
+  User _createMockUser(String email) {
+    UserRole role;
+    if (email.contains('admin')) {
+      role = UserRole.admin;
+    } else if (email.contains('pm') || email.contains('project')) {
+      role = UserRole.projectManager;
+    } else if (email.contains('mentor')) {
+      role = UserRole.mentor;
+    } else {
+      role = UserRole.employee;
+    }
+
+    return User(email: email, name: email.split('@').first, role: role);
   }
 
   // CHỈ MỤC CHUNG: Toàn bộ nội dung bên trong Form
@@ -37,7 +63,7 @@ class _LoginPageState extends State<LoginPage> {
         TextField(
           controller: _emailController,
           decoration: InputDecoration(
-            hintText: "you@company.com",
+            hintText: "you@.com",
             prefixIcon: const Icon(Icons.mail_outline, size: 20),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(
