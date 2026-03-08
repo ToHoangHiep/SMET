@@ -1,5 +1,21 @@
 enum UserRole { admin, projectManager, mentor, employee }
 
+/// Tên hiển thị role (tiếng Việt) dùng trong form, dialog.
+extension UserRoleDisplay on UserRole {
+  String get displayName {
+    switch (this) {
+      case UserRole.admin:
+        return 'Quản trị';
+      case UserRole.projectManager:
+        return 'Quản lý dự án';
+      case UserRole.mentor:
+        return 'Hướng dẫn';
+      case UserRole.employee:
+        return 'Nhân viên';
+    }
+  }
+}
+
 class UserModel {
   final String id;
   final String username;
@@ -45,6 +61,7 @@ class UserModel {
       phone: phone ?? this.phone,
       role: this.role,
       isActive: this.isActive,
+      createdAt: this.createdAt,
       lastUpdated: DateTime.now(),
       avatarUrl: avatarUrl ?? this.avatarUrl,
     );

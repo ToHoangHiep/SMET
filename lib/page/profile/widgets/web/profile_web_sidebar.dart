@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class ProfileWebSidebar extends StatelessWidget {
   const ProfileWebSidebar({super.key});
@@ -61,7 +62,7 @@ class ProfileWebSidebar extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
-            onTap: () {},
+            onTap: () => context.go('/notifications'),
           ),
         ],
       ),

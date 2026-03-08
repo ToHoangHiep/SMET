@@ -1,10 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
-import 'package:smet/service/admin/user_management/api_user_management.dart';
-import 'package:smet/service/common/current_user_store.dart';
+import 'package:go_router/go_router.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,43 +15,11 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
-  final ApiService _apiService = ApiService();
-  final CurrentUserStore _currentUserStore = CurrentUserStore.instance;
 
   // Hàm xử lý đăng nhập
-  Future<void> _onLoginPressed() async {
-    final email = _emailController.text.trim().toLowerCase();
-
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng nhập email'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final users = await _apiService.getUsers();
-    if (!mounted) return;
-
-    final matchedIndex = users.indexWhere((u) => u.email.toLowerCase() == email);
-    final matchedUser = matchedIndex == -1 ? null : users[matchedIndex];
-
-    if (matchedUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm thấy tài khoản với email này'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    _currentUserStore.setCurrentUser(matchedUser);
-
-    if (!mounted) return;
-    context.go('/');
+  void _onLoginPressed() {
+    print("Login with: ${_emailController.text}");
+    context.go('/user_management');
   }
 
   // CHỈ MỤC CHUNG: Toàn bộ nội dung bên trong Form

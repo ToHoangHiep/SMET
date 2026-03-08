@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
 import 'profile_role_badge.dart';
@@ -8,13 +10,19 @@ enum ProfileUserHeaderVariant { web, mobile }
 class ProfileUserHeader extends StatelessWidget {
   final UserModel? currentUser;
   final ProfileUserHeaderVariant variant;
-  final VoidCallback? onEditAvatar;
+
+  /// Ảnh đại diện dạng bytes (ảnh mới chọn hoặc ảnh đã lưu local)
+  final Uint8List? avatarBytes;
+
+  /// Bấm vào avatar để đổi ảnh
+  final VoidCallback? onAvatarTap;
 
   const ProfileUserHeader({
     super.key,
     required this.currentUser,
     required this.variant,
-    this.onEditAvatar,
+    this.avatarBytes,
+    this.onAvatarTap,
   });
 
   @override
@@ -46,7 +54,8 @@ class ProfileUserHeader extends StatelessWidget {
       children: [
         ProfileUserAvatar(
           avatarUrl: currentUser?.avatarUrl,
-          onEditTap: onEditAvatar,
+          avatarBytes: avatarBytes,
+          onTap: onAvatarTap,
         ),
         const SizedBox(width: 24),
         Expanded(
@@ -88,11 +97,12 @@ class ProfileUserHeader extends StatelessWidget {
       children: [
         ProfileUserAvatar(
           avatarUrl: currentUser?.avatarUrl,
+          avatarBytes: avatarBytes,
+          onTap: onAvatarTap,
           size: 80,
           iconSize: 40,
           editIconSize: 14,
           editPadding: 4,
-          onEditTap: onEditAvatar,
         ),
         const SizedBox(height: 12),
         Text(
