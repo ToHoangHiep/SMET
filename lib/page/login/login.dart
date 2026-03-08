@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smet/model/user.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/model/user_model.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -32,7 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // Mock tạo user từ email - thay thế bằng API thực tế
-  User _createMockUser(String email) {
+  UserModel _createMockUser(String email) {
     UserRole role;
     if (email.contains('admin')) {
       role = UserRole.admin;
@@ -44,7 +44,16 @@ class _LoginPageState extends State<LoginPage> {
       role = UserRole.employee;
     }
 
-    return User(email: email, name: email.split('@').first, role: role);
+    return UserModel(
+      id: '1',
+      username: email.split('@').first,
+      firstName: email.split('@').first,
+      lastName: '',
+      email: email,
+      phone: '',
+      role: role,
+      lastUpdated: DateTime.now(),
+    );
   }
 
   // CHỈ MỤC CHUNG: Toàn bộ nội dung bên trong Form
