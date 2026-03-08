@@ -8,6 +8,7 @@ import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_sidebar.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
+import '../widgets/table/user_management_role_badge.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -30,9 +31,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   bool _isCreateMode = false;
   bool _isUpdateMode = false;
+  bool _isViewMode = false;
   String? _editingUserId;
+  UserModel? _viewingUser;
   final _createFormKey = GlobalKey<FormState>();
-  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -86,7 +88,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
@@ -158,7 +159,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _isCreateMode = true;
       _isUpdateMode = false;
       _editingUserId = null;
-      _usernameController.clear();
       _firstNameController.clear();
       _lastNameController.clear();
       _emailController.clear();
@@ -172,7 +172,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _isCreateMode = false;
       _isUpdateMode = true;
       _editingUserId = user.id;
-      _usernameController.text = user.username;
       _firstNameController.text = user.firstName;
       _lastNameController.text = user.lastName;
       _emailController.text = user.email;
@@ -185,7 +184,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
     setState(() {
       _isCreateMode = false;
       _isUpdateMode = false;
+      _isViewMode = false;
       _editingUserId = null;
+      _viewingUser = null;
+    });
+  }
+
+  void _openViewUserScreen(UserModel user) {
+    setState(() {
+      _isViewMode = true;
+      _isCreateMode = false;
+      _isUpdateMode = false;
+      _viewingUser = user;
     });
   }
 
@@ -194,7 +204,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     final newUser = UserModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      username: _usernameController.text.trim(),
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
@@ -230,7 +239,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     final updatedUser = UserModel(
       id: _editingUserId!,
-      username: _usernameController.text.trim(),
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
@@ -292,7 +300,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 formKey: _createFormKey,
                                 primaryColor: _primaryColor,
                                 isUpdateMode: _isUpdateMode,
-                                usernameController: _usernameController,
                                 firstNameController: _firstNameController,
                                 lastNameController: _lastNameController,
                                 emailController: _emailController,
@@ -307,7 +314,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         ? _submitUpdateUser
                                         : _submitCreateUser,
                               )
-                              : UserManagementTableCard(
+                              : _isViewMode && _viewingUser != null
+                                  ? _buildViewUserCard()
+                                  : UserManagementTableCard(
                                 primaryColor: _primaryColor,
                                 paginatedUsers: _paginatedUsers,
                                 filteredUsers: _filteredUsers,
@@ -346,6 +355,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         }
                                         : null,
                                 onEditUser: _openUpdateUserScreen,
+                                onViewUser: _openViewUserScreen,
                                 onToggleActive: (user) {
                                   setState(() {});
                                 },
@@ -359,6 +369,149 @@ class _UserManagementPageState extends State<UserManagementPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildViewUserCard() {
+    final user = _viewingUser!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Center(
+        child: SizedBox(
+          width: 620,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 14),
+                      children: [
+                        TextSpan(
+                          text: 'Quản lý nhân viên',
+                          style: TextStyle(
+                            color: _primaryColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const TextSpan(
+                          text: ' / Chi tiết nhân viên',
+                          style: TextStyle(color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _closeCreateUserScreen,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Center(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: _primaryColor.withValues(alpha: 0.1),
+                      child: Text(
+                        '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
+                        '${user.lastName.isNotEmpty ? user.lastName[0] : ''}',
+                        style: TextStyle(
+                          color: _primaryColor,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      user.fullName,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    UserManagementRoleBadge(role: user.role),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              _buildDetailRow('Email', user.email),
+              const SizedBox(height: 16),
+              _buildDetailRow(
+                'Ngày tạo',
+                (user.createdAt ?? user.lastUpdated).toString().split(' ')[0],
+              ),
+              const SizedBox(height: 16),
+              _buildDetailRow(
+                'Cập nhật gần nhất',
+                user.lastUpdated.toString().split(' ')[0],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: _closeCreateUserScreen,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _primaryColor,
+                      side: BorderSide(color: _primaryColor),
+                    ),
+                    child: const Text('ĐÓNG'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF111827),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

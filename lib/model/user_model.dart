@@ -15,11 +15,11 @@ class UserModel {
 
   UserModel({
     required this.id,
-    required this.username,
+    this.username = '',
     required this.firstName,
     required this.lastName,
     required this.email,
-    required this.phone,
+    this.phone = '',
     required this.role,
     this.isActive = true,
     this.createdAt,

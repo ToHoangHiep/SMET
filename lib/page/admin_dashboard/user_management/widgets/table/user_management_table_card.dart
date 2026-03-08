@@ -17,6 +17,7 @@ class UserManagementTableCard extends StatelessWidget {
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
   final ValueChanged<UserModel> onEditUser;
+  final ValueChanged<UserModel> onViewUser;
   final ValueChanged<UserModel> onToggleActive;
 
   const UserManagementTableCard({
@@ -34,6 +35,7 @@ class UserManagementTableCard extends StatelessWidget {
     required this.onPrevPage,
     required this.onNextPage,
     required this.onEditUser,
+    required this.onViewUser,
     required this.onToggleActive,
   });
 
@@ -302,6 +304,11 @@ class UserManagementTableCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              IconButton(
+                icon: const Icon(Icons.visibility, size: 20, color: Colors.grey),
+                onPressed: () => onViewUser(user),
+                tooltip: 'Xem chi tiết',
+              ),
               IconButton(
                 icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
                 onPressed: () => onEditUser(user),
