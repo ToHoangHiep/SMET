@@ -26,6 +26,12 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.toLowerCase();
     final user = _createMockUser(email);
 
+    // 🚫 Chặn mobile cho role chỉ dùng Web
+    if (!kIsWeb && user.role == UserRole.admin) {
+      context.go('/user_management');
+      return;
+    }
+
     // Điều hướng theo role
     context.go(user.rolePath);
   }
