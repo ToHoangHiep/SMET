@@ -21,19 +21,19 @@ class AppPages {
       // Role-based routes
       GoRoute(
         path: '/user_management',
-        builder: (context, state) => const _PlaceholderPage(title: 'User Management'),
+        builder: (context, state) => const _PlaceholderPage(title: 'Quản lý người dùng'),
       ),
       GoRoute(
         path: '/pm/dashboard',
-        builder: (context, state) => const _PlaceholderPage(title: 'PM Dashboard'),
+        builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển PM'),
       ),
       GoRoute(
         path: '/mentor/dashboard',
-        builder: (context, state) => const _PlaceholderPage(title: 'Mentor Dashboard'),
+        builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển Mentor'),
       ),
       GoRoute(
         path: '/employee/dashboard',
-        builder: (context, state) => const _PlaceholderPage(title: 'Employee Dashboard'),
+        builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển nhân viên'),
       ),
     ],
   );

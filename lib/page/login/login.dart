@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Text(
-          "Email address",
+          "Địa chỉ email",
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: Color(0xFF374151),
@@ -74,7 +74,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 20),
         const Text(
-          "Password",
+          "Mật khẩu",
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: Color(0xFF374151),
@@ -102,12 +102,12 @@ class _LoginPageState extends State<LoginPage> {
               activeColor: const Color(0xFF2563EB),
               onChanged: (val) => setState(() => _rememberMe = val!),
             ),
-            const Text("Remember me", style: TextStyle(fontSize: 14)),
+            const Text("Ghi nhớ đăng nhập", style: TextStyle(fontSize: 14)),
             const Spacer(),
             TextButton(
               onPressed: () {},
               child: const Text(
-                "Forgot password?",
+                "Quên mật khẩu?",
                 style: TextStyle(color: Color(0xFF2563EB)),
               ),
             ),
@@ -127,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
               elevation: 2,
             ),
             child: const Text(
-              "Sign in",
+              "Đăng nhập",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,
