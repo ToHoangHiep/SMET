@@ -15,9 +15,7 @@ class LoginMobile extends StatelessWidget {
               constraints: BoxConstraints(
                 minHeight: constraints.maxHeight - 48,
               ),
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight - 48,
-              ),
+
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
@@ -39,11 +37,7 @@ class LoginMobile extends StatelessWidget {
                       const Text(
                         "Sign In",
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -1,
-                        ),
+
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
