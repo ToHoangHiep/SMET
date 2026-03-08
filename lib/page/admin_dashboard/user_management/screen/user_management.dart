@@ -9,6 +9,7 @@ import '../widgets/shell/user_management_sidebar.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
+import 'package:flutter/foundation.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -22,6 +23,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   String _searchQuery = '';
   String _selectedRole = 'ALL';
+  String _selectedDepartment = 'ALL';
 
   List<UserModel> _users = [];
   bool _isLoading = true;
@@ -39,6 +41,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
   UserRole _createRole = UserRole.employee;
 
   final Color _primaryColor = const Color(0xFF137FEC);
@@ -52,6 +55,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
     {'value': 'USER', 'label': 'Nhân viên'},
   ];
 
+  final List<Map<String, String>> _departmentOptions = const [
+    {'value': 'ALL', 'label': 'Tất cả phòng ban'},
+    {'value': 'IT', 'label': 'Phòng IT'},
+    {'value': 'HR', 'label': 'Phòng HR'},
+    {'value': 'FINANCE', 'label': 'Phòng Finance'},
+  ];
+
   List<UserModel> get _filteredUsers {
     return _users.where((user) {
       final nameLower = '${user.firstName} ${user.lastName}'.toLowerCase();
@@ -63,8 +73,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
       final roleString = user.role.toString().split('.').last.toUpperCase();
       final matchesRole = _selectedRole == 'ALL' || roleString == _selectedRole;
+      final matchesDepartment =
+          _selectedDepartment == 'ALL' ||
+          user.department == _selectedDepartment;
 
-      return matchesSearch && matchesRole;
+      return matchesSearch && matchesRole && matchesDepartment;
     }).toList();
   }
 
@@ -92,6 +105,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _departmentController.dispose();
     super.dispose();
   }
 
@@ -244,6 +258,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
       role: _createRole,
+      department: _departmentController.text.trim(),
       createdAt: existingUser.createdAt,
       lastUpdated: DateTime.now(),
     );
@@ -268,6 +283,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // CHẶN MOBILE
+    if (!kIsWeb) {
+      return const Scaffold(
+        body: Center(
+          child: Text(
+            "Trang quản trị chỉ hỗ trợ trên Web",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bgLight,
       body: SafeArea(
@@ -315,8 +342,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         : _submitCreateUser,
                               )
                               : _isViewMode && _viewingUser != null
-                                  ? _buildViewUserCard()
-                                  : UserManagementTableCard(
+                              ? _buildViewUserCard()
+                              : UserManagementTableCard(
                                 primaryColor: _primaryColor,
                                 paginatedUsers: _paginatedUsers,
                                 filteredUsers: _filteredUsers,
@@ -449,8 +476,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
               ),
               const SizedBox(height: 32),
+              _buildDetailRow('ID', user.id),
+              const SizedBox(height: 16),
+              _buildDetailRow('Tên nhân viên', user.fullName),
+              const SizedBox(height: 16),
+              _buildDetailRow('Vai trò', user.role.toString()),
+              const SizedBox(height: 16),
+              _buildDetailRow('Số điện thoại', user.phone),
+              const SizedBox(height: 16),
               _buildDetailRow('Email', user.email),
               const SizedBox(height: 16),
+              _buildDetailRow(
+                'Trạng thái',
+                user.isActive ? 'Hoạt động' : 'Không hoạt động',
+              ),
+              const SizedBox(height: 16),
+              _buildDetailRow('Phòng ban', user.department ?? ''),
+              const SizedBox(height: 16),
+
               _buildDetailRow(
                 'Ngày tạo',
                 (user.createdAt ?? user.lastUpdated).toString().split(' ')[0],
@@ -495,10 +538,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             width: 150,
             child: Text(
               label,
-              style: const TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
             ),
           ),
           Expanded(

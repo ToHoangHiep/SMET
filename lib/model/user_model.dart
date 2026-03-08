@@ -10,6 +10,7 @@ class UserModel {
   final String phone;
   final UserRole role;
   bool isActive;
+  final String? department;
   final DateTime? createdAt;
   final DateTime lastUpdated;
 
@@ -22,6 +23,7 @@ class UserModel {
     this.phone = '',
     required this.role,
     this.isActive = true,
+    this.department,
     this.createdAt,
     required this.lastUpdated,
   });
@@ -66,6 +68,7 @@ class UserModel {
       phone: (json['phone'] ?? '').toString(),
       role: parseRole(json['role']),
       isActive: (json['isActive'] ?? json['is_active'] ?? true) == true,
+      department: (json['department'] ?? '').toString(),
       createdAt: parseDate(json['createdAt'] ?? json['created_at']),
       lastUpdated: updatedAt,
     );
