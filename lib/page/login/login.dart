@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smet/model/user.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +21,30 @@ class _LoginPageState extends State<LoginPage> {
   // Hàm xử lý đăng nhập
   void _onLoginPressed() {
     print("Login with: ${_emailController.text}");
-    context.go('/user_management');
+
+    // TODO: Gọi API login thực tế ở đây
+    // Mock user cho demo - thay thế bằng logic API thực tế
+    final email = _emailController.text.toLowerCase();
+    final user = _createMockUser(email);
+
+    // Điều hướng theo role
+    context.go(user.rolePath);
+  }
+
+  // Mock tạo user từ email - thay thế bằng API thực tế
+  User _createMockUser(String email) {
+    UserRole role;
+    if (email.contains('admin')) {
+      role = UserRole.admin;
+    } else if (email.contains('pm') || email.contains('project')) {
+      role = UserRole.projectManager;
+    } else if (email.contains('mentor')) {
+      role = UserRole.mentor;
+    } else {
+      role = UserRole.employee;
+    }
+
+    return User(email: email, name: email.split('@').first, role: role);
   }
 
   // CHỈ MỤC CHUNG: Toàn bộ nội dung bên trong Form
@@ -29,7 +54,7 @@ class _LoginPageState extends State<LoginPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Text(
-          "Email address",
+          "Địa chỉ email",
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: Color(0xFF374151),
@@ -39,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
         TextField(
           controller: _emailController,
           decoration: InputDecoration(
-            hintText: "you@company.com",
+            hintText: "you@.com",
             prefixIcon: const Icon(Icons.mail_outline, size: 20),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(
@@ -50,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 20),
         const Text(
-          "Password",
+          "Mật khẩu",
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: Color(0xFF374151),
@@ -78,12 +103,12 @@ class _LoginPageState extends State<LoginPage> {
               activeColor: const Color(0xFF2563EB),
               onChanged: (val) => setState(() => _rememberMe = val!),
             ),
-            const Text("Remember me", style: TextStyle(fontSize: 14)),
+            const Text("Ghi nhớ đăng nhập", style: TextStyle(fontSize: 14)),
             const Spacer(),
             TextButton(
               onPressed: () {},
               child: const Text(
-                "Forgot password?",
+                "Quên mật khẩu?",
                 style: TextStyle(color: Color(0xFF2563EB)),
               ),
             ),
@@ -103,7 +128,7 @@ class _LoginPageState extends State<LoginPage> {
               elevation: 2,
             ),
             child: const Text(
-              "Sign in",
+              "Đăng nhập",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,

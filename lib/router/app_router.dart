@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
@@ -25,6 +26,7 @@ class AppPages {
         builder: (context, state) => const UserManagementPage(),
       ),
       GoRoute(
+<<<<<<< HEAD
         path: '/department_management',
         builder: (context, state) => const DepartmentManagementPage(),
       ),
@@ -56,7 +58,45 @@ class AppPages {
       GoRoute(
         path: '/pm/learning_path',
         builder: (context, state) => const LearningPathPage(),
+=======
+        path: '/home',
+        builder: (context, state) => HomePage(),
+>>>>>>> feature/login
+      ),
+      // Role-based routes
+      GoRoute(
+        path: '/user_management',
+        builder: (context, state) => const _PlaceholderPage(title: 'Quản lý người dùng'),
+      ),
+      GoRoute(
+        path: '/pm/dashboard',
+        builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển PM'),
+      ),
+      GoRoute(
+        path: '/mentor/dashboard',
+        builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển Mentor'),
+      ),
+      GoRoute(
+        path: '/employee/dashboard',
+        builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển nhân viên'),
       ),
     ],
   );
 }
+<<<<<<< HEAD
+=======
+
+class _PlaceholderPage extends StatelessWidget {
+  final String title;
+
+  const _PlaceholderPage({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(child: Text(title)),
+    );
+  }
+}
+>>>>>>> feature/login
