@@ -10,6 +10,7 @@ import '../widgets/shell/department_management_page_header.dart';
 import '../widgets/shell/department_management_sidebar.dart';
 import '../widgets/shell/department_management_top_header.dart';
 import '../widgets/table/department_management_table_section.dart';
+import 'package:flutter/foundation.dart';
 
 // --- ĐỊNH NGHĨA MÀU SẮC CHUNG ---
 class AppColors {
@@ -217,6 +218,18 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚫 CHẶN MOBILE
+    if (!kIsWeb) {
+      return const Scaffold(
+        body: Center(
+          child: Text(
+            "Trang quản trị chỉ hỗ trợ trên Web",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bgLight,
       body: SafeArea(

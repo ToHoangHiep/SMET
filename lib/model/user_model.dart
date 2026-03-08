@@ -25,19 +25,21 @@ class UserModel {
   final String phone;
   final UserRole role;
   bool isActive;
+  final String? department;
   final DateTime? createdAt;
   final DateTime lastUpdated;
   final String? avatarUrl;
 
   UserModel({
     required this.id,
-    required this.username,
+    this.username = '',
     required this.firstName,
     required this.lastName,
     required this.email,
-    required this.phone,
+    this.phone = '',
     required this.role,
     this.isActive = true,
+    this.department,
     this.createdAt,
     required this.lastUpdated,
     this.avatarUrl,
@@ -45,25 +47,71 @@ class UserModel {
 
   String get fullName => '$firstName $lastName';
 
-  // Hàm quan trọng để cập nhật dữ liệu
+  // Hàm cập nhật dữ liệu
   UserModel copyWith({
     String? firstName,
     String? lastName,
     String? phone,
     String? avatarUrl,
+    String? department,
+    bool? isActive,
   }) {
     return UserModel(
-      id: this.id,
-      username: this.username,
+      id: id,
+      username: username,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
-      email: this.email,
+      email: email,
       phone: phone ?? this.phone,
-      role: this.role,
-      isActive: this.isActive,
-      createdAt: this.createdAt,
+      role: role,
+      isActive: isActive ?? this.isActive,
+      department: department ?? this.department,
+      createdAt: createdAt,
       lastUpdated: DateTime.now(),
       avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    UserRole parseRole(dynamic value) {
+      final role = value?.toString().toLowerCase();
+      switch (role) {
+        case 'admin':
+          return UserRole.admin;
+        case 'project_manager':
+        case 'projectmanager':
+        case 'pm':
+          return UserRole.projectManager;
+        case 'mentor':
+          return UserRole.mentor;
+        default:
+          return UserRole.employee;
+      }
+    }
+
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      return DateTime.tryParse(value.toString());
+    }
+
+    final updatedAt = parseDate(json['lastUpdated'] ?? json['updated_at']) ?? DateTime.now();
+
+    return UserModel(
+      id: (json['id'] ?? '').toString(),
+      username: (json['username'] ?? '').toString(),
+      firstName: (json['firstName'] ?? json['first_name'] ?? '').toString(),
+      lastName: (json['lastName'] ?? json['last_name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      phone: (json['phone'] ?? '').toString(),
+      role: parseRole(json['role']),
+      isActive: (json['isActive'] ?? json['is_active'] ?? true) == true,
+      department: (json['department'] ?? '').toString().isNotEmpty ? (json['department'] ?? '').toString() : null,
+      createdAt: parseDate(json['createdAt'] ?? json['created_at']),
+      lastUpdated: updatedAt,
     );
   }
 
