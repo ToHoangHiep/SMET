@@ -36,6 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   go_router:
 
+  file_picker: ^10.1.0
+  data_table_2: ^2.5.18
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

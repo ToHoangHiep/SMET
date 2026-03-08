@@ -22,3 +22,6 @@ ios/.symlinks/
 # Logs
 *.log
 *.tmp
+
+.idea/
+*.iml
