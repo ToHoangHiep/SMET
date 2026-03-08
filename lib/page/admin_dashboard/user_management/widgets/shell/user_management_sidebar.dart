@@ -91,6 +91,7 @@ class UserManagementSidebar extends StatelessWidget {
               horizontal: 20,
               vertical: 4,
             ),
+            onTap: () => context.go('/profile'),
             leading: const CircleAvatar(
               backgroundColor: Colors.grey,
               child: Icon(Icons.person, color: Colors.white),

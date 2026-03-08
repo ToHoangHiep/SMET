@@ -2,7 +2,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/service/user_management/api_user_management.dart';
+import 'package:smet/service/admin/user_management/api_user_management.dart';
+import 'package:smet/service/common/current_user_store.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_sidebar.dart';
@@ -18,6 +19,7 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   final ApiService _apiService = ApiService();
+  final CurrentUserStore _currentUserStore = CurrentUserStore.instance;
 
   String _searchQuery = '';
   String _selectedRole = 'ALL';
@@ -101,6 +103,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _users = users;
       _isLoading = false;
     });
+
+    if (_currentUserStore.currentUser == null && users.isNotEmpty) {
+      _currentUserStore.setCurrentUser(users.first);
+    }
   }
 
   Future<void> _handleImportExcel() async {
@@ -364,6 +370,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   void _handleLogout() {
+    _currentUserStore.clear();
     context.go('/login');
   }
 }

@@ -1,4 +1,3 @@
-// file: user_model.dart
 enum UserRole { admin, projectManager, mentor, employee }
 
 class UserModel {
@@ -12,6 +11,7 @@ class UserModel {
   bool isActive;
   final DateTime? createdAt;
   final DateTime lastUpdated;
+  final String? avatarUrl;
 
   UserModel({
     required this.id,
@@ -24,50 +24,29 @@ class UserModel {
     this.isActive = true,
     this.createdAt,
     required this.lastUpdated,
+    this.avatarUrl,
   });
 
   String get fullName => '$firstName $lastName';
 
-  factory UserModel.fromJson(Map<String, dynamic> json) {
-    UserRole parseRole(dynamic value) {
-      final role = value?.toString().toLowerCase();
-      switch (role) {
-        case 'admin':
-          return UserRole.admin;
-        case 'projectmanager':
-        case 'project_manager':
-        case 'pm':
-          return UserRole.projectManager;
-        case 'mentor':
-          return UserRole.mentor;
-        default:
-          return UserRole.employee;
-      }
-    }
-
-    DateTime? parseDate(dynamic value) {
-      if (value == null) return null;
-      if (value is DateTime) return value;
-      if (value is int) {
-        return DateTime.fromMillisecondsSinceEpoch(value);
-      }
-      return DateTime.tryParse(value.toString());
-    }
-
-    final updatedAt =
-        parseDate(json['lastUpdated'] ?? json['updated_at']) ?? DateTime.now();
-
+  // Hàm quan trọng để cập nhật dữ liệu
+  UserModel copyWith({
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? avatarUrl,
+  }) {
     return UserModel(
-      id: (json['id'] ?? '').toString(),
-      username: (json['username'] ?? '').toString(),
-      firstName: (json['firstName'] ?? json['first_name'] ?? '').toString(),
-      lastName: (json['lastName'] ?? json['last_name'] ?? '').toString(),
-      email: (json['email'] ?? '').toString(),
-      phone: (json['phone'] ?? '').toString(),
-      role: parseRole(json['role']),
-      isActive: (json['isActive'] ?? json['is_active'] ?? true) == true,
-      createdAt: parseDate(json['createdAt'] ?? json['created_at']),
-      lastUpdated: updatedAt,
+      id: this.id,
+      username: this.username,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: this.email,
+      phone: phone ?? this.phone,
+      role: this.role,
+      isActive: this.isActive,
+      lastUpdated: DateTime.now(),
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 }

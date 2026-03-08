@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/department_model.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/service/department_management/api_department_management.dart';
-import 'package:smet/service/user_management/api_user_management.dart';
+import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/service/admin/user_management/api_user_management.dart';
+import 'package:smet/service/common/current_user_store.dart';
 import '../widgets/form/department_management_form_card.dart';
 import '../widgets/shell/department_management_page_header.dart';
 import '../widgets/shell/department_management_sidebar.dart';
@@ -30,6 +31,7 @@ class DepartmentManagementPage extends StatefulWidget {
 class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   final DepartmentService _departmentService = DepartmentService();
   final ApiService _userApiService = ApiService();
+  final CurrentUserStore _currentUserStore = CurrentUserStore.instance;
 
   List<DepartmentModel> _departments = [];
   List<UserModel> _users = [];
@@ -56,16 +58,29 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   List<String> get _managerOptions {
     return _users
-        .where(
-          (u) => u.role == UserRole.admin || u.role == UserRole.projectManager,
-        )
+        .where((u) => u.role == UserRole.projectManager)
         .map((u) => u.fullName)
         .toSet()
         .toList();
   }
 
-  List<String> get _employeeOptions {
-    return _users.map((u) => u.fullName).toSet().toList();
+  List<UserModel> get _employeeOptions {
+    return _users
+        .where((u) => u.role == UserRole.mentor || u.role == UserRole.employee)
+        .toList();
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Admin';
+      case UserRole.projectManager:
+        return 'Project Manager';
+      case UserRole.mentor:
+        return 'Mentor';
+      case UserRole.employee:
+        return 'Employee';
+    }
   }
 
   final List<String> _selectedEmployees = [];
@@ -98,8 +113,26 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final manager = _managerOptions[index];
+                final managerUser = _users.firstWhere(
+                  (u) => u.fullName == manager,
+                  orElse: () => UserModel(
+                    id: '',
+                    username: '',
+                    firstName: manager,
+                    lastName: '',
+                    email: '',
+                    phone: '',
+                    role: UserRole.projectManager,
+                    lastUpdated: DateTime.now(),
+                  ),
+                );
+
                 return ListTile(
                   title: Text(manager),
+                  subtitle: Text(
+                    _roleLabel(managerUser.role),
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   trailing:
                       _createManagerController.text == manager
                           ? const Icon(Icons.check, color: AppColors.primary)
@@ -137,19 +170,24 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                   itemCount: _employeeOptions.length,
                   itemBuilder: (context, index) {
                     final employee = _employeeOptions[index];
-                    final checked = tempSelected.contains(employee);
+                    final employeeName = employee.fullName;
+                    final checked = tempSelected.contains(employeeName);
 
                     return CheckboxListTile(
                       value: checked,
-                      title: Text(employee),
+                      title: Text(employeeName),
+                      subtitle: Text(
+                        _roleLabel(employee.role),
+                        style: const TextStyle(fontSize: 12),
+                      ),
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
                       onChanged: (value) {
                         setDialogState(() {
                           if (value == true) {
-                            tempSelected.add(employee);
+                            tempSelected.add(employeeName);
                           } else {
-                            tempSelected.remove(employee);
+                            tempSelected.remove(employeeName);
                           }
                         });
                       },
@@ -204,6 +242,10 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
           ..addEntries(departments.map((e) => MapEntry(e.id, true)));
         _isLoading = false;
       });
+
+      if (_currentUserStore.currentUser == null && users.isNotEmpty) {
+        _currentUserStore.setCurrentUser(users.first);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       // Xử lý lỗi (show SnackBar...)
@@ -345,6 +387,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   // ===================== WIDGETS THÀNH PHẦN =====================
 
   void _handleLogout() {
+    _currentUserStore.clear();
     context.go('/login');
   }
 

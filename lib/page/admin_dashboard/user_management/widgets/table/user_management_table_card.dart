@@ -134,7 +134,7 @@ class UserManagementTableCard extends StatelessWidget {
                 headingRowColor: WidgetStateProperty.all(
                   const Color(0xFFF9FAFB),
                 ),
-                empty: const Center(child: Text('Không có dữ liệu')), 
+                empty: const Center(child: Text('Không có dữ liệu')),
                 columns: const [
                   DataColumn2(
                     size: ColumnSize.L,
