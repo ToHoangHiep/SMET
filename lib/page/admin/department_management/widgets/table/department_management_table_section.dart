@@ -5,14 +5,14 @@ import 'package:smet/model/department_model.dart';
 class DepartmentManagementTableSection extends StatelessWidget {
   final List<DepartmentModel> paginatedDepartments;
   final List<DepartmentModel> filteredDepartments;
-  final Map<String, bool> departmentActiveMap;
+  final Map<int, bool> departmentActiveMap;
   final String statusFilter;
   final int currentPage;
   final int rowsPerPage;
   final ValueChanged<String> onCodeChanged;
   final ValueChanged<String> onManagerChanged;
   final ValueChanged<String> onStatusChanged;
-  final void Function(DepartmentModel department, bool isActive) onToggleActive;
+  final void Function(DepartmentModel department, bool active) onToggleActive;
   final ValueChanged<DepartmentModel> onEdit;
   final ValueChanged<DepartmentModel> onDelete;
   final ValueChanged<DepartmentModel> onShowDetail;
@@ -175,7 +175,7 @@ class DepartmentManagementTableSection extends StatelessWidget {
 
           return DataRow(
             cells: [
-              DataCell(Text(dept.id)),
+              DataCell(Text(dept.code)),
               DataCell(
                 InkWell(
                   onTap: () => onShowDetail(dept),
@@ -188,7 +188,7 @@ class DepartmentManagementTableSection extends StatelessWidget {
                   ),
                 ),
               ),
-              DataCell(Text(dept.leadName)),
+              DataCell(Text(dept.projectManagerName ?? '')),
               DataCell(
                 Switch(
                   value: isActive,

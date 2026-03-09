@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,42 +19,20 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
 
-  // Hàm xử lý đăng nhập
-  void _onLoginPressed() {
-    print("Login with: ${_emailController.text}");
+  void _onLoginPressed() async {
+    try {
+      await AuthService.login(_emailController.text, _passwordController.text);
 
-    // TODO: Gọi API login thực tế ở đây
-    // Mock user cho demo - thay thế bằng logic API thực tế
-    final email = _emailController.text.toLowerCase();
-    final user = _createMockUser(email);
+      final userJson = await AuthService.getMe();
 
-    // Điều hướng theo role
-    context.go(user.rolePath);
-  }
+      final user = UserModel.fromJson(userJson);
 
-  // Mock tạo user từ email - thay thế bằng API thực tế
-  UserModel _createMockUser(String email) {
-    UserRole role;
-    if (email.contains('admin')) {
-      role = UserRole.admin;
-    } else if (email.contains('pm') || email.contains('project')) {
-      role = UserRole.projectManager;
-    } else if (email.contains('mentor')) {
-      role = UserRole.mentor;
-    } else {
-      role = UserRole.employee;
+      context.go(user.rolePath);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
-
-    return UserModel(
-      id: '1',
-      username: email.split('@').first,
-      firstName: email.split('@').first,
-      lastName: '',
-      email: email,
-      phone: '',
-      role: role,
-      lastUpdated: DateTime.now(),
-    );
   }
 
   // CHỈ MỤC CHUNG: Toàn bộ nội dung bên trong Form

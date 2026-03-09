@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/service/common/api_profile.dart';
+import 'package:smet/service/common/user_service.dart';
 import 'profile_web.dart';
 import 'profile_mobile.dart';
 import '../widgets/profile_contact_section.dart';
@@ -17,28 +20,20 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // --- SERVICE & STATE ---
-  final ApiProfile _apiProfile = ApiProfile();
-
-  UserModel? _currentUser;
-  bool _isLoading = true; // Loading ban đầu
-  bool _isSaving = false; // Loading khi ấn Save
-  /// Ảnh vừa chọn chưa lưu
-  Uint8List? _pickedAvatarBytes;
-
-  /// Ảnh đã lưu (khi backend trả avatarUrl == '__local__')
-  Uint8List? _localAvatarBytes;
-
-  // Theme Color
   final Color _primaryColor = const Color(0xFF137FEC);
 
-  // --- CONTROLLERS (PROFILE) ---
+  UserModel? _currentUser;
+  Uint8List? _pickedAvatarBytes;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  // Controllers for profile form
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  // --- CONTROLLERS (PASSWORD) ---
+  // Controllers for password form
   final _oldPassController = TextEditingController();
   final _newPassController = TextEditingController();
   final _confirmPassController = TextEditingController();
@@ -46,7 +41,34 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _fetchProfileData();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = await UserService.getProfile();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _isLoading = false;
+
+          _firstNameController.text = user.firstName;
+          _lastNameController.text = user.lastName ?? '';
+          _emailController.text = user.email;
+          _phoneController.text = user.phone;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Lỗi tải profile: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -61,48 +83,8 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  // ================= LOGIC XỬ LÝ =================
-
-  // 1. Lấy dữ liệu từ API
-  Future<void> _fetchProfileData() async {
-    try {
-      final user = await _apiProfile.getUserProfile();
-      if (mounted) {
-        Uint8List? localBytes;
-        if (user.avatarUrl == '__local__') {
-          localBytes = _apiProfile.getAvatarBytes();
-        }
-        setState(() {
-          _currentUser = user;
-          _isLoading = false;
-          _localAvatarBytes = localBytes;
-
-          // Đổ dữ liệu vào Form
-          _firstNameController.text = user.firstName;
-          _lastNameController.text = user.lastName;
-          _emailController.text = user.email;
-          _phoneController.text = user.phone;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Lỗi tải dữ liệu: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // 2. Lưu thông tin Profile
   Future<void> _handleSaveProfile() async {
-    if (_currentUser == null) return;
-
-    // Validate cơ bản
-    if (_firstNameController.text.isEmpty || _lastNameController.text.isEmpty) {
+    if (_firstNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Tên không được để trống"),
@@ -115,29 +97,19 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isSaving = true);
 
     try {
-      // Nếu có ảnh mới chọn thì cập nhật avatar trước
-      if (_pickedAvatarBytes != null) {
-        await _apiProfile.updateAvatar(_pickedAvatarBytes!);
-      }
-
-      // Tạo object mới từ dữ liệu form
-      final updatedUser = _currentUser!.copyWith(
+      final updatedUser = await UserService.updateProfile(
         firstName: _firstNameController.text,
-        lastName: _lastNameController.text,
-        phone: _phoneController.text,
+        lastName:
+            _lastNameController.text.isNotEmpty
+                ? _lastNameController.text
+                : null,
+        phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
+        email: _emailController.text,
       );
-      await _apiProfile.updateUserProfile(updatedUser);
 
       if (mounted) {
-        final newUser = await _apiProfile.getUserProfile();
-        final newLocalBytes =
-            newUser.avatarUrl == '__local__'
-                ? _apiProfile.getAvatarBytes()
-                : null;
         setState(() {
-          _currentUser = newUser;
-          _pickedAvatarBytes = null;
-          _localAvatarBytes = newLocalBytes;
+          _currentUser = updatedUser;
           _isSaving = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,9 +129,31 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // 3. Đổi mật khẩu
+  void _handleCancel() {
+    if (_currentUser != null) {
+      _firstNameController.text = _currentUser!.firstName;
+      _lastNameController.text = _currentUser!.lastName ?? '';
+      _emailController.text = _currentUser!.email;
+      _phoneController.text = _currentUser!.phone;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Đã hủy thay đổi")));
+  }
+
   Future<void> _handleUpdatePassword() async {
-    // Validate khớp mật khẩu
+    if (_oldPassController.text.isEmpty ||
+        _newPassController.text.isEmpty ||
+        _confirmPassController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Vui lòng nhập đầy đủ thông tin mật khẩu"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     if (_newPassController.text != _confirmPassController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -170,28 +164,29 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    if (_newPassController.text.isEmpty) {
+    if (_newPassController.text.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Vui lòng nhập mật khẩu mới"),
+          content: Text("Mật khẩu mới phải có ít nhất 6 ký tự"),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
+    setState(() => _isSaving = true);
+
     try {
-      await _apiProfile.changePassword(
-        _oldPassController.text,
-        _newPassController.text,
+      await UserService.changePassword(
+        oldPassword: _oldPassController.text,
+        newPassword: _newPassController.text,
       );
 
       if (mounted) {
-        // Clear form mật khẩu sau khi thành công
         _oldPassController.clear();
         _newPassController.clear();
         _confirmPassController.clear();
-
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Đổi mật khẩu thành công!"),
@@ -201,6 +196,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Lỗi: ${e.toString().replaceAll('Exception: ', '')}"),
@@ -211,21 +207,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // 4. Reset Form về dữ liệu gốc
-  void _handleCancel() {
-    if (_currentUser != null) {
-      _firstNameController.text = _currentUser!.firstName;
-      _lastNameController.text = _currentUser!.lastName;
-      _emailController.text = _currentUser!.email;
-      _phoneController.text = _currentUser!.phone;
-      setState(() => _pickedAvatarBytes = null);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Đã hủy thay đổi")));
-    }
-  }
-
-  // 5. Chọn ảnh đại diện (máy ảnh hoặc thư viện)
   Future<void> _pickAvatar() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -247,6 +228,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
     );
+
     if (source == null || !mounted) return;
 
     try {
@@ -280,22 +262,19 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ================= GIAO DIỆN CHÍNH =================
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // Xây dựng Widget Form để truyền xuống View
     final Widget formContent = _buildFormContent();
-
-    final avatarBytes = _pickedAvatarBytes ?? _localAvatarBytes;
+    final avatarBytes = _pickedAvatarBytes;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 900) {
+        // Nếu là web hoặc desktop thì dựa vào chiều rộng màn hình
+        if (kIsWeb || constraints.maxWidth > 900) {
           return ProfilePageWeb(
             formContent: formContent,
             currentUser: _currentUser,
@@ -313,8 +292,6 @@ class _ProfilePageState extends State<ProfilePage> {
       },
     );
   }
-
-  // ================= XÂY DỰNG FORM CONTENT =================
 
   Widget _buildFormContent() {
     return Column(

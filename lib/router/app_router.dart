@@ -15,7 +15,7 @@ import 'package:smet/page/project_manager/learning_path/screen/learning_path_bas
 class AppPages {
   AppPages._();
 
-  static const initial = '/pm/dashboard';
+  static const initial = '/login';
   static final GoRouter router = GoRouter(
     initialLocation: initial,
     routes: [
@@ -33,31 +33,31 @@ class AppPages {
         path: '/profile',
         builder: (context, state) => const ProfilePage(),
       ),
-      GoRoute(
-        path: '/notifications',
-        builder: (context, state) => const NotificationPage(),
-      ),
-      // Project Manager Routes
-      GoRoute(
-        path: '/pm/dashboard',
-        builder: (context, state) => const ProjectManagerDashboardPage(),
-      ),
-      GoRoute(
-        path: '/pm/projects',
-        builder: (context, state) => const ProjectManagementPage(),
-      ),
-      GoRoute(
-        path: '/pm/project_members',
-        builder: (context, state) => const ProjectMemberPage(),
-      ),
-      GoRoute(
-        path: '/pm/project_progress',
-        builder: (context, state) => const ProjectProgressPage(),
-      ),
-      GoRoute(
-        path: '/pm/learning_path',
-        builder: (context, state) => const LearningPathPage(),
-      ),
+      // GoRoute(
+      //   path: '/notifications',
+      //   builder: (context, state) => const NotificationPage(),
+      // ),
+      // // Project Manager Routes
+      // GoRoute(
+      //   path: '/pm/dashboard',
+      //   builder: (context, state) => const ProjectManagerDashboardPage(),
+      // ),
+      // GoRoute(
+      //   path: '/pm/projects',
+      //   builder: (context, state) => const ProjectManagementPage(),
+      // ),
+      // GoRoute(
+      //   path: '/pm/project_members',
+      //   builder: (context, state) => const ProjectMemberPage(),
+      // ),
+      // GoRoute(
+      //   path: '/pm/project_progress',
+      //   builder: (context, state) => const ProjectProgressPage(),
+      // ),
+      // GoRoute(
+      //   path: '/pm/learning_path',
+      //   builder: (context, state) => const LearningPathPage(),
+      // ),
       // Role-based routes
       // GoRoute(
       //   path: '/user_management',

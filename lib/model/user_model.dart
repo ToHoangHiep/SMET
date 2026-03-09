@@ -1,144 +1,130 @@
-enum UserRole { admin, projectManager, mentor, employee }
+enum UserRole { ADMIN, PROJECT_MANAGER, MENTOR, USER }
 
-/// Tên hiển thị role (tiếng Việt) dùng trong form, dialog.
 extension UserRoleDisplay on UserRole {
   String get displayName {
     switch (this) {
-      case UserRole.admin:
+      case UserRole.ADMIN:
         return 'Quản trị';
-      case UserRole.projectManager:
+      case UserRole.PROJECT_MANAGER:
         return 'Quản lý dự án';
-      case UserRole.mentor:
+      case UserRole.MENTOR:
         return 'Hướng dẫn';
-      case UserRole.employee:
+      case UserRole.USER:
         return 'Nhân viên';
     }
   }
 }
 
 class UserModel {
-  final String id;
-  final String username;
+  final int id;
+  final String? userName;
   final String firstName;
-  final String lastName;
+  final String? lastName;
   final String email;
   final String phone;
   final UserRole role;
   bool isActive;
+  final bool mustChangePassword;
   final String? department;
-  final DateTime? createdAt;
-  final DateTime lastUpdated;
   final String? avatarUrl;
+  final DateTime? createdAt;
+  final DateTime? lastUpdated;
 
   UserModel({
     required this.id,
-    this.username = '',
+    this.userName,
     required this.firstName,
-    required this.lastName,
+    this.lastName,
     required this.email,
-    this.phone = '',
+    required this.phone,
     required this.role,
     this.isActive = true,
+    this.mustChangePassword = false,
     this.department,
-    this.createdAt,
-    required this.lastUpdated,
     this.avatarUrl,
+    this.createdAt,
+    this.lastUpdated,
   });
 
-  String get fullName => '$firstName $lastName';
+  String get fullName => '$firstName ${lastName ?? ""}'.trim();
 
-  // Hàm cập nhật dữ liệu
-  UserModel copyWith({
-    String? firstName,
-    String? lastName,
-    String? phone,
-    String? avatarUrl,
-    String? department,
-    bool? isActive,
-  }) {
-    return UserModel(
-      id: id,
-      username: username,
-      firstName: firstName ?? this.firstName,
-      lastName: lastName ?? this.lastName,
-      email: email,
-      phone: phone ?? this.phone,
-      role: role,
-      isActive: isActive ?? this.isActive,
-      department: department ?? this.department,
-      createdAt: createdAt,
-      lastUpdated: DateTime.now(),
-      avatarUrl: avatarUrl ?? this.avatarUrl,
-    );
+  /// Parse role từ backend
+  static UserRole _parseRole(dynamic role) {
+    final value = role?.toString().toLowerCase();
+
+    switch (value) {
+      case 'admin':
+        return UserRole.ADMIN;
+
+      case 'projectmanager':
+      case 'project_manager':
+      case 'pm':
+        return UserRole.PROJECT_MANAGER;
+
+      case 'mentor':
+        return UserRole.MENTOR;
+
+      case 'user':
+        return UserRole.USER;
+
+      default:
+        return UserRole.USER;
+    }
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    UserRole parseRole(dynamic value) {
-      final role = value?.toString().toLowerCase();
-      switch (role) {
-        case 'admin':
-          return UserRole.admin;
-        case 'project_manager':
-        case 'projectmanager':
-        case 'pm':
-          return UserRole.projectManager;
-        case 'mentor':
-          return UserRole.mentor;
-        default:
-          return UserRole.employee;
-      }
-    }
-
     DateTime? parseDate(dynamic value) {
       if (value == null) return null;
-      if (value is DateTime) return value;
-      if (value is int) {
-        return DateTime.fromMillisecondsSinceEpoch(value);
-      }
       return DateTime.tryParse(value.toString());
     }
 
-    final updatedAt = parseDate(json['lastUpdated'] ?? json['updated_at']) ?? DateTime.now();
-
     return UserModel(
-      id: (json['id'] ?? '').toString(),
-      username: (json['username'] ?? '').toString(),
-      firstName: (json['firstName'] ?? json['first_name'] ?? '').toString(),
-      lastName: (json['lastName'] ?? json['last_name'] ?? '').toString(),
+      id: json['id'] ?? 0,
+      userName: json['userName']?.toString(),
+      firstName: (json['firstName'] ?? '').toString(),
+      lastName: json['lastName']?.toString(),
       email: (json['email'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
-      role: parseRole(json['role']),
-      isActive: (json['isActive'] ?? json['is_active'] ?? true) == true,
-      department: (json['department'] ?? '').toString().isNotEmpty ? (json['department'] ?? '').toString() : null,
-      createdAt: parseDate(json['createdAt'] ?? json['created_at']),
-      lastUpdated: updatedAt,
+      role: _parseRole(json['role']),
+      isActive: json['isActive'] ?? json['active'] ?? true,
+      mustChangePassword: json['mustChangePassword'] ?? false,
+      department:
+          json["department"] is Map
+              ? json["department"]["name"]?.toString()
+              : json["department"]?.toString(),
+      avatarUrl: json['avatarUrl']?.toString(),
+      createdAt: parseDate(json['createdAt']),
+      lastUpdated:
+          parseDate(json['lastUpdated']) ?? parseDate(json['updatedAt']),
     );
   }
 
-  static UserRole _parseRole(String? role) {
-    switch (role?.toLowerCase()) {
-      case 'admin':
-        return UserRole.admin;
-      case 'project_manager':
-      case 'projectmanager':
-        return UserRole.projectManager;
-      case 'mentor':
-        return UserRole.mentor;
-      case 'employee':
-      default:
-        return UserRole.employee;
-    }
+  /// Chuyển đổi sang JSON để gửi lên backend (tương thích với RegisterDto)
+  Map<String, dynamic> toJson() {
+    return {
+      'userName': email,
+      'email': email,
+      'firstName': firstName,
+      'lastName': lastName,
+      'phone': phone,
+      'role': role.name,
+      'avatarUrl': avatarUrl,
+    };
   }
 
+  /// Route theo role
   String get rolePath {
     switch (role) {
-      case UserRole.admin:
+      case UserRole.ADMIN:
         return '/user_management';
-      case UserRole.projectManager:
+
+      case UserRole.PROJECT_MANAGER:
         return '/pm/dashboard';
-      case UserRole.mentor:
+
+      case UserRole.MENTOR:
         return '/mentor/dashboard';
-      case UserRole.employee:
+
+      case UserRole.USER:
         return '/employee/dashboard';
     }
   }

@@ -5,9 +5,6 @@ import 'package:smet/model/user_model.dart';
 import '../widgets/profile_user_header.dart';
 import '../widgets/web/profile_web_header.dart';
 import '../widgets/web/profile_web_sidebar.dart';
-import '../widgets/profile_user_avatar.dart';
-import 'package:smet/page/profile/screen/profile.dart';
-import 'package:image_picker/image_picker.dart';
 
 class ProfilePageWeb extends StatelessWidget {
   final Widget formContent;

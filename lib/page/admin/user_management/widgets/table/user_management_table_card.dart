@@ -253,7 +253,7 @@ class UserManagementTableCard extends StatelessWidget {
                 backgroundColor: primaryColor.withValues(alpha: 0.1),
                 child: Text(
                   '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
-                  '${user.lastName.isNotEmpty ? user.lastName[0] : ''}',
+                  '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
                   style: TextStyle(
                     color: primaryColor,
                     fontSize: 12,

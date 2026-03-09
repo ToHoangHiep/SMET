@@ -2,8 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/service/admin/user_management/api_user_management.dart';
-import 'package:smet/service/common/current_user_store.dart';
+import 'package:smet/service/admin/user_management/user_management_service.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_sidebar.dart';
@@ -11,6 +10,7 @@ import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
 import 'package:flutter/foundation.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -20,7 +20,7 @@ class UserManagementPage extends StatefulWidget {
 }
 
 class _UserManagementPageState extends State<UserManagementPage> {
-  final ApiService _apiService = ApiService();
+  final UserManagementApi _apiService = UserManagementApi();
 
   String _searchQuery = '';
   String _selectedRole = 'ALL';
@@ -35,7 +35,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   bool _isCreateMode = false;
   bool _isUpdateMode = false;
   bool _isViewMode = false;
-  String? _editingUserId;
+  int? _editingUserId;
   UserModel? _viewingUser;
   final _createFormKey = GlobalKey<FormState>();
   final TextEditingController _firstNameController = TextEditingController();
@@ -43,7 +43,32 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
-  UserRole _createRole = UserRole.employee;
+  UserRole _createRole = UserRole.USER;
+  String _currentUserName = 'Admin';
+
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+    _fetchUsers();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final userData = await AuthService.getMe();
+      setState(() {
+        _currentUserName =
+            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
+                .trim();
+        if (_currentUserName.isEmpty) {
+          _currentUserName = userData['userName'] ?? 'Admin';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _currentUserName = 'Admin'; // Nếu lỗi thì dùng mặc định
+      });
+    }
+  }
 
   final Color _primaryColor = const Color(0xFF137FEC);
   final Color _bgLight = const Color(0xFFF3F6FC);
@@ -72,7 +97,22 @@ class _UserManagementPageState extends State<UserManagementPage> {
       final matchesSearch =
           nameLower.contains(queryLower) || emailLower.contains(queryLower);
 
-      final roleString = user.role.toString().split('.').last.toUpperCase();
+      String roleString;
+
+      switch (user.role) {
+        case UserRole.ADMIN:
+          roleString = "ADMIN";
+          break;
+        case UserRole.PROJECT_MANAGER:
+          roleString = "PM";
+          break;
+        case UserRole.MENTOR:
+          roleString = "MENTOR";
+          break;
+        case UserRole.USER:
+          roleString = "USER";
+          break;
+      }
       final matchesRole = _selectedRole == 'ALL' || roleString == _selectedRole;
       final matchesDepartment =
           _selectedDepartment == 'ALL' ||
@@ -92,12 +132,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       start,
       end > _filteredUsers.length ? _filteredUsers.length : end,
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUsers();
   }
 
   @override
@@ -140,15 +174,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
 
     try {
-      final newUsers = await _apiService.importExcelFile();
+      final newUsers = await _apiService.importExcelFile(file);
+      ;
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              "Đã nhập file '${file.name}' thành công! Thêm ${newUsers.length} Nhân viên.",
-            ),
+            content: Text("Đã nhập file '${file.name}' thành công! "),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -178,7 +211,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _lastNameController.clear();
       _emailController.clear();
       _phoneController.clear();
-      _createRole = UserRole.employee;
+      _createRole = UserRole.USER;
     });
   }
 
@@ -188,7 +221,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _isUpdateMode = true;
       _editingUserId = user.id;
       _firstNameController.text = user.firstName;
-      _lastNameController.text = user.lastName;
+      _lastNameController.text = user.lastName ?? '';
       _emailController.text = user.email;
       _phoneController.text = user.phone;
       _createRole = user.role;
@@ -218,17 +251,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
     if (!_createFormKey.currentState!.validate()) return;
 
     final newUser = UserModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: 0,
+      userName: _emailController.text.trim(),
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
       role: _createRole,
-      createdAt: DateTime.now(),
+      mustChangePassword: true,
       lastUpdated: DateTime.now(),
     );
 
-    await _apiService.createUser(newUser);
+    await _apiService.createUser({
+      "email": newUser.email,
+      "firstName": newUser.firstName,
+      "lastName": newUser.lastName,
+      "phone": newUser.phone,
+      "role": newUser.role.name.toUpperCase(),
+    });
     await _fetchUsers();
 
     if (!mounted) return;
@@ -254,17 +294,22 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     final updatedUser = UserModel(
       id: _editingUserId!,
+      userName: existingUser.userName,
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
       role: _createRole,
+      mustChangePassword: existingUser.mustChangePassword,
       department: _departmentController.text.trim(),
       createdAt: existingUser.createdAt,
       lastUpdated: DateTime.now(),
+      isActive: existingUser.isActive,
     );
-
-    await _apiService.updateUser(updatedUser);
+    await _apiService.updateUser(
+      updatedUser,
+      departmentId: int.tryParse(updatedUser.department ?? ""),
+    );
     await _fetchUsers();
 
     if (!mounted) return;
@@ -303,8 +348,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
           children: [
             UserManagementSidebar(
               primaryColor: _primaryColor,
-              userDisplayName: CurrentUserStore.currentUser.fullName,
-              onLogout: _handleLogout,
+              userDisplayName: _currentUserName,
+              onLogout: () async {
+                await AuthService.logout();
+                if (!mounted) return;
+                context.go('/login');
+              },
             ),
             Expanded(
               child: Column(
@@ -383,8 +432,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         : null,
                                 onEditUser: _openUpdateUserScreen,
                                 onViewUser: _openViewUserScreen,
-                                onToggleActive: (user) {
-                                  setState(() {});
+                                onToggleActive: (user) async {
+                                  await _apiService.toggleUserActive(user.id);
+
+                                  await _fetchUsers();
                                 },
                               ),
                         ],
@@ -453,7 +504,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       backgroundColor: _primaryColor.withValues(alpha: 0.1),
                       child: Text(
                         '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
-                        '${user.lastName.isNotEmpty ? user.lastName[0] : ''}',
+                        '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
                         style: TextStyle(
                           color: _primaryColor,
                           fontSize: 32,
@@ -476,7 +527,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
               ),
               const SizedBox(height: 32),
-              _buildDetailRow('ID', user.id),
+              _buildDetailRow('ID', user.id.toString()),
               const SizedBox(height: 16),
               _buildDetailRow('Tên nhân viên', user.fullName),
               const SizedBox(height: 16),
@@ -556,7 +607,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  void _handleLogout() {
+  void _handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
     context.go('/login');
   }
 }

@@ -233,19 +233,19 @@ class UserManagementFormCard extends StatelessWidget {
                     ),
                     items: const [
                       DropdownMenuItem(
-                        value: UserRole.admin,
+                        value: UserRole.ADMIN,
                         child: Text('Quản trị viên'),
                       ),
                       DropdownMenuItem(
-                        value: UserRole.projectManager,
+                        value: UserRole.PROJECT_MANAGER,
                         child: Text('Quản lý dự án'),
                       ),
                       DropdownMenuItem(
-                        value: UserRole.mentor,
+                        value: UserRole.MENTOR,
                         child: Text('Người hướng dẫn'),
                       ),
                       DropdownMenuItem(
-                        value: UserRole.employee,
+                        value: UserRole.USER,
                         child: Text('Nhân viên'),
                       ),
                     ],
