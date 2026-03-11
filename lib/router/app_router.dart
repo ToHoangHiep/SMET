@@ -37,15 +37,15 @@ class AppPages {
       //   path: '/notifications',
       //   builder: (context, state) => const NotificationPage(),
       // ),
-      // // Project Manager Routes
-      // GoRoute(
-      //   path: '/pm/dashboard',
-      //   builder: (context, state) => const ProjectManagerDashboardPage(),
-      // ),
-      // GoRoute(
-      //   path: '/pm/projects',
-      //   builder: (context, state) => const ProjectManagementPage(),
-      // ),
+      // Project Manager Routes
+      GoRoute(
+        path: '/pm/dashboard',
+        builder: (context, state) => const ProjectManagerDashboardPage(),
+      ),
+      GoRoute(
+        path: '/pm/projects',
+        builder: (context, state) => const ProjectManagementPage(),
+      ),
       // GoRoute(
       //   path: '/pm/project_members',
       //   builder: (context, state) => const ProjectMemberPage(),

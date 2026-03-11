@@ -82,8 +82,12 @@ class UserManagementApi {
         "phone": user.phone,
         "role": user.role.name.toUpperCase(),
         "isActive": user.isActive,
-        
       };
+
+      // Thêm departmentId nếu có
+      if (departmentId != null) {
+        body["departmentId"] = departmentId;
+      }
 
       _logRequest(
         "UPDATE USER",

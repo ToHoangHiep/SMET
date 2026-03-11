@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:smet/model/department_model.dart';
+import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/common/base_url.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ← THÊM DÒNG NÀY
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DepartmentService {
   /// ================= LOG HELPER =================
@@ -84,11 +85,20 @@ class DepartmentService {
     try {
       final url = "$baseUrl/departments/createDepartment";
 
+      // Lấy id người đăng nhập để gửi createdBy (backend sẽ lưu vào cột created_by)
+      int? createdById;
+      try {
+        final me = await AuthService.getMe();
+        final id = me['id'];
+        if (id != null) createdById = id is int ? id : (id as num).toInt();
+      } catch (_) {}
+
       final body = {
         "name": name,
         "code": code,
         "active": active,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
+        if (createdById != null) "createdBy": createdById,
       };
 
       _logRequest(
@@ -182,6 +192,164 @@ class DepartmentService {
       log("DELETE DEPARTMENT ERROR: $e");
       log("DEPARTMENT ID: $id");
       rethrow;
+    }
+  }
+
+  /// ================= ADD USERS TO DEPARTMENT =================
+  /// Dùng endpoint updateDepartment để thêm users vào department
+  Future<bool> addUsersToDepartment({
+    required int departmentId,
+    required String departmentName,
+    required String departmentCode,
+    required bool active,
+    required List<int> userIds,
+    int? projectManagerId,
+  }) async {
+    try {
+      // Dùng endpoint update thay vì endpoint riêng
+      final url = "$baseUrl/departments/updateDepartment/$departmentId";
+
+      final body = {
+        "name": departmentName,
+        "code": departmentCode,
+        "active": active,
+        "userIds": userIds,
+        if (projectManagerId != null) "projectManagerId": projectManagerId,
+      };
+
+      _logRequest(
+        "ADD USERS TO DEPARTMENT (via update)",
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final token = await _getToken();
+      final response = await http.put(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
+
+      _logResponse(response);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      log("ADD USERS TO DEPARTMENT ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= GET USERS IN DEPARTMENT =================
+  Future<List<Map<String, dynamic>>> getUsersInDepartment(
+    int departmentId,
+  ) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId/users";
+
+      _logRequest("GET USERS IN DEPARTMENT", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+
+      return [];
+    } catch (e) {
+      log("GET USERS IN DEPARTMENT ERROR: $e");
+      return [];
+    }
+  }
+
+  /// ================= GET SELECTABLE USERS (NEW) =================
+  /// Sử dụng endpoint /users/selectable?context=xxx
+  /// Backend: @GetMapping("/selectable") @PreAuthorize("hasRole('ADMIN') or hasRole('PROJECT_MANAGER')")
+  Future<List<Map<String, dynamic>>> getSelectableUsers({
+    required String context,
+  }) async {
+    try {
+      final url = "$baseUrl/users/selectable?context=$context";
+
+      _logRequest("GET SELECTABLE USERS", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+
+      return [];
+    } catch (e) {
+      log("GET SELECTABLE USERS ERROR: $e");
+      return [];
+    }
+  }
+
+  /// ================= GET DEPARTMENT BY PROJECT MANAGER ID =================
+  /// Tìm department mà user là projectManager
+  Future<DepartmentModel?> getDepartmentByProjectManagerId(
+    int projectManagerId,
+  ) async {
+    try {
+      final departments = await getDepartments();
+
+      // Tìm department có projectManager.id = projectManagerId
+      final matched = departments.firstWhere(
+        (d) => d.projectManagerId == projectManagerId,
+        orElse: () => DepartmentModel(id: 0, name: '', code: '', active: false),
+      );
+      if (matched.id != 0) {
+        log(
+          "Found department for projectManagerId $projectManagerId: ${matched.id} - ${matched.name}",
+        );
+        return matched;
+      }
+
+      log("No department found for projectManagerId: $projectManagerId");
+      return null;
+    } catch (e) {
+      log("GET DEPARTMENT BY PROJECT MANAGER ERROR: $e");
+      return null;
+    }
+  }
+
+  /// ================= GET DEPARTMENT MEMBERS =================
+  /// Lấy danh sách thành viên của department theo API mới
+  Future<List<Map<String, dynamic>>> getDepartmentMembers(int departmentId) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId/members";
+
+      _logRequest("GET DEPARTMENT MEMBERS", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+
+      return [];
+    } catch (e) {
+      log("GET DEPARTMENT MEMBERS ERROR: $e");
+      return [];
     }
   }
 }

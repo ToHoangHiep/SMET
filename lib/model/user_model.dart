@@ -29,6 +29,7 @@ class UserModel {
   final String? avatarUrl;
   final DateTime? createdAt;
   final DateTime? lastUpdated;
+  final int? departmentId;
 
   UserModel({
     required this.id,
@@ -44,6 +45,7 @@ class UserModel {
     this.avatarUrl,
     this.createdAt,
     this.lastUpdated,
+    this.departmentId,
   });
 
   String get fullName => '$firstName ${lastName ?? ""}'.trim();
@@ -56,8 +58,8 @@ class UserModel {
       case 'admin':
         return UserRole.ADMIN;
 
-      case 'projectmanager':
       case 'project_manager':
+      case 'projectmanager':
       case 'pm':
         return UserRole.PROJECT_MANAGER;
 
@@ -88,14 +90,18 @@ class UserModel {
       role: _parseRole(json['role']),
       isActive: json['isActive'] ?? json['active'] ?? true,
       mustChangePassword: json['mustChangePassword'] ?? false,
-      department:
-          json["department"] is Map
-              ? json["department"]["name"]?.toString()
-              : json["department"]?.toString(),
+      // Parse department - có thể là String (tên) hoặc Object {id, name, code}
+      department: json["department"] is Map
+          ? json["department"]["name"]?.toString()
+          : json["department"]?.toString(),
       avatarUrl: json['avatarUrl']?.toString(),
       createdAt: parseDate(json['createdAt']),
       lastUpdated:
           parseDate(json['lastUpdated']) ?? parseDate(json['updatedAt']),
+      // Parse departmentId - ưu tiên từ object department, fallback từ trường direct
+      departmentId: json["department"] is Map
+          ? (json["department"]["id"] as int?) ?? json['departmentId']
+          : json['departmentId'],
     );
   }
 
@@ -109,6 +115,7 @@ class UserModel {
       'phone': phone,
       'role': role.name,
       'avatarUrl': avatarUrl,
+      'departmentId': departmentId,
     };
   }
 

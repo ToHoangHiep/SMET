@@ -6,6 +6,7 @@ import 'package:smet/page/login/login_mobile.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:developer';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -25,7 +26,11 @@ class _LoginPageState extends State<LoginPage> {
 
       final userJson = await AuthService.getMe();
 
+      log("USER JSON FROM /auth/me: $userJson");
+
       final user = UserModel.fromJson(userJson);
+
+      log("USER ROLE AFTER PARSE: ${user.role}");
 
       context.go(user.rolePath);
     } catch (e) {

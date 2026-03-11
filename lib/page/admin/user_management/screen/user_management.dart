@@ -308,7 +308,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
     await _apiService.updateUser(
       updatedUser,
-      departmentId: int.tryParse(updatedUser.department ?? ""),
+      departmentId: updatedUser.departmentId,
     );
     await _fetchUsers();
 
