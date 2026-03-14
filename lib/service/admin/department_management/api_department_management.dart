@@ -1,149 +1,355 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:developer';
+import 'package:http/http.dart' as http;
 import 'package:smet/model/department_model.dart';
+import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/base_url.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DepartmentService {
-  // Dữ liệu giả lập khớp với thiết kế UI của bạn
-  final List<DepartmentModel> _mockDepartments = [
-    DepartmentModel(
-      id: '1',
-      name: 'Engineering',
-      description: 'Software development and infrastructure management.',
-      icon: Icons.engineering,
-      iconColor: const Color(0xFF137FEC), // Primary
-      iconBgColor: const Color(0xFFEBF5FF), // Blue 50
-      leadName: 'Alex Rivera',
-      leadAvatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCVSCfi2FPpMMDqCRJKBw2T-22YUyfGWbErvUcX3WW9y5Qy-TVZoTA4O1feHAXyMjNojVcbaPC_R_cNhfINcr94KufF_EoQECGYQvehhkKHgw9PMUjl1ygB3z5QlnJc-ZXu4DvOrPpW5GOvJa7BRTvuulNoUZSlOc54cYSeg8TgbXaQXEeJ9VImnewGQ7roWVB-PV5rK72r3FmCtZJWUtNMmgac66njqLLd3vwyzbIFgmIvd69aKkZ0Zt9naI6ExBzwTk69ZiAIU2Eh',
-      teamSize: 42,
-      activeProjects: 12,
-    ),
-    DepartmentModel(
-      id: '2',
-      name: 'Marketing',
-      description: 'Brand positioning, digital ads, and social strategy.',
-      icon: Icons.campaign,
-      iconColor: Colors.purple[600]!,
-      iconBgColor: Colors.purple[50]!,
-      leadName: 'Sarah Chen',
-      leadAvatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuB8K6Y5hrGCG863uDr6HKuP8uabmLyPCb0hmz8MvIu7YUQ3TkRnEPGp-IhJIPVqjc_zwzqTyxPrvI1CfzjjZ08iD7ci9S1d3l6bkdIKdUUeMI7qtIL8FlEscSCcy3Ycb78ROJqjOUXvvTC6rHeMhMQziEnlgrOJt2ULQQ-4cdciOegzyEGnBdu94RffwdSIwIrhXWG3OPwpiLXiAmXWj_aXIbMPoDzGuQpGSOcZGQ8qBuYvNWCc2ESgxLBKcs_5Sg738d9BgyzX15Vp',
-      teamSize: 15,
-      activeProjects: 5,
-    ),
-    DepartmentModel(
-      id: '3',
-      name: 'Operations',
-      description: 'Logistics, facility management, and supply chain.',
-      icon: Icons.settings_accessibility,
-      iconColor: Colors.orange[600]!,
-      iconBgColor: Colors.orange[50]!,
-      leadName: 'James Wilson',
-      leadAvatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCB_txajYZM0thY7YzKpcXFGzD0UZEaZW73fkJNiZMHeYzMvaw_LeVgrjwSfu7FRFOVOYZB9ssceyBsWNgceg_Et9mmgGhkscjbYJcjQU418kTUawpoOc8uL6aqQGRmdmKmwye0vU9SqueOPqecSsxGxRvX3lAUeU50XA2cfDLYNSf0mM3_zxlfTMMPYXl9nyj-Prb5LlOUsOmEIzQKVkunYs4y0Lp_NIYHWu_3zpKr-powplVBGSMM4v7uyeuuVwTb1Dg449_c_TC3',
-      teamSize: 28,
-      activeProjects: 8,
-    ),
-    DepartmentModel(
-      id: '4',
-      name: 'Finance',
-      description: 'Accounting, payroll, and financial forecasting.',
-      icon: Icons.payments,
-      iconColor: Colors.teal[600]!,
-      iconBgColor: Colors.teal[50]!,
-      leadName: 'Elena Rodriguez',
-      leadAvatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuBtlUX1KzyV6nVEFNNuNOkrtyDcsUih2-X3o0RWk6N4gQ6-83wfdFVbWUpLKUHJT0QR7POFPveM4mmH0ecgkbBHVVltY0FYxTWNz9WUQiP668T7RuoOKs9xBc9Yho728K2tbYBbeOpQxYQJ4Cr84Owj_fFjmSAks2pmNuR7R0l-6LwasqZ-1XvFL7_nwrbY6hsHD08aWRLcbdsu3xFkfxM7BR07Ty5ZP47OILALRhm2v8om6hIo1hLdGCfA5H_R14OIfyfpP4pSIDf2',
-      teamSize: 12,
-      activeProjects: 3,
-    ),
-    DepartmentModel(
-      id: '5',
-      name: 'Human Resources',
-      description: 'Recruiting, benefits, and employee relations.',
-      icon: Icons.psychology,
-      iconColor: Colors.pink[600]!,
-      iconBgColor: Colors.pink[50]!,
-      leadName: 'Michael Scott',
-      leadAvatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCW-nOk1Egi-hYG47nfBlcIMpUDfUiM9T6x8VLxU16yx1Lw1rj38p8XkqIWNvaQKAxn80v5-8UBQAdvORt5gsPcAIEEKitQdqtR4gcPePqHfZNOydhUdk5p_jdgwA8mNmOfxbfvSjitRwCNz35Ra6CDN4lNH0PUySQcA9BOI8308JwsvPpy8hTN8xHE8CvUZlrjouhoAN_bs4EzXa6e5H_rHIMolmhDeHz-V-n49LeMvzm-ULhwz5GTYN-_x8iD15cYygNASwVFKG4a',
-      teamSize: 18,
-      activeProjects: 6,
-    ),
-  ];
+  /// ================= LOG HELPER =================
+  void _logRequest(
+    String title,
+    String url, {
+    Map<String, String>? headers,
+    dynamic body,
+  }) {
+    log("========== $title REQUEST ==========");
+    log("URL: $url");
 
-  // API Lấy danh sách phòng ban
-  Future<List<DepartmentModel>> getDepartments() async {
-    // Giả lập độ trễ mạng (Network delay)
-    await Future.delayed(const Duration(milliseconds: 800));
-    return List<DepartmentModel>.from(_mockDepartments);
+    if (headers != null) {
+      log("HEADERS: $headers");
+    }
+
+    if (body != null) {
+      log("BODY: $body");
+    }
   }
 
-  // API Tạo phòng ban
+  void _logResponse(http.Response res) {
+    log("STATUS: ${res.statusCode}");
+    log("RESPONSE: ${res.body}");
+    log("====================================");
+  }
+
+  /// ================= TOKEN =================
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString("token");
+  }
+
+  Map<String, String> _headers(String token) {
+    return {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token",
+    };
+  }
+
+  /// ================= GET ALL =================
+  Future<List<DepartmentModel>> getDepartments() async {
+    try {
+      final url = "$baseUrl/departments/getAllDepartment";
+
+      _logRequest("GET DEPARTMENTS", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        List data = jsonDecode(response.body);
+
+        log("TOTAL DEPARTMENTS: ${data.length}");
+
+        return data.map((e) => DepartmentModel.fromJson(e)).toList();
+      }
+
+      throw Exception("Failed to load departments");
+    } catch (e) {
+      log("GET DEPARTMENTS ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= CREATE =================
   Future<DepartmentModel> createDepartment({
     required String name,
-    required String description,
-    required String leadName,
-    String? code,
-    int teamSize = 0,
+    required String code,
+    required bool active,
+    int? projectManagerId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    try {
+      final url = "$baseUrl/departments/createDepartment";
 
-    final newDepartment = DepartmentModel(
-      id: (code != null && code.trim().isNotEmpty)
-          ? code.trim().toUpperCase()
-          : DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      description: description,
-      icon: Icons.business,
-      iconColor: const Color(0xFF137FEC),
-      iconBgColor: const Color(0xFFEBF5FF),
-      leadName: leadName,
-      leadAvatarUrl:
-          'https://ui-avatars.com/api/?name=${Uri.encodeComponent(leadName)}&background=E5E7EB&color=111827',
-      teamSize: teamSize,
-      activeProjects: 0,
-    );
+      // Lấy id người đăng nhập để gửi createdBy (backend sẽ lưu vào cột created_by)
+      int? createdById;
+      try {
+        final me = await AuthService.getMe();
+        final id = me['id'];
+        if (id != null) createdById = id is int ? id : (id as num).toInt();
+      } catch (_) {}
 
-    _mockDepartments.insert(0, newDepartment);
-    return newDepartment;
+      final body = {
+        "name": name,
+        "code": code,
+        "active": active,
+        if (projectManagerId != null) "projectManagerId": projectManagerId,
+        if (createdById != null) "createdBy": createdById,
+      };
+
+      _logRequest(
+        "CREATE DEPARTMENT",
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final token = await _getToken();
+      final response = await http.post(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
+      _logResponse(response);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return DepartmentModel.fromJson(jsonDecode(response.body));
+      }
+
+      throw Exception("Create department failed");
+    } catch (e) {
+      log("CREATE DEPARTMENT ERROR: $e");
+      rethrow;
+    }
   }
 
-  // API Cập nhật phòng ban
+  /// ================= UPDATE =================
   Future<DepartmentModel?> updateDepartment({
-    required String id,
+    required int id,
     required String name,
-    required String description,
-    required String leadName,
+    required String code,
+    required bool active,
+    int? projectManagerId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final url = "$baseUrl/departments/updateDepartment/$id";
 
-    final index = _mockDepartments.indexWhere((dept) => dept.id == id);
-    if (index == -1) return null;
+      final body = {
+        "name": name,
+        "code": code,
+        "active": active,
+        if (projectManagerId != null) "projectManagerId": projectManagerId,
+      };
 
-    final current = _mockDepartments[index];
+      _logRequest(
+        "UPDATE DEPARTMENT",
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
 
-    final updatedDepartment = DepartmentModel(
-      id: current.id,
-      name: name,
-      description: description,
-      icon: current.icon,
-      iconColor: current.iconColor,
-      iconBgColor: current.iconBgColor,
-      leadName: leadName,
-      leadAvatarUrl:
-          'https://ui-avatars.com/api/?name=${Uri.encodeComponent(leadName)}&background=E5E7EB&color=111827',
-      teamSize: current.teamSize,
-      activeProjects: current.activeProjects,
-    );
+      final token = await _getToken();
+      final response = await http.put(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
 
-    _mockDepartments[index] = updatedDepartment;
-    return updatedDepartment;
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return DepartmentModel.fromJson(jsonDecode(response.body));
+      }
+
+      return null;
+    } catch (e) {
+      log("UPDATE DEPARTMENT ERROR: $e");
+      rethrow;
+    }
   }
 
-  // API Xóa phòng ban (Ví dụ)
-  Future<bool> deleteDepartment(String id) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _mockDepartments.removeWhere((dept) => dept.id == id);
-    return true;
+  /// ================= DELETE =================
+  Future<bool> deleteDepartment(int id) async {
+    try {
+      final url = "$baseUrl/departments/$id";
+
+      _logRequest("DELETE DEPARTMENT", url);
+
+      final token = await _getToken();
+      final response = await http.delete(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      log("DELETE DEPARTMENT ERROR: $e");
+      log("DEPARTMENT ID: $id");
+      rethrow;
+    }
+  }
+
+  /// ================= ADD USERS TO DEPARTMENT =================
+  /// Dùng endpoint updateDepartment để thêm users vào department
+  Future<bool> addUsersToDepartment({
+    required int departmentId,
+    required String departmentName,
+    required String departmentCode,
+    required bool active,
+    required List<int> userIds,
+    int? projectManagerId,
+  }) async {
+    try {
+      // Dùng endpoint update thay vì endpoint riêng
+      final url = "$baseUrl/departments/updateDepartment/$departmentId";
+
+      final body = {
+        "name": departmentName,
+        "code": departmentCode,
+        "active": active,
+        "userIds": userIds,
+        if (projectManagerId != null) "projectManagerId": projectManagerId,
+      };
+
+      _logRequest(
+        "ADD USERS TO DEPARTMENT (via update)",
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final token = await _getToken();
+      final response = await http.put(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
+
+      _logResponse(response);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      log("ADD USERS TO DEPARTMENT ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= GET USERS IN DEPARTMENT =================
+  Future<List<Map<String, dynamic>>> getUsersInDepartment(
+    int departmentId,
+  ) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId/users";
+
+      _logRequest("GET USERS IN DEPARTMENT", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+
+      return [];
+    } catch (e) {
+      log("GET USERS IN DEPARTMENT ERROR: $e");
+      return [];
+    }
+  }
+
+  /// ================= GET SELECTABLE USERS (NEW) =================
+  /// Sử dụng endpoint /users/selectable?context=xxx
+  /// Backend: @GetMapping("/selectable") @PreAuthorize("hasRole('ADMIN') or hasRole('PROJECT_MANAGER')")
+  Future<List<Map<String, dynamic>>> getSelectableUsers({
+    required String context,
+  }) async {
+    try {
+      final url = "$baseUrl/users/selectable?context=$context";
+
+      _logRequest("GET SELECTABLE USERS", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+
+      return [];
+    } catch (e) {
+      log("GET SELECTABLE USERS ERROR: $e");
+      return [];
+    }
+  }
+
+  /// ================= GET DEPARTMENT BY PROJECT MANAGER ID =================
+  /// Tìm department mà user là projectManager
+  Future<DepartmentModel?> getDepartmentByProjectManagerId(
+    int projectManagerId,
+  ) async {
+    try {
+      final departments = await getDepartments();
+
+      // Tìm department có projectManager.id = projectManagerId
+      final matched = departments.firstWhere(
+        (d) => d.projectManagerId == projectManagerId,
+        orElse: () => DepartmentModel(id: 0, name: '', code: '', active: false),
+      );
+      if (matched.id != 0) {
+        log(
+          "Found department for projectManagerId $projectManagerId: ${matched.id} - ${matched.name}",
+        );
+        return matched;
+      }
+
+      log("No department found for projectManagerId: $projectManagerId");
+      return null;
+    } catch (e) {
+      log("GET DEPARTMENT BY PROJECT MANAGER ERROR: $e");
+      return null;
+    }
+  }
+
+  /// ================= GET DEPARTMENT MEMBERS =================
+  /// Lấy danh sách thành viên của department theo API mới
+  Future<List<Map<String, dynamic>>> getDepartmentMembers(int departmentId) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId/members";
+
+      _logRequest("GET DEPARTMENT MEMBERS", url);
+
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+
+      return [];
+    } catch (e) {
+      log("GET DEPARTMENT MEMBERS ERROR: $e");
+      return [];
+    }
   }
 }

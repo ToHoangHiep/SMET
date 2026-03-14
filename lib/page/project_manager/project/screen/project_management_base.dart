@@ -3,69 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_web.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_mobile.dart';
-import 'package:smet/service/common/current_user_store.dart';
-import 'package:smet/service/admin/user_management/api_user_management.dart';
-import 'package:smet/model/user_model.dart';
-
-class ProjectData {
-  static final List<Map<String, dynamic>> projects = [
-    {
-      'id': 'PRJ001',
-      'name': 'Website Redesign',
-      'description': 'Thiết kế lại website công ty',
-      'status': 'In Progress',
-      'progress': 65,
-      'startDate': '2026-01-15',
-      'deadline': '2026-03-20',
-      'manager': 'Nguyễn Văn A',
-      'members': 5,
-    },
-    {
-      'id': 'PRJ002',
-      'name': 'Mobile App Development',
-      'description': 'Phát triển ứng dụng di động',
-      'status': 'Planning',
-      'progress': 30,
-      'startDate': '2026-02-01',
-      'deadline': '2026-04-15',
-      'manager': 'Trần Thị B',
-      'members': 8,
-    },
-    {
-      'id': 'PRJ003',
-      'name': 'API Integration',
-      'description': 'Tích hợp API với hệ thống mới',
-      'status': 'Completed',
-      'progress': 100,
-      'startDate': '2026-01-01',
-      'deadline': '2026-02-28',
-      'manager': 'Lê Văn C',
-      'members': 3,
-    },
-    {
-      'id': 'PRJ004',
-      'name': 'Database Migration',
-      'description': 'Chuyển đổi cơ sở dữ liệu',
-      'status': 'In Progress',
-      'progress': 45,
-      'startDate': '2026-02-10',
-      'deadline': '2026-03-30',
-      'manager': 'Phạm Văn D',
-      'members': 4,
-    },
-    {
-      'id': 'PRJ005',
-      'name': 'Security Audit',
-      'description': 'Kiểm tra bảo mật hệ thống',
-      'status': 'On Hold',
-      'progress': 10,
-      'startDate': '2026-03-01',
-      'deadline': '2026-05-01',
-      'manager': 'Nguyễn Văn E',
-      'members': 2,
-    },
-  ];
-}
+import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/model/project_model.dart';
+import 'package:smet/service/project/project_service.dart';
+import 'package:smet/service/project/project_member_service.dart';
+import 'package:smet/model/department_model.dart';
+import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/service/common/user_selection_service.dart';
+import 'dart:developer';
 
 class ProjectManagementPage extends StatefulWidget {
   const ProjectManagementPage({super.key});
@@ -75,8 +20,15 @@ class ProjectManagementPage extends StatefulWidget {
 }
 
 class _ProjectManagementPageState extends State<ProjectManagementPage> {
-  final List<Map<String, dynamic>> _projects = ProjectData.projects;
-  bool _isLoading = false;
+  String _currentUserName = 'Project Manager';
+  int? _currentUserId;
+  int? _currentDepartmentId;
+  bool _isLoadingEmployees = false;
+
+  // API Data
+  List<ProjectModel> _projects = [];
+  bool _isLoadingProjects = false;
+  bool _isSubmitting = false;
   String _nameQuery = '';
   String _statusFilter = 'Tất cả';
   int _currentPage = 1;
@@ -89,100 +41,160 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       TextEditingController();
   final TextEditingController _createManagerController =
       TextEditingController();
-  String _createStatus = 'Planning';
+  String _createStatus = 'DRAFT';
   DateTime? _startDate;
   DateTime? _endDate;
   Map<String, dynamic>? _selectedTeamLead;
   Map<String, dynamic>? _selectedMentor;
   List<Map<String, dynamic>> _selectedMembers = [];
-  List<UserModel> _employees = [];
-  final ApiService _apiService = ApiService();
 
-  final List<Map<String, dynamic>> _mentors = [
-    {
-      'id': 'm1',
-      'name': 'Phạm Văn D',
-      'email': 'phamvand@company.com',
-      'avatar': 'PD',
-      'role': 'mentor',
-    },
-    {
-      'id': 'm2',
-      'name': 'Hoàng Thị E',
-      'email': 'hoangthie@company.com',
-      'avatar': 'HE',
-      'role': 'mentor',
-    },
-    {
-      'id': 'm3',
-      'name': 'Đỗ Văn F',
-      'email': 'dovanaf@company.com',
-      'avatar': 'DF',
-      'role': 'mentor',
-    },
-    {
-      'id': 'm4',
-      'name': 'Vũ Thị G',
-      'email': 'vuthig@company.com',
-      'avatar': 'VG',
-      'role': 'mentor',
-    },
-  ];
+  // Department list for dropdown
+  List<DepartmentModel> _departments = [];
 
-  final List<Map<String, dynamic>> _availableMembers = [
-    {
-      'id': 'mb1',
-      'name': 'Nguyễn Văn H',
-      'email': 'nguyenvanh@company.com',
-      'avatar': 'NH',
-    },
-    {
-      'id': 'mb2',
-      'name': 'Trần Thị I',
-      'email': 'tranthii@company.com',
-      'avatar': 'TI',
-    },
-    {
-      'id': 'mb3',
-      'name': 'Lê Văn J',
-      'email': 'levanj@company.com',
-      'avatar': 'LJ',
-    },
-    {
-      'id': 'mb4',
-      'name': 'Phạm Văn K',
-      'email': 'phamvank@company.com',
-      'avatar': 'PK',
-    },
-    {
-      'id': 'mb5',
-      'name': 'Hoàng Văn L',
-      'email': 'hoangvanl@company.com',
-      'avatar': 'HL',
-    },
-    {
-      'id': 'mb6',
-      'name': 'Đỗ Thị M',
-      'email': 'dothim@company.com',
-      'avatar': 'DM',
-    },
-  ];
+  // Separate lists for Lead, Mentors, Members
+  List<Map<String, dynamic>> _leadOptions = [];
+  List<Map<String, dynamic>> _mentorOptions = [];
+  List<Map<String, dynamic>> _memberOptions = [];
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _loadEmployees();
+    _loadProjects();
+    _loadDepartments();
+  }
+
+  Future<void> _loadDepartments() async {
+    try {
+      final api = DepartmentService();
+      final depts = await api.getDepartments();
+      setState(() {
+        _departments = depts;
+      });
+      log("Loaded ${depts.length} departments");
+    } catch (e) {
+      log("Error loading departments: $e");
+    }
+  }
+
+  Future<void> _loadProjects() async {
+    setState(() => _isLoadingProjects = true);
+    try {
+      final projects = await ProjectService.getAll();
+      setState(() {
+        _projects = projects;
+      });
+    } catch (e) {
+      debugPrint('Error loading projects: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi tải dự án: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingProjects = false);
+      }
+    }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final userData = await AuthService.getMe();
+
+      // Debug: log toàn bộ keys của userData
+      log("USER DATA KEYS: ${userData.keys.toList()}");
+      log("DEPARTMENT FIELD: ${userData['department']}");
+      log("DEPARTMENT TYPE: ${userData['department'].runtimeType}");
+
+      // Lấy userId trước
+      final currentUserId = userData['id'] as int?;
+      log("Current User ID: $currentUserId");
+
+      // Thử lấy departmentId từ userData trước
+      int? deptId;
+      if (userData['departmentId'] != null) {
+        deptId = userData['departmentId'] as int?;
+        log("Got departmentId from direct field: $deptId");
+      } else {
+        // Fallback: lấy departmentId từ object department (nếu có)
+        final department = userData['department'];
+        log("Department raw: $department");
+        if (department is Map) {
+          log("Department keys: ${department.keys.toList()}");
+          deptId = department['id'] as int?;
+          log("Got departmentId from object: $deptId");
+        }
+      }
+
+      // Nếu vẫn không có departmentId, tìm department có projectManagerId = currentUserId
+      if (deptId == null && currentUserId != null) {
+        try {
+          final deptService = DepartmentService();
+          final department = await deptService.getDepartmentByProjectManagerId(
+            currentUserId,
+          );
+          if (department != null) {
+            deptId = department.id;
+            log("Got departmentId from projectManager lookup: $deptId");
+          }
+        } catch (e) {
+          log("Error finding department by projectManagerId: $e");
+        }
+      }
+
+      log("FINAL - ID: $currentUserId, DepartmentId: $deptId");
+
+      setState(() {
+        _currentUserName =
+            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
+                .trim();
+        if (_currentUserName.isEmpty) {
+          _currentUserName = userData['userName'] ?? 'Project Manager';
+        }
+        _currentUserId = currentUserId;
+        _currentDepartmentId = deptId;
+      });
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+      setState(() {
+        _currentUserName = 'Project Manager';
+      });
+    }
   }
 
   Future<void> _loadEmployees() async {
+    setState(() => _isLoadingEmployees = true);
     try {
-      final users = await _apiService.getUsers();
-      final employees = users.where((u) => u.role == UserRole.employee).toList();
+      // Load users with proper context for project roles
+      final leads = await ProjectMemberService.getSelectableUsers(
+        context: 'PROJECT_LEAD',
+      );
+      final mentors = await ProjectMemberService.getSelectableUsers(
+        context: 'PROJECT_MENTORS',
+      );
+      final members = await ProjectMemberService.getSelectableUsers(
+        context: 'PROJECT_MEMBERS',
+      );
+
+      log("========== LOAD USERS FOR PROJECT ==========");
+      log("Leads (PROJECT_LEAD): ${leads.length}");
+      log("Mentors (PROJECT_MENTORS): ${mentors.length}");
+      log("Members (PROJECT_MEMBERS): ${members.length}");
+
       setState(() {
-        _employees = employees;
+        _leadOptions = leads;
+        _mentorOptions = mentors;
+        _memberOptions = members;
       });
     } catch (e) {
       debugPrint('Error loading employees: $e');
+    } finally {
+      setState(() => _isLoadingEmployees = false);
     }
   }
 
@@ -193,12 +205,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _createManagerController.dispose();
     super.dispose();
   }
-
-  // Getters
-  List<Map<String, dynamic>> get projects => _projects;
-  bool get isLoading => _isLoading;
-  bool get isCreateMode => _isCreateMode;
-  bool get isUpdateMode => _isUpdateMode;
 
   void handleLogout() => context.go('/login');
 
@@ -213,6 +219,128 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   void setCurrentPage(int v) => setState(() => _currentPage = v);
   void setCreateStatus(String v) => setState(() => _createStatus = v);
 
+  void openEditProjectScreen(ProjectModel project) async {
+    setState(() {
+      _isUpdateMode = true;
+      _isCreateMode = false;
+      _editingProjectId = project.id.toString();
+      _createNameController.text = project.title;
+      _createDescriptionController.text = project.description ?? '';
+      _createStatus = project.status.name;
+    });
+
+    // Load project chi tiết để lấy leaderName, mentorName, members
+    try {
+      final detailedProject = await ProjectService.getById(project.id);
+      log(
+        "Project details: leaderName=${detailedProject.leaderName}, mentorName=${detailedProject.mentorName}, members=${detailedProject.members}",
+      );
+
+      setState(() {
+        // Trưởng nhóm
+        if (detailedProject.leaderName != null &&
+            detailedProject.leaderName!.isNotEmpty) {
+          _selectedTeamLead = {'name': detailedProject.leaderName, 'email': ''};
+        } else {
+          _selectedTeamLead = null;
+        }
+
+        // Người hướng dẫn
+        if (detailedProject.mentorName != null &&
+            detailedProject.mentorName!.isNotEmpty) {
+          _selectedMentor = {'name': detailedProject.mentorName, 'email': ''};
+        } else {
+          _selectedMentor = null;
+        }
+
+        // Thành viên
+        _selectedMembers = [];
+        if (detailedProject.members != null) {
+          for (final memberName in detailedProject.members!) {
+            _selectedMembers.add({'name': memberName, 'email': ''});
+          }
+        }
+      });
+
+      log(
+        "Parsed - Lead: $_selectedTeamLead, Mentor: $_selectedMentor, Members: $_selectedMembers",
+      );
+    } catch (e) {
+      log("Error loading project details: $e");
+    }
+  }
+
+  Future<void> _loadProjectMembers(int projectId) async {
+    try {
+      // API trả về List<Map> với userId và role
+      final members = await ProjectMemberService.getMembers(projectId);
+      log("Loaded project members: $members");
+
+      // Lấy thông tin user trước
+      Map<String, dynamic>? lead;
+      Map<String, dynamic>? mentor;
+      List<Map<String, dynamic>> memberList = [];
+
+      for (final m in members) {
+        final role = m['role'] as String?;
+        final userId = m['userId'] as int;
+        final memberId = m['id'];
+
+        // Lấy username và email từ API
+        String displayName = 'User ${userId}';
+        String displayEmail = '';
+        try {
+          final user = await getUserById(userId);
+          if (user != null) {
+            displayName =
+                user.userName?.isNotEmpty == true
+                    ? user.userName!
+                    : 'User ${userId}';
+            displayEmail = user.email ?? '';
+          }
+        } catch (e) {
+          log("Error fetching user $userId: $e");
+          // Giữ nguyên displayName = 'User ${userId}'
+        }
+
+        if (role == 'PROJECT_LEAD') {
+          lead = {
+            'id': userId,
+            'memberId': memberId,
+            'name': displayName,
+            'email': displayEmail,
+          };
+        } else if (role == 'MENTOR') {
+          mentor = {
+            'id': userId,
+            'memberId': memberId,
+            'name': displayName,
+            'email': displayEmail,
+          };
+        } else if (role == 'MEMBER') {
+          memberList.add({
+            'id': userId,
+            'memberId': memberId,
+            'name': displayName,
+            'email': displayEmail,
+          });
+        }
+      }
+
+      setState(() {
+        _selectedTeamLead = lead;
+        _selectedMentor = mentor;
+        _selectedMembers = memberList;
+      });
+
+      log(
+        "Parsed - Lead: $_selectedTeamLead, Mentor: $_selectedMentor, Members: $_selectedMembers",
+      );
+    } catch (e) {
+      log("Error loading project members: $e");
+    }
+  }
+
   void openCreateProjectScreen() => setState(() {
     _isCreateMode = true;
     _isUpdateMode = false;
@@ -220,19 +348,12 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _createNameController.clear();
     _createDescriptionController.clear();
     _createManagerController.clear();
+    _createStatus = 'DRAFT';
+    _startDate = null;
+    _endDate = null;
     _selectedTeamLead = null;
     _selectedMentor = null;
     _selectedMembers = [];
-  });
-
-  void openUpdateProjectScreen(Map<String, dynamic> project) => setState(() {
-    _isCreateMode = false;
-    _isUpdateMode = true;
-    _editingProjectId = project['id'];
-    _createNameController.text = project['name'];
-    _createDescriptionController.text = project['description'];
-    _createManagerController.text = project['manager'];
-    _createStatus = project['status'];
   });
 
   void closeFormScreen() => setState(() {
@@ -241,7 +362,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _editingProjectId = null;
   });
 
-  void submitCreateProject() {
+  void submitCreateProject() async {
     if (_createNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -251,56 +372,287 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       );
       return;
     }
-    setState(() {
-      _projects.insert(0, {
-        'id': 'PRJ${DateTime.now().millisecondsSinceEpoch}',
-        'name': _createNameController.text,
-        'description': _createDescriptionController.text,
-        'status': _createStatus,
-        'progress': 0,
-        'startDate': DateTime.now().toString().split(' ')[0],
-        'deadline': '2026-12-31',
-        'manager':
-            _createManagerController.text.isNotEmpty
-                ? _createManagerController.text
-                : 'Chưa có',
-        'members': 0,
+
+    if (_currentDepartmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bạn chưa được gán phòng ban. Vui lòng liên hệ quản trị viên.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Tạo project trước
+      final project = await ProjectService.create(
+        title: _createNameController.text,
+        description:
+            _createDescriptionController.text.isNotEmpty
+                ? _createDescriptionController.text
+                : null,
+        departmentId: _currentDepartmentId!,
+        status: _createStatus,
+        userId: _currentUserId,
+      );
+
+      // Thêm PM (người tạo) vào project TRƯỚC để có quyền thêm member
+      // Backend yêu cầu user phải thuộc project mới được thêm member
+      // Sau đó thêm các thành viên khác vào project (nếu có)
+      if (_selectedTeamLead != null) {
+        log("========== ADD PROJECT LEAD ==========");
+        log("Project ID: ${project.id}");
+        log("User ID: ${_selectedTeamLead!['id']}");
+        log("Role: PROJECT_LEAD");
+        await ProjectMemberService.addMember(
+          projectId: project.id,
+          userId: int.parse(_selectedTeamLead!['id'].toString()),
+          role: 'PROJECT_LEAD',
+        );
+      }
+
+      if (_selectedMentor != null) {
+        log("========== ADD PROJECT MENTOR ==========");
+        log("Project ID: ${project.id}");
+        log("User ID: ${_selectedMentor!['id']}");
+        log("Role: MENTOR");
+        await ProjectMemberService.addMember(
+          projectId: project.id,
+          userId: int.parse(_selectedMentor!['id'].toString()),
+          role: 'MENTOR',
+        );
+      }
+
+      for (final member in _selectedMembers) {
+        log("========== ADD PROJECT MEMBER ==========");
+        log("Project ID: ${project.id}");
+        log("User ID: ${member['id']}");
+        log("Role: MEMBER");
+        await ProjectMemberService.addMember(
+          projectId: project.id,
+          userId: int.parse(member['id'].toString()),
+          role: 'MEMBER',
+        );
+      }
+
+      // Reload danh sách project
+      await _loadProjects();
+
+      setState(() {
+        _isCreateMode = false;
+        _currentPage = 1;
       });
-      _isCreateMode = false;
-      _currentPage = 1;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã tạo dự án thành công'),
-        backgroundColor: Colors.green,
-      ),
-    );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã tạo dự án thành công'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error creating project: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi tạo dự án: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
-  void submitUpdateProject() {
+  void submitUpdateProject() async {
     if (_editingProjectId == null) return;
-    setState(() {
-      final index = _projects.indexWhere((p) => p['id'] == _editingProjectId);
-      if (index != -1)
-        _projects[index] = {
-          ..._projects[index],
-          'name': _createNameController.text,
-          'description': _createDescriptionController.text,
-          'manager': _createManagerController.text,
-          'status': _createStatus,
-        };
-      _isUpdateMode = false;
-      _editingProjectId = null;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã cập nhật dự án'),
-        backgroundColor: Colors.green,
-      ),
-    );
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Lấy departmentId từ project đang edit
+      final editingProject = _projects.firstWhere(
+        (p) => p.id.toString() == _editingProjectId,
+      );
+
+      await ProjectService.update(
+        id: int.parse(_editingProjectId!),
+        title: _createNameController.text,
+        description:
+            _createDescriptionController.text.isNotEmpty
+                ? _createDescriptionController.text
+                : null,
+        departmentId: editingProject.departmentId,
+        status: _createStatus,
+      );
+
+      // Cập nhật members - lấy danh sách members hiện tại của project
+      final currentMembers = await ProjectMemberService.getMembers(
+        int.parse(_editingProjectId!),
+      );
+
+      // Map current members by role
+      final currentLead =
+          currentMembers.where((m) => m['role'] == 'PROJECT_LEAD').firstOrNull;
+      final currentMentor =
+          currentMembers.where((m) => m['role'] == 'MENTOR').firstOrNull;
+      final currentMemberList =
+          currentMembers.where((m) => m['role'] == 'MEMBER').toList();
+
+      // Xử lý PROJECT_LEAD
+      if (_selectedTeamLead != null) {
+        final newLeadId = int.parse(_selectedTeamLead!['id'].toString());
+        if (currentLead == null) {
+          // Thêm mới lead
+          await ProjectMemberService.addMember(
+            projectId: int.parse(_editingProjectId!),
+            userId: newLeadId,
+            role: 'PROJECT_LEAD',
+          );
+        } else {
+          final currentLeadUser = currentLead['user'] as Map<String, dynamic>?;
+          if (currentLeadUser != null && currentLeadUser['id'] != newLeadId) {
+            // Xóa lead cũ và thêm mới
+            await ProjectMemberService.removeMember(
+              projectId: int.parse(_editingProjectId!),
+              userId: currentLeadUser['id'] as int,
+            );
+            await ProjectMemberService.addMember(
+              projectId: int.parse(_editingProjectId!),
+              userId: newLeadId,
+              role: 'PROJECT_LEAD',
+            );
+          }
+        }
+      } else if (currentLead != null) {
+        // Nếu không chọn lead mà trước đó có lead, xóa lead cũ
+        final currentLeadUser = currentLead['user'] as Map<String, dynamic>?;
+        if (currentLeadUser != null) {
+          await ProjectMemberService.removeMember(
+            projectId: int.parse(_editingProjectId!),
+            userId: currentLeadUser['id'] as int,
+          );
+        }
+      }
+
+      // Xử lý MENTOR
+      if (_selectedMentor != null) {
+        final newMentorId = int.parse(_selectedMentor!['id'].toString());
+        if (currentMentor == null) {
+          // Thêm mới mentor
+          await ProjectMemberService.addMember(
+            projectId: int.parse(_editingProjectId!),
+            userId: newMentorId,
+            role: 'MENTOR',
+          );
+        } else {
+          final currentMentorUser =
+              currentMentor['user'] as Map<String, dynamic>?;
+          if (currentMentorUser != null &&
+              currentMentorUser['id'] != newMentorId) {
+            // Xóa mentor cũ và thêm mới
+            await ProjectMemberService.removeMember(
+              projectId: int.parse(_editingProjectId!),
+              userId: currentMentorUser['id'] as int,
+            );
+            await ProjectMemberService.addMember(
+              projectId: int.parse(_editingProjectId!),
+              userId: newMentorId,
+              role: 'MENTOR',
+            );
+          }
+        }
+      } else if (currentMentor != null) {
+        // Nếu không chọn mentor mà trước đó có mentor, xóa mentor cũ
+        final currentMentorUser =
+            currentMentor['user'] as Map<String, dynamic>?;
+        if (currentMentorUser != null) {
+          await ProjectMemberService.removeMember(
+            projectId: int.parse(_editingProjectId!),
+            userId: currentMentorUser['id'] as int,
+          );
+        }
+      }
+
+      // Xử lý MEMBERS - đồng bộ danh sách
+      final newMemberIds =
+          _selectedMembers.map((m) => int.parse(m['id'].toString())).toSet();
+      final currentMemberIds =
+          currentMemberList
+              .map((m) => (m['user'] as Map<String, dynamic>?)?['id'] as int?)
+              .where((id) => id != null)
+              .toSet();
+
+      // Thêm các member mới
+      for (final newMember in _selectedMembers) {
+        final newMemberId = int.parse(newMember['id'].toString());
+        if (!currentMemberIds.contains(newMemberId)) {
+          await ProjectMemberService.addMember(
+            projectId: int.parse(_editingProjectId!),
+            userId: newMemberId,
+            role: 'MEMBER',
+          );
+        }
+      }
+
+      // Xóa các member không còn trong danh sách
+      for (final currentMember in currentMemberList) {
+        final currentMemberUser =
+            currentMember['user'] as Map<String, dynamic>?;
+        if (currentMemberUser != null) {
+          final currentMemberId = currentMemberUser['id'] as int?;
+          if (currentMemberId != null &&
+              !newMemberIds.contains(currentMemberId)) {
+            await ProjectMemberService.removeMember(
+              projectId: int.parse(_editingProjectId!),
+              userId: currentMemberId,
+            );
+          }
+        }
+      }
+
+      // Reload danh sách project
+      await _loadProjects();
+
+      setState(() {
+        _isUpdateMode = false;
+        _editingProjectId = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã cập nhật dự án'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error updating project: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi cập nhật dự án: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
-  Future<void> handleDeleteProject(Map<String, dynamic> project) async {
+  Future<void> handleDeleteProject(ProjectModel project) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -310,7 +662,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             ),
             title: const Text('Xóa dự án'),
             content: Text(
-              'Bạn có chắc muốn xóa dự án "${project['name']}" không?',
+              'Bạn có chắc muốn xóa dự án "${project.title}" không?',
             ),
             actions: [
               TextButton(
@@ -329,34 +681,31 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           ),
     );
     if (confirmed == true) {
-      setState(() => _projects.removeWhere((p) => p['id'] == project['id']));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã xóa dự án'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      try {
+        await ProjectService.delete(project.id);
+        await _loadProjects();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã xóa dự án'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error deleting project: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi khi xóa dự án: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
-  List<Map<String, dynamic>> get filteredProjects =>
-      _projects
-          .where(
-            (p) =>
-                p['name'].toLowerCase().contains(_nameQuery.toLowerCase()) &&
-                (_statusFilter == 'Tất cả' || p['status'] == _statusFilter),
-          )
-          .toList();
-  List<Map<String, dynamic>> get paginatedProjects {
-    final start = (_currentPage - 1) * _rowsPerPage;
-    if (start >= filteredProjects.length) return [];
-    return filteredProjects.sublist(
-      start,
-      (start + _rowsPerPage).clamp(0, filteredProjects.length),
-    );
-  }
-
-  // Build methods for widgets
   Widget buildPageHeader() => Row(
     children: [
       const Text(
@@ -368,7 +717,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         ),
       ),
       const Spacer(),
-      if (!_isCreateMode && !_isCreateMode)
+      if (!_isCreateMode && !_isUpdateMode)
         ElevatedButton.icon(
           onPressed: openCreateProjectScreen,
           style: ElevatedButton.styleFrom(
@@ -385,7 +734,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Back button and title
         Row(
           children: [
             IconButton(
@@ -403,8 +751,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           ],
         ),
         const SizedBox(height: 24),
-
-        // General Information Section
         _buildSectionCard(
           icon: Icons.info_outline,
           iconColor: const Color(0xFFEF4444),
@@ -449,20 +795,83 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   const SizedBox(width: 24),
                   Expanded(
                     child: _buildFormField(
+                      label: 'Phòng ban',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Text(
+                          _currentDepartmentId != null
+                              ? _departments
+                                      .where(
+                                        (d) => d.id == _currentDepartmentId,
+                                      )
+                                      .firstOrNull
+                                      ?.name ??
+                                  'Không xác định'
+                              : 'Chưa gán phòng ban',
+                          style: TextStyle(
+                            color:
+                                _currentDepartmentId != null
+                                    ? Colors.black87
+                                    : Colors.grey[400],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: _buildFormField(
                       label: 'Trạng thái dự án',
                       child: DropdownButtonFormField<String>(
                         value: _createStatus,
-                        hint: Text('Chọn trạng thái', style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+                        hint: Text(
+                          'Chọn trạng thái',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 14,
+                          ),
+                        ),
                         decoration: InputDecoration(
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'Planning', child: Text('Lập kế hoạch')),
-                          DropdownMenuItem(value: 'In Progress', child: Text('Đang thực hiện')),
-                          DropdownMenuItem(value: 'Completed', child: Text('Hoàn thành')),
-                          DropdownMenuItem(value: 'On Hold', child: Text('Tạm dừng')),
+                          DropdownMenuItem(value: 'DRAFT', child: Text('Nháp')),
+                          DropdownMenuItem(
+                            value: 'IN_PROGRESS',
+                            child: Text('Đang thực hiện'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'COMPLETED',
+                            child: Text('Hoàn thành'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'CANCELLED',
+                            child: Text('Đã hủy'),
+                          ),
                         ],
                         onChanged: (v) => setCreateStatus(v!),
                       ),
@@ -477,8 +886,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   controller: _createDescriptionController,
                   maxLines: 4,
                   decoration: InputDecoration(
-                    hintText:
-                        'Mô tả ngắn gọn về mục tiêu và phạm vi dự án...',
+                    hintText: 'Mô tả ngắn gọn về mục tiêu và phạm vi dự án...',
                     hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -497,100 +905,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         ),
         const SizedBox(height: 24),
 
-        // Project Timeline Section
-        _buildSectionCard(
-          icon: Icons.calendar_today_outlined,
-          iconColor: const Color(0xFF3B82F6),
-          title: 'Thời gian dự án',
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildFormField(
-                  label: 'Ngày bắt đầu',
-                  child: InkWell(
-                    onTap: () => _selectDate(context, true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 18,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _startDate != null
-                                ? '${_startDate!.day.toString().padLeft(2, '0')}/${_startDate!.month.toString().padLeft(2, '0')}/${_startDate!.year}'
-                                : 'dd/mm/yyyy',
-                            style: TextStyle(
-                              color:
-                                  _startDate != null
-                                      ? Colors.black87
-                                      : Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildFormField(
-                  label: 'Ngày kết thúc dự kiến',
-                  child: InkWell(
-                    onTap: () => _selectDate(context, false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 18,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _endDate != null
-                                ? '${_endDate!.month.toString().padLeft(2, '0')}/${_endDate!.day.toString().padLeft(2, '0')}/${_endDate!.year}'
-                                : 'mm/dd/yyyy',
-                            style: TextStyle(
-                              color:
-                                  _endDate != null
-                                      ? Colors.black87
-                                      : Colors.grey[400],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
         const SizedBox(height: 24),
-
-        // Team Lead Section
         _buildSectionCard(
           icon: Icons.person_outline,
           iconColor: const Color(0xFF8B5CF6),
@@ -608,8 +923,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   ),
         ),
         const SizedBox(height: 24),
-
-        // Mentor Section
         _buildSectionCard(
           icon: Icons.school_outlined,
           iconColor: const Color(0xFFF97316),
@@ -627,8 +940,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   ),
         ),
         const SizedBox(height: 24),
-
-        // Team Members Section
         _buildSectionCard(
           icon: Icons.people_outline,
           iconColor: const Color(0xFF10B981),
@@ -648,16 +959,33 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               avatar: CircleAvatar(
                                 backgroundColor: const Color(0xFF10B981),
                                 child: Text(
-                                  member['avatar'],
+                                  (member['name'] as String?)?.isNotEmpty ==
+                                          true
+                                      ? member['name']![0].toUpperCase()
+                                      : '?',
                                   style: const TextStyle(
                                     fontSize: 10,
                                     color: Colors.white,
                                   ),
                                 ),
                               ),
-                              label: Text(
-                                member['name'],
-                                style: const TextStyle(fontSize: 13),
+                              label: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    member['name'] ?? '',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                  if ((member['email'] as String?)?.isNotEmpty == true)
+                                    Text(
+                                      member['email'] ?? '',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                ],
                               ),
                               deleteIcon: const Icon(Icons.close, size: 16),
                               onDeleted:
@@ -670,16 +998,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 ),
                 const SizedBox(height: 16),
               ],
-              _buildSelectButton(
-                'Thêm thành viên',
-                () => _showMembersPicker(),
-              ),
+              _buildSelectButton('Thêm thành viên', () => _showMembersPicker()),
             ],
           ),
         ),
         const SizedBox(height: 32),
-
-        // Action buttons
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -699,7 +1022,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             const SizedBox(width: 12),
             ElevatedButton(
               onPressed:
-                  _isUpdateMode ? submitUpdateProject : submitCreateProject,
+                  _isSubmitting
+                      ? null
+                      : (_isUpdateMode
+                          ? submitUpdateProject
+                          : submitCreateProject),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF137FEC),
                 foregroundColor: Colors.white,
@@ -850,7 +1177,9 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             backgroundColor: const Color(0xFF8B5CF6),
             radius: 24,
             child: Text(
-              person['avatar'],
+              (person['name'] as String?)?.isNotEmpty == true
+                  ? person['name']![0].toUpperCase()
+                  : '?',
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -863,7 +1192,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  person['name'],
+                  person['name'] ?? '',
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -871,10 +1200,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  person['email'],
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
+                if ((person['email'] as String?)?.isNotEmpty == true)
+                  Text(
+                    person['email'] ?? '',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
               ],
             ),
           ),
@@ -907,44 +1237,51 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Chọn trưởng nhóm',
+                  'Chọn trưởng nhóm (USER)',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                if (_employees.isEmpty)
+                if (_isLoadingEmployees)
+                  const Center(child: CircularProgressIndicator())
+                else if (_leadOptions.isEmpty)
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: Text('No employees available'),
+                      child: Text('Không có user phù hợp'),
                     ),
                   )
                 else
-                  ..._employees.map(
-                    (employee) => ListTile(
+                  ..._leadOptions.map((employee) {
+                    final firstName = employee['firstName'] ?? '';
+                    final lastName = employee['lastName'] ?? '';
+                    final fullName = '$firstName $lastName'.trim();
+                    final email = employee['email'] ?? '';
+                    final id = employee['id'];
+                    return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFF8B5CF6),
                         child: Text(
-                          employee.firstName.isNotEmpty 
-                              ? employee.firstName[0].toUpperCase() 
+                          firstName.isNotEmpty
+                              ? firstName[0].toUpperCase()
                               : '?',
                           style: const TextStyle(color: Colors.white),
                         ),
                       ),
-                      title: Text(employee.fullName),
-                      subtitle: Text(employee.email),
+                      title: Text(fullName),
+                      subtitle: Text(email),
                       onTap: () {
-                        setState(() => _selectedTeamLead = {
-                          'id': employee.id,
-                          'name': employee.fullName,
-                          'email': employee.email,
-                          'avatar': employee.firstName.isNotEmpty 
-                              ? employee.firstName[0].toUpperCase() 
-                              : '?',
-                        });
+                        setState(
+                          () =>
+                              _selectedTeamLead = {
+                                'id': id,
+                                'name': fullName,
+                                'email': email,
+                              },
+                        );
                         Navigator.pop(ctx);
                       },
-                    ),
-                  ),
+                    );
+                  }),
               ],
             ),
           ),
@@ -965,52 +1302,49 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Chọn người hướng dẫn',
+                  'Chọn người hướng dẫn (MENTOR)',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                ..._mentors.map(
-                  (m) => ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: const Color(0xFFF97316),
-                      child: Text(
-                        m['avatar'],
-                        style: const TextStyle(color: Colors.white),
-                      ),
+                if (_mentorOptions.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Không có user phù hợp'),
                     ),
-                    title: Text(m['name']),
-                    subtitle: Row(
-                      children: [
-                        Text(m['email']),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFF97316,
-                            ).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            m['role'].toString().toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFFF97316),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                  )
+                else
+                  ..._mentorOptions.map((m) {
+                    final firstName = m['firstName'] ?? '';
+                    final lastName = m['lastName'] ?? '';
+                    final fullName = '$firstName $lastName'.trim();
+                    final email = m['email'] ?? '';
+                    final id = m['id'];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFF97316),
+                        child: Text(
+                          firstName.isNotEmpty
+                              ? firstName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(color: Colors.white),
                         ),
-                      ],
-                    ),
-                    onTap: () {
-                      setState(() => _selectedMentor = m);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                ),
+                      ),
+                      title: Text(fullName),
+                      subtitle: Text(email),
+                      onTap: () {
+                        setState(
+                          () =>
+                              _selectedMentor = {
+                                'id': id,
+                                'name': fullName,
+                                'email': email,
+                              },
+                        );
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }),
               ],
             ),
           ),
@@ -1019,8 +1353,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   void _showMembersPicker() {
     final availableToSelect =
-        _availableMembers
-            .where((m) => !_selectedMembers.any((s) => s['id'] == m['id']))
+        _memberOptions
+            .where((e) => !_selectedMembers.any((s) => s['id'] == e['id']))
             .toList();
     showModalBottomSheet(
       context: context,
@@ -1049,33 +1383,56 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       ),
                       const SizedBox(height: 16),
                       Expanded(
-                        child: ListView.builder(
-                          controller: controller,
-                          itemCount: availableToSelect.length,
-                          itemBuilder: (_, i) {
-                            final member = availableToSelect[i];
-                            return ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: const Color(0xFF10B981),
-                                child: Text(
-                                  member['avatar'],
-                                  style: const TextStyle(color: Colors.white),
+                        child:
+                            availableToSelect.isEmpty
+                                ? const Center(
+                                  child: Text('Không có thành viên khả dụng'),
+                                )
+                                : ListView.builder(
+                                  controller: controller,
+                                  itemCount: availableToSelect.length,
+                                  itemBuilder: (_, i) {
+                                    final member = availableToSelect[i];
+                                    final firstName = member['firstName'] ?? '';
+                                    final lastName = member['lastName'] ?? '';
+                                    final fullName =
+                                        '$firstName $lastName'.trim();
+                                    final email = member['email'] ?? '';
+                                    final id = member['id'];
+                                    return ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: const Color(
+                                          0xFF10B981,
+                                        ),
+                                        child: Text(
+                                          firstName.isNotEmpty
+                                              ? firstName[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      title: Text(fullName),
+                                      subtitle: Text(email),
+                                      trailing: IconButton(
+                                        icon: const Icon(
+                                          Icons.add_circle_outline,
+                                          color: Color(0xFF10B981),
+                                        ),
+                                        onPressed: () {
+                                          setState(
+                                            () => _selectedMembers.add({
+                                              'id': id,
+                                              'name': fullName,
+                                              'email': email,
+                                            }),
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
-                              title: Text(member['name']),
-                              subtitle: Text(member['email']),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.add_circle_outline,
-                                  color: Color(0xFF10B981),
-                                ),
-                                onPressed: () {
-                                  setState(() => _selectedMembers.add(member));
-                                },
-                              ),
-                            );
-                          },
-                        ),
                       ),
                     ],
                   ),
@@ -1111,259 +1468,173 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               const SizedBox(width: 16),
               DropdownButton<String>(
                 value: _statusFilter,
-                items:
-                    [
-                          'Tất cả',
-                          'Planning',
-                          'In Progress',
-                          'Completed',
-                          'On Hold',
-                        ]
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
+                items: const [
+                  DropdownMenuItem(value: 'Tất cả', child: Text('Tất cả')),
+                  DropdownMenuItem(value: 'DRAFT', child: Text('Nháp')),
+                  DropdownMenuItem(
+                    value: 'IN_PROGRESS',
+                    child: Text('Đang thực hiện'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'COMPLETED',
+                    child: Text('Hoàn thành'),
+                  ),
+                  DropdownMenuItem(value: 'CANCELLED', child: Text('Đã hủy')),
+                ],
                 onChanged: (v) => setStatusFilter(v!),
               ),
             ],
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Mã')),
-              DataColumn(label: Text('Tên dự án')),
-              DataColumn(label: Text('Quản lý')),
-              DataColumn(label: Text('Trạng thái')),
-              DataColumn(label: Text('Tiến độ')),
-              DataColumn(label: Text('Deadline')),
-              DataColumn(label: Text('Thao tác')),
-            ],
-            rows:
-                paginatedProjects
-                    .map(
-                      (project) => DataRow(
-                        cells: [
-                          DataCell(Text(project['id'])),
-                          DataCell(Text(project['name'])),
-                          DataCell(Text(project['manager'])),
-                          DataCell(buildStatusBadge(project['status'])),
-                          DataCell(buildProgressBar(project['progress'])),
-                          DataCell(Text(project['deadline'])),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit, size: 20),
-                                  onPressed:
-                                      () => openUpdateProjectScreen(project),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    size: 20,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () => handleDeleteProject(project),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                    .toList(),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed:
-                    _currentPage > 1
-                        ? () => setCurrentPage(_currentPage - 1)
-                        : null,
-              ),
-              Text('Trang $_currentPage'),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed:
-                    _currentPage * _rowsPerPage < filteredProjects.length
-                        ? () => setCurrentPage(_currentPage + 1)
-                        : null,
-              ),
-            ],
-          ),
-        ),
+        if (_isLoadingProjects)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: CircularProgressIndicator(),
+          )
+        else if (_projects.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Icon(Icons.folder_open, size: 64, color: Color(0xFFE5E7EB)),
+                SizedBox(height: 16),
+                Text(
+                  'Chưa có dự án nào',
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Nhấn "Tạo dự án" để thêm dự án mới',
+                  style: TextStyle(color: Color(0xFF94A3B8)),
+                ),
+              ],
+            ),
+          )
+        else
+          _buildProjectsList(),
       ],
     ),
   );
 
-  Widget buildStatusBadge(String status) {
-    Color c =
-        status == 'In Progress'
-            ? Colors.green
-            : status == 'Planning'
-            ? Colors.orange
-            : status == 'Completed'
-            ? Colors.blue
-            : Colors.red;
+  Widget _buildProjectsList() {
+    final filteredProjects =
+        _projects.where((p) {
+          final matchesName =
+              _nameQuery.isEmpty ||
+              p.title.toLowerCase().contains(_nameQuery.toLowerCase());
+          final matchesStatus =
+              _statusFilter == 'Tất cả' || p.status.name == _statusFilter;
+          return matchesName && matchesStatus;
+        }).toList();
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: filteredProjects.length,
+      itemBuilder: (context, index) {
+        final project = filteredProjects[index];
+        return _buildProjectCard(project);
+      },
+    );
+  }
+
+  Widget _buildProjectCard(ProjectModel project) {
+    Color statusColor;
+    String statusLabel;
+
+    switch (project.status) {
+      case ProjectStatus.DRAFT:
+        statusColor = Colors.grey;
+        statusLabel = 'Nháp';
+        break;
+      case ProjectStatus.IN_PROGRESS:
+        statusColor = Colors.blue;
+        statusLabel = 'Đang thực hiện';
+        break;
+      case ProjectStatus.COMPLETED:
+        statusColor = Colors.green;
+        statusLabel = 'Hoàn thành';
+        break;
+      case ProjectStatus.CANCELLED:
+        statusColor = Colors.red;
+        statusLabel = 'Đã hủy';
+        break;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.1),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        status,
-        style: TextStyle(color: c, fontWeight: FontWeight.w500, fontSize: 12),
-      ),
-    );
-  }
-
-  Widget buildProgressBar(int progress) {
-    Color c =
-        progress >= 75
-            ? Colors.green
-            : progress >= 50
-            ? Colors.orange
-            : progress >= 25
-            ? Colors.red
-            : Colors.grey;
-    return SizedBox(
-      width: 100,
-      child: Row(
-        children: [
-          Expanded(
-            child: LinearProgressIndicator(
-              value: progress / 100,
-              backgroundColor: const Color(0xFFE5E7EB),
-              valueColor: AlwaysStoppedAnimation<Color>(c),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text('$progress%'),
-        ],
-      ),
-    );
-  }
-
-  Widget buildProjectList() => ListView.builder(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    itemCount: _projects.length,
-    itemBuilder: (context, index) => _buildProjectCard(_projects[index]),
-  );
-
-  Widget _buildProjectCard(Map<String, dynamic> project) {
-    Color c =
-        project['status'] == 'In Progress'
-            ? Colors.green
-            : project['status'] == 'Planning'
-            ? Colors.orange
-            : project['status'] == 'Completed'
-            ? Colors.blue
-            : Colors.red;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        title: Text(
+          project.title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+        ),
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    project['name'],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    project['status'],
-                    style: TextStyle(
-                      color: c,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 8),
             Text(
-              project['description'],
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              project.description?.isNotEmpty ?? false
+                  ? project.description!
+                  : 'Không có mô tả',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF64748B)),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  project['manager'],
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-                const Spacer(),
-                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  project['deadline'],
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: project['progress'] / 100,
-                    backgroundColor: const Color(0xFFE5E7EB),
-                    valueColor: AlwaysStoppedAnimation<Color>(c),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text('${project['progress']}%'),
-              ],
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Color(0xFF137FEC)),
+              onPressed: () => openEditProjectScreen(project),
             ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  icon: const Icon(Icons.edit, size: 18),
-                  label: const Text('Sửa'),
-                  onPressed: () => openUpdateProjectScreen(project),
-                ),
-                TextButton.icon(
-                  icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                  label: const Text('Xóa', style: TextStyle(color: Colors.red)),
-                  onPressed: () => handleDeleteProject(project),
-                ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => handleDeleteProject(project),
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget buildProjectList() => const Center(
+    child: Padding(
+      padding: EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(Icons.folder_open, size: 64, color: Color(0xFFE5E7EB)),
+          SizedBox(height: 16),
+          Text(
+            'Chưa có dự án nào',
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
+          ),
+        ],
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1378,7 +1649,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 formCard: buildFormCard(),
                 tableSection: buildTableSection(),
                 showForm: _isCreateMode || _isUpdateMode,
-                userName: CurrentUserStore.currentUser.fullName,
+                userName: _currentUserName,
                 onLogout: handleLogout,
               );
             } else {
@@ -1387,7 +1658,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 formCard: buildFormCard(),
                 projectList: buildProjectList(),
                 showForm: _isCreateMode || _isUpdateMode,
-                userName: CurrentUserStore.currentUser.fullName,
+                userName: _currentUserName,
                 onLogout: handleLogout,
               );
             }

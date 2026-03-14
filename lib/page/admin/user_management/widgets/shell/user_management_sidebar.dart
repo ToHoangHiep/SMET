@@ -72,12 +72,12 @@ class UserManagementSidebar extends StatelessWidget {
             route: '/user_management',
             isActive: true,
           ),
-          _sidebarItem(
-            context,
-            Icons.model_training,
-            'Quản lý đào tạo',
-            route: '/training_management',
-          ),
+          // _sidebarItem(
+          //   context,
+          //   Icons.model_training,
+          //   'Quản lý đào tạo',
+          //   route: '/training_management',
+          // ),
           _sidebarItem(
             context,
             Icons.apartment,

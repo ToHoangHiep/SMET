@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/department_model.dart';
-import 'package:smet/model/user_model.dart';
+import 'package:smet/model/user_model.dart' as user_model;
 import 'package:smet/service/admin/department_management/api_department_management.dart';
-import 'package:smet/service/admin/user_management/api_user_management.dart';
-import 'package:smet/service/common/current_user_store.dart';
+import 'package:smet/service/common/user_selection_service.dart';
 import '../widgets/form/department_management_form_card.dart';
 import '../widgets/shell/department_management_page_header.dart';
 import '../widgets/shell/department_management_sidebar.dart';
 import '../widgets/shell/department_management_top_header.dart';
 import '../widgets/table/department_management_table_section.dart';
+import 'package:flutter/foundation.dart';
+import 'package:smet/service/admin/user_management/user_management_service.dart';
+import 'package:smet/service/common/auth_service.dart';
+import 'dart:developer';
 
 // --- ĐỊNH NGHĨA MÀU SẮC CHUNG ---
 class AppColors {
@@ -29,11 +32,12 @@ class DepartmentManagementPage extends StatefulWidget {
 }
 
 class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
-  final DepartmentService _departmentService = DepartmentService();
-  final ApiService _userApiService = ApiService();
+  String username = "";
 
+  final DepartmentService _departmentService = DepartmentService();
+  final UserManagementApi _apiService = UserManagementApi();
   List<DepartmentModel> _departments = [];
-  List<UserModel> _users = [];
+  List<user_model.UserModel> _users = [];
   bool _isLoading = true;
 
   String _codeQuery = '';
@@ -43,37 +47,26 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   int _currentPage = 1;
   final int _rowsPerPage = 5;
 
-  final Map<String, bool> _departmentActiveMap = {};
-
+  final Map<int, bool> _departmentActiveMap = {};
   bool _isCreateMode = false;
   bool _isUpdateMode = false;
-  String? _editingDepartmentId;
+  int? _editingDepartmentId;
   final _createFormKey = GlobalKey<FormState>();
   final TextEditingController _createNameController = TextEditingController();
   final TextEditingController _createCodeController = TextEditingController();
   final TextEditingController _createManagerController =
       TextEditingController();
   bool _createIsActive = true;
+  String _currentUserName = 'Admin';
 
-  /// Chỉ user có role Project Manager (hiển thị tên + role).
-  List<UserModel> get _managerOptions {
-    return _users.where((u) => u.role == UserRole.projectManager).toList();
-  }
-
-  /// Chỉ Mentor và Employee (thành viên giới hạn), hiển thị tên + role.
-  List<UserModel> get _memberOptions {
-    return _users
-        .where((u) => u.role == UserRole.mentor || u.role == UserRole.employee)
-        .toList();
-  }
-
-  UserModel? _selectedManager;
-  final List<UserModel> _selectedEmployees = [];
+  user_model.UserModel? _selectedManager;
+  final List<user_model.UserModel> _selectedEmployees = [];
 
   @override
   void initState() {
     super.initState();
     _fetchDepartments();
+    _loadCurrentUser();
   }
 
   @override
@@ -84,33 +77,73 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     super.dispose();
   }
 
+  Future<void> _loadCurrentUser() async {
+    try {
+      final userData = await AuthService.getMe();
+      setState(() {
+        _currentUserName =
+            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
+                .trim();
+        if (_currentUserName.isEmpty) {
+          _currentUserName = userData['userName'] ?? 'Admin';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _currentUserName = 'Admin'; // Nếu lỗi thì dùng mặc định
+      });
+    }
+  }
+
   Future<void> _pickManager() async {
-    final selected = await showDialog<UserModel>(
+    // Gọi API mới: lấy danh sách Project Manager
+    List<user_model.UserModel> managers;
+    try {
+      managers = await fetchSelectableUsers(
+        UserSelectionContext.departmentProjectManager,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi lấy danh sách: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    final selected = await showDialog<user_model.UserModel>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Chọn người quản lý'),
           content: SizedBox(
             width: 360,
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: _managerOptions.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final manager = _managerOptions[index];
-                final isSelected = _selectedManager?.id == manager.id;
-                return ListTile(
-                  title: Text(
-                    '${manager.fullName} (${manager.role.displayName})',
+            child: managers.isEmpty
+                ? const Center(
+                    child: Text('Không có Project Manager nào'),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: managers.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final manager = managers[index];
+                      final isSelected = _selectedManager?.id == manager.id;
+                      return ListTile(
+                        title: Text(
+                          '${manager.fullName} (${manager.role.displayName})',
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check, color: AppColors.primary)
+                            : null,
+                        onTap: () => Navigator.pop(dialogContext, manager),
+                      );
+                    },
                   ),
-                  trailing:
-                      isSelected
-                          ? const Icon(Icons.check, color: AppColors.primary)
-                          : null,
-                  onTap: () => Navigator.pop(dialogContext, manager),
-                );
-              },
-            ),
           ),
         );
       },
@@ -124,9 +157,28 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   }
 
   Future<void> _pickEmployees() async {
-    final tempSelected = List<UserModel>.from(_selectedEmployees);
+    // Gọi API mới: lấy danh sách User + Mentor cho Department
+    List<user_model.UserModel> availableUsers;
+    try {
+      availableUsers = await fetchSelectableUsers(
+        UserSelectionContext.departmentMembers,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi lấy danh sách: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    final result = await showDialog<List<UserModel>>(
+    if (!mounted) return;
+
+    final tempSelected = List<user_model.UserModel>.from(_selectedEmployees);
+
+    final result = await showDialog<List<user_model.UserModel>>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -135,32 +187,36 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
               title: const Text('Thêm thành viên (Mentor / Nhân viên)'),
               content: SizedBox(
                 width: 420,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _memberOptions.length,
-                  itemBuilder: (context, index) {
-                    final user = _memberOptions[index];
-                    final checked = tempSelected.any((e) => e.id == user.id);
+                child: availableUsers.isEmpty
+                    ? const Center(
+                        child: Text('Không có User nào'),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: availableUsers.length,
+                        itemBuilder: (context, index) {
+                          final user = availableUsers[index];
+                          final checked = tempSelected.any((e) => e.id == user.id);
 
-                    return CheckboxListTile(
-                      value: checked,
-                      title: Text(
-                        '${user.fullName} (${user.role.displayName})',
+                          return CheckboxListTile(
+                            value: checked,
+                            title: Text(
+                              '${user.fullName} (${user.role.displayName})',
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                if (value == true) {
+                                  tempSelected.add(user);
+                                } else {
+                                  tempSelected.removeWhere((e) => e.id == user.id);
+                                }
+                              });
+                            },
+                          );
+                        },
                       ),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (value) {
-                        setDialogState(() {
-                          if (value == true) {
-                            tempSelected.add(user);
-                          } else {
-                            tempSelected.removeWhere((e) => e.id == user.id);
-                          }
-                        });
-                      },
-                    );
-                  },
-                ),
               ),
               actions: [
                 TextButton(
@@ -195,18 +251,18 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     try {
       final results = await Future.wait([
         _departmentService.getDepartments(),
-        _userApiService.getUsers(),
+        _apiService.getUsers(),
       ]);
 
       final departments = results[0] as List<DepartmentModel>;
-      final users = results[1] as List<UserModel>;
+      final users = results[1] as List<user_model.UserModel>;
 
       setState(() {
         _departments = departments;
         _users = users;
         _departmentActiveMap
           ..clear()
-          ..addEntries(departments.map((e) => MapEntry(e.id, true)));
+          ..addEntries(departments.map((e) => MapEntry(e.id, e.active)));
         _isLoading = false;
       });
     } catch (e) {
@@ -217,14 +273,35 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚫 CHẶN MOBILE
+    if (!kIsWeb) {
+      return const Scaffold(
+        body: Center(
+          child: Text(
+            "Trang quản trị chỉ hỗ trợ trên Web",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bgLight,
       body: SafeArea(
         child: Row(
           children: [
             DepartmentManagementSidebar(
-              userDisplayName: CurrentUserStore.currentUser.fullName,
-              onLogout: _handleLogout,
+              userDisplayName: _currentUserName,
+              onLogout: () async {
+                print("LOGOUT CLICKED");
+
+                await AuthService.logout();
+
+                print("TOKEN AFTER LOGOUT: ${await AuthService.getToken()}");
+
+                if (!mounted) return;
+                context.go('/login');
+              },
             ),
             Expanded(
               child: Column(
@@ -355,7 +432,9 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   // ===================== WIDGETS THÀNH PHẦN =====================
 
-  void _handleLogout() {
+  void _handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
     context.go('/login');
   }
 
@@ -373,27 +452,82 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     });
   }
 
-  void _openUpdateDepartmentScreen(DepartmentModel department) {
-    final match =
-        _managerOptions
-            .where((u) => u.fullName == department.leadName)
-            .toList();
+  void _openUpdateDepartmentScreen(DepartmentModel department) async {
+    // Gọi API lấy danh sách PM để tìm manager hiện tại
+    List<user_model.UserModel> managers;
+    try {
+      managers = await fetchSelectableUsers(
+        UserSelectionContext.departmentProjectManager,
+      );
+    } catch (e) {
+      managers = [];
+    }
+
+    final match = managers
+        .where((u) => u.id == department.projectManagerId)
+        .toList();
     final manager = match.isEmpty ? null : match.first;
+
+    // Gọi API lấy danh sách members của department
+    List<Map<String, dynamic>> departmentMembers = [];
+    try {
+      departmentMembers = await _departmentService.getDepartmentMembers(department.id);
+      log("Loaded ${departmentMembers.length} members for department ${department.id}");
+    } catch (e) {
+      log("Error loading department members: $e");
+    }
+
+    // Chuyển đổi department members sang UserModel
+    final selectedEmployees = <user_model.UserModel>[];
+    for (final member in departmentMembers) {
+      // Lọc bỏ PM vì đã có trong _selectedManager
+      final role = member['role'] as String?;
+      if (role != 'PROJECT_MANAGER' && role != 'ADMIN') {
+        selectedEmployees.add(
+          user_model.UserModel(
+            id: member['id'] as int,
+            userName: member['userName'] as String?,
+            firstName: member['firstName'] ?? '',
+            lastName: member['lastName'] as String?,
+            email: member['email'] ?? '',
+            phone: '',
+            role: _parseRole(role ?? 'USER'),
+            lastUpdated: DateTime.now(),
+          ),
+        );
+      }
+    }
+
     setState(() {
       _isCreateMode = false;
       _isUpdateMode = true;
       _editingDepartmentId = department.id;
       _createNameController.text = department.name;
-      _createCodeController.text = department.id;
+      _createCodeController.text = department.code;
       _selectedManager = manager;
       if (manager == null) {
-        _createManagerController.text = department.leadName;
+        _createManagerController.text = department.projectManagerName ?? '';
       } else {
         _createManagerController.clear();
       }
       _createIsActive = _departmentActiveMap[department.id] ?? true;
-      _selectedEmployees.clear();
+      _selectedEmployees
+        ..clear()
+        ..addAll(selectedEmployees);
     });
+  }
+
+  user_model.UserRole _parseRole(String role) {
+    switch (role) {
+      case 'ADMIN':
+        return user_model.UserRole.ADMIN;
+      case 'PROJECT_MANAGER':
+        return user_model.UserRole.PROJECT_MANAGER;
+      case 'MENTOR':
+        return user_model.UserRole.MENTOR;
+      default:
+        return user_model.UserRole.USER;
+    }
   }
 
   void _closeCreateDepartmentScreen() {
@@ -419,23 +553,40 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       return;
     }
 
+    // Lưu projectManagerId trước khi gọi API
+    final pmId = _selectedManager!.id;
+
     final created = await _departmentService.createDepartment(
       name: _createNameController.text.trim(),
-      description:
-          'Bộ phận có ${_selectedEmployees.length} nhân viên trực thuộc.',
-      leadName: _selectedManager!.fullName,
       code: _createCodeController.text.trim(),
-      teamSize: _selectedEmployees.length,
+      active: _createIsActive,
+      projectManagerId: pmId,
     );
 
     if (!mounted) return;
 
+    // Thêm users vào department - bắt buộc gồm PM trong userIds để backend cập nhật department_id của PM trong bảng User
+    final userIds = [
+      pmId,
+      ..._selectedEmployees.map((e) => e.id),
+    ];
+    await _departmentService.addUsersToDepartment(
+      departmentId: created.id,
+      departmentName: created.name,
+      departmentCode: created.code,
+      active: _createIsActive,
+      userIds: userIds,
+      projectManagerId: pmId,
+    );
+
     setState(() {
-      _departments.insert(0, created);
-      _departmentActiveMap[created.id] = _createIsActive;
       _isCreateMode = false;
       _currentPage = 1;
     });
+
+    await _fetchDepartments();
+
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -451,27 +602,34 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     }
     if (_editingDepartmentId == null) return;
 
-    final leadName =
-        _selectedManager?.fullName ?? _createManagerController.text.trim();
-    if (leadName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn người quản lý'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+    // Lưu projectManagerId trước khi gọi API
+    final pmId = _selectedManager?.id;
 
     final updated = await _departmentService.updateDepartment(
       id: _editingDepartmentId!,
       name: _createNameController.text.trim(),
-      description:
-          'Bộ phận có ${_selectedEmployees.length} nhân viên trực thuộc.',
-      leadName: leadName,
+      code: _createCodeController.text.trim(),
+      active: _createIsActive,
+      projectManagerId: pmId,
     );
 
     if (!mounted || updated == null) return;
+
+    // Cập nhật users trong department - gồm PM trong userIds để backend cập nhật department_id của PM trong bảng User
+    final userIds = [
+      if (pmId != null) pmId,
+      ..._selectedEmployees.map((e) => e.id),
+    ];
+    if (userIds.isNotEmpty) {
+      await _departmentService.addUsersToDepartment(
+        departmentId: _editingDepartmentId!,
+        departmentName: updated.name,
+        departmentCode: updated.code,
+        active: _createIsActive,
+        userIds: userIds,
+        projectManagerId: pmId,
+      );
+    }
 
     setState(() {
       final index = _departments.indexWhere((d) => d.id == updated.id);
@@ -540,9 +698,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   }
 
   Future<void> _showDepartmentDetailDialog(DepartmentModel department) async {
-    final averageSkillLevel = ((department.activeProjects * 12) +
-            (department.teamSize * 2))
-        .clamp(0, 100);
+    const int averageSkillLevel = 0;
 
     await showDialog(
       context: context,
@@ -561,24 +717,23 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
-                    backgroundColor: department.iconBgColor,
-                    child: Icon(department.icon, color: department.iconColor),
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.business, color: Colors.white),
                   ),
                   title: Text(
                     department.name,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(department.description),
                 ),
                 const Divider(height: 24),
-                _buildDetailRow('Department Lead', department.leadName),
                 _buildDetailRow(
-                  'Roster (Team Size)',
-                  '${department.teamSize} thành viên',
+                  'Department Lead',
+                  department.projectManagerName ?? '',
                 ),
+
                 _buildDetailRow(
                   'Active Projects',
-                  '${department.activeProjects} dự án',
+                  '${department.active ? 'Đang hoạt động' : 'Không hoạt động'}',
                 ),
                 const SizedBox(height: 14),
                 const Text(
@@ -641,15 +796,20 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   List<DepartmentModel> get _filteredDepartments {
     return _departments.where((dept) {
-      final idLike = dept.id.toLowerCase().contains(_codeQuery.toLowerCase());
-      final managerLike = dept.leadName.toLowerCase().contains(
-        _managerQuery.toLowerCase(),
-      );
-      final isActive = _departmentActiveMap[dept.id] ?? true;
+      final idLike = dept.code.toLowerCase().contains(_codeQuery.toLowerCase());
+      // Khi không tìm theo quản lý: cho qua. Khi có: so sánh (phòng ban không có quản lý = null thì không match)
+      final managerMatch =
+          _managerQuery.trim().isEmpty
+              ? true
+              : (dept.projectManagerName?.toLowerCase().contains(
+                    _managerQuery.toLowerCase().trim(),
+                  ) ??
+                  false);
+      final isActive = _departmentActiveMap[dept.id] ?? dept.active;
       final statusMatch =
           _statusFilter == 'Tất cả' ||
           (_statusFilter == 'Đang hoạt động' ? isActive : !isActive);
-      return idLike && managerLike && statusMatch;
+      return idLike && managerMatch && statusMatch;
     }).toList();
   }
 

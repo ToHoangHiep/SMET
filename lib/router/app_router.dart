@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
@@ -32,10 +33,10 @@ class AppPages {
         path: '/profile',
         builder: (context, state) => const ProfilePage(),
       ),
-      GoRoute(
-        path: '/notifications',
-        builder: (context, state) => const NotificationPage(),
-      ),
+      // GoRoute(
+      //   path: '/notifications',
+      //   builder: (context, state) => const NotificationPage(),
+      // ),
       // Project Manager Routes
       GoRoute(
         path: '/pm/dashboard',
@@ -45,18 +46,35 @@ class AppPages {
         path: '/pm/projects',
         builder: (context, state) => const ProjectManagementPage(),
       ),
-      GoRoute(
-        path: '/pm/project_members',
-        builder: (context, state) => const ProjectMemberPage(),
-      ),
-      GoRoute(
-        path: '/pm/project_progress',
-        builder: (context, state) => const ProjectProgressPage(),
-      ),
-      GoRoute(
-        path: '/pm/learning_path',
-        builder: (context, state) => const LearningPathPage(),
-      ),
+      // GoRoute(
+      //   path: '/pm/project_members',
+      //   builder: (context, state) => const ProjectMemberPage(),
+      // ),
+      // GoRoute(
+      //   path: '/pm/project_progress',
+      //   builder: (context, state) => const ProjectProgressPage(),
+      // ),
+      // GoRoute(
+      //   path: '/pm/learning_path',
+      //   builder: (context, state) => const LearningPathPage(),
+      // ),
+      // Role-based routes
+      // GoRoute(
+      //   path: '/user_management',
+      //   builder: (context, state) => const _PlaceholderPage(title: 'Quản lý người dùng'),
+      // ),
+      // GoRoute(
+      //   path: '/pm/dashboard',
+      //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển PM'),
+      // ),
+      // GoRoute(
+      //   path: '/mentor/dashboard',
+      //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển Mentor'),
+      // ),
+      // GoRoute(
+      //   path: '/employee/dashboard',
+      //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển nhân viên'),
+      // ),
     ],
   );
 }

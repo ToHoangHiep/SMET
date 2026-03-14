@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/project_manager/dashboard/screen/pm_dashboard_web.dart';
 import 'package:smet/page/project_manager/dashboard/screen/pm_dashboard_mobile.dart';
-import 'package:smet/service/common/current_user_store.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF137FEC);
@@ -11,28 +11,6 @@ class AppColors {
   static const Color textDark = Color(0xFF0F172A);
   static const Color textMuted = Color(0xFF64748B);
   static const Color borderLight = Color(0xFFE5E7EB);
-}
-
-class PmDashboardData {
-  static final Map<String, dynamic> stats = {
-    'totalProjects': 12,
-    'activeProjects': 8,
-    'completedProjects': 4,
-    'totalMembers': 25,
-  };
-
-  static final List<Map<String, dynamic>> recentProjects = [
-    {'id': '1', 'name': 'Website Redesign', 'status': 'In Progress', 'progress': 65, 'deadline': '2026-03-20'},
-    {'id': '2', 'name': 'Mobile App Development', 'status': 'Planning', 'progress': 30, 'deadline': '2026-04-15'},
-    {'id': '3', 'name': 'API Integration', 'status': 'Completed', 'progress': 100, 'deadline': '2026-02-28'},
-  ];
-
-  static final List<Map<String, dynamic>> projectStatus = [
-    {'status': 'In Progress', 'count': 8},
-    {'status': 'Planning', 'count': 3},
-    {'status': 'Completed', 'count': 4},
-    {'status': 'On Hold', 'count': 1},
-  ];
 }
 
 class ProjectManagerDashboardPage extends StatefulWidget {
@@ -43,13 +21,62 @@ class ProjectManagerDashboardPage extends StatefulWidget {
 }
 
 class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPage> {
-  bool _isLoading = false;
+  String _currentUserName = 'Project Manager';
+  bool _isLoading = true;
+  
+  // Dashboard data - will be loaded from API
+  int _totalProjects = 0;
+  int _activeProjects = 0;
+  int _completedProjects = 0;
+  int _totalMembers = 0;
+  List<Map<String, dynamic>> _recentProjects = [];
+  List<Map<String, dynamic>> _projectStatus = [];
 
-  // Getters
-  Map<String, dynamic>? get stats => PmDashboardData.stats;
-  List<Map<String, dynamic>> get recentProjects => PmDashboardData.recentProjects;
-  List<Map<String, dynamic>> get projectStatus => PmDashboardData.projectStatus;
-  bool get isLoading => _isLoading;
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final userData = await AuthService.getMe();
+      setState(() {
+        _currentUserName =
+            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
+                .trim();
+        if (_currentUserName.isEmpty) {
+          _currentUserName = userData['userName'] ?? 'Project Manager';
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+      setState(() {
+        _currentUserName = 'Project Manager';
+      });
+    }
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
+    try {
+      // TODO: Call API to get dashboard data
+      // For now, using placeholder values
+      setState(() {
+        _totalProjects = 0;
+        _activeProjects = 0;
+        _completedProjects = 0;
+        _totalMembers = 0;
+        _recentProjects = [];
+        _projectStatus = [];
+      });
+    } catch (e) {
+      debugPrint('Error loading dashboard data: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   String get greetingMessage {
     final hour = DateTime.now().hour;
@@ -58,7 +85,6 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
     return 'Chào buổi tối';
   }
 
-  // Build methods - có thể gọi từ web/mobile
   Widget buildWelcomeSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,13 +99,13 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
   Widget buildStatsCards() {
     return Row(
       children: [
-        Expanded(child: _buildStatCard('Tổng dự án', '${stats?['totalProjects'] ?? 0}', Icons.folder, AppColors.primary)),
+        Expanded(child: _buildStatCard('Tổng dự án', '$_totalProjects', Icons.folder, AppColors.primary)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('Đang hoạt động', '${stats?['activeProjects'] ?? 0}', Icons.play_circle, Colors.green)),
+        Expanded(child: _buildStatCard('Đang hoạt động', '$_activeProjects', Icons.play_circle, Colors.green)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('Hoàn thành', '${stats?['completedProjects'] ?? 0}', Icons.check_circle, Colors.blue)),
+        Expanded(child: _buildStatCard('Hoàn thành', '$_completedProjects', Icons.check_circle, Colors.blue)),
         const SizedBox(width: 16),
-        Expanded(child: _buildStatCard('Thành viên', '${stats?['totalMembers'] ?? 0}', Icons.people, Colors.orange)),
+        Expanded(child: _buildStatCard('Thành viên', '$_totalMembers', Icons.people, Colors.orange)),
       ],
     );
   }
@@ -128,16 +154,31 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
         children: [
           const Text('TRẠNG THÁI DỰ ÁN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textMuted)),
           const SizedBox(height: 20),
-          Row(
-            children: projectStatus.map((s) => Expanded(child: _buildStatusItem(s['status'], s['count']))).toList(),
-          ),
+          if (_projectStatus.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Icon(Icons.pie_chart_outline, size: 48, color: Color(0xFFE5E7EB)),
+                    SizedBox(height: 16),
+                    Text('Chưa có dự án', style: TextStyle(color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+            )
+          else
+            Row(
+              children: _projectStatus.map((s) => Expanded(child: _buildStatusItem(s['status'] ?? 'Unknown', s['count'] ?? 0))).toList(),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildStatusItem(String status, int count) {
-    Color color = status == 'In Progress' ? Colors.green : status == 'Planning' ? Colors.orange : status == 'Completed' ? Colors.blue : Colors.red;
+    Color color = status == 'IN_PROGRESS' ? Colors.green : status == 'COMPLETED' ? Colors.blue : status == 'CANCELLED' ? Colors.red : Colors.grey;
+    String displayStatus = status == 'IN_PROGRESS' ? 'Đang thực hiện' : status == 'COMPLETED' ? 'Hoàn thành' : status == 'CANCELLED' ? 'Đã hủy' : status == 'DRAFT' ? 'Nháp' : status;
     return Column(
       children: [
         Container(
@@ -146,7 +187,7 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
           child: Center(child: Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color))),
         ),
         const SizedBox(height: 12),
-        Text(status, style: const TextStyle(fontSize: 12, color: AppColors.textMuted), textAlign: TextAlign.center),
+        Text(displayStatus, style: const TextStyle(fontSize: 12, color: AppColors.textMuted), textAlign: TextAlign.center),
       ],
     );
   }
@@ -165,30 +206,46 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
         children: [
           const Text('DỰ ÁN GẦN ĐÂY', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textMuted)),
           const SizedBox(height: 16),
-          ...recentProjects.map((p) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildProjectItem(p))),
+          if (_recentProjects.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Icon(Icons.folder_open, size: 48, color: Color(0xFFE5E7EB)),
+                    SizedBox(height: 16),
+                    Text('Chưa có dự án gần đây', style: TextStyle(color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+            )
+          else
+            ..._recentProjects.map((p) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildProjectItem(p))),
         ],
       ),
     );
   }
 
   Widget _buildProjectItem(Map<String, dynamic> project) {
-    Color color = project['status'] == 'In Progress' ? Colors.green : project['status'] == 'Planning' ? Colors.orange : project['status'] == 'Completed' ? Colors.blue : Colors.grey;
+    String status = project['status'] ?? 'DRAFT';
+    int progress = project['progress'] ?? 0;
+    Color color = status == 'IN_PROGRESS' ? Colors.green : status == 'COMPLETED' ? Colors.blue : status == 'CANCELLED' ? Colors.red : Colors.grey;
+    String displayStatus = status == 'IN_PROGRESS' ? 'Đang thực hiện' : status == 'COMPLETED' ? 'Hoàn thành' : status == 'CANCELLED' ? 'Đã hủy' : status == 'DRAFT' ? 'Nháp' : status;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(border: Border.all(color: AppColors.borderLight), borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(project['name'], style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark)), const SizedBox(height: 4), Text('Deadline: ${project['deadline']}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted))])),
+          Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(project['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark)), const SizedBox(height: 4), Text('Deadline: ${project['deadline'] ?? 'N/A'}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted))])),
           const SizedBox(width: 16),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Text(project['status'], style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Text(displayStatus, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500))),
           const SizedBox(width: 16),
-          SizedBox(width: 120, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('${project['progress']}%', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)), const SizedBox(height: 6), LinearProgressIndicator(value: project['progress'] / 100, backgroundColor: AppColors.borderLight, valueColor: AlwaysStoppedAnimation<Color>(color), minHeight: 6, borderRadius: BorderRadius.circular(3))])),
+          SizedBox(width: 120, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('$progress%', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)), const SizedBox(height: 6), LinearProgressIndicator(value: progress / 100, backgroundColor: AppColors.borderLight, valueColor: AlwaysStoppedAnimation<Color>(color), minHeight: 6, borderRadius: BorderRadius.circular(3))])),
         ],
       ),
     );
   }
 
-  // Mobile stats grid
   Widget buildStatsGrid() {
     return GridView.count(
       crossAxisCount: 2,
@@ -198,10 +255,10 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
       crossAxisSpacing: 12,
       childAspectRatio: 1.5,
       children: [
-        _buildStatCard('Tổng dự án', '${stats?['totalProjects'] ?? 0}', Icons.folder, AppColors.primary),
-        _buildStatCard('Đang hoạt động', '${stats?['activeProjects'] ?? 0}', Icons.play_circle, Colors.green),
-        _buildStatCard('Hoàn thành', '${stats?['completedProjects'] ?? 0}', Icons.check_circle, Colors.blue),
-        _buildStatCard('Thành viên', '${stats?['totalMembers'] ?? 0}', Icons.people, Colors.orange),
+        _buildStatCard('Tổng dự án', '$_totalProjects', Icons.folder, AppColors.primary),
+        _buildStatCard('Đang hoạt động', '$_activeProjects', Icons.play_circle, Colors.green),
+        _buildStatCard('Hoàn thành', '$_completedProjects', Icons.check_circle, Colors.blue),
+        _buildStatCard('Thành viên', '$_totalMembers', Icons.people, Colors.orange),
       ],
     );
   }
@@ -223,7 +280,7 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
                 statsCards: buildStatsCards(),
                 projectStatusChart: buildProjectStatusChart(),
                 recentProjects: buildRecentProjects(),
-                userName: CurrentUserStore.currentUser.fullName,
+                userName: _currentUserName,
                 onLogout: _handleLogout,
               );
             } else {
@@ -231,7 +288,7 @@ class _ProjectManagerDashboardPageState extends State<ProjectManagerDashboardPag
                 welcomeSection: buildWelcomeSection(),
                 statsGrid: buildStatsGrid(),
                 recentProjects: buildRecentProjects(),
-                userName: CurrentUserStore.currentUser.fullName,
+                userName: _currentUserName,
                 onLogout: _handleLogout,
               );
             }

@@ -63,13 +63,18 @@ class DepartmentManagementSidebar extends StatelessWidget {
               ],
             ),
           ),
-          _sidebarItem(context, Icons.person, 'Quản lý nhân viên', route: '/'),
           _sidebarItem(
             context,
-            Icons.model_training,
-            'Quản lý đào tạo',
-            route: '/training_management',
+            Icons.person,
+            'Quản lý nhân viên',
+            route: '/user_management',
           ),
+          // _sidebarItem(
+          //   context,
+          //   Icons.model_training,
+          //   'Quản lý đào tạo',
+          //   route: '/training_management',
+          // ),
           _sidebarItem(
             context,
             Icons.apartment,

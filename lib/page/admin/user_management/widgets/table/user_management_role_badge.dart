@@ -13,17 +13,17 @@ class UserManagementRoleBadge extends StatelessWidget {
     String label;
 
     switch (role) {
-      case UserRole.admin:
+      case UserRole.ADMIN:
         bg = const Color(0xFFF3E8FF);
         text = const Color(0xFF6B21A8);
         label = 'QUẢN TRỊ';
         break;
-      case UserRole.projectManager:
+      case UserRole.PROJECT_MANAGER:
         bg = const Color(0xFFDBEAFE);
         text = const Color(0xFF1E40AF);
         label = 'QUẢN LÝ DỰ ÁN';
         break;
-      case UserRole.mentor:
+      case UserRole.MENTOR:
         bg = const Color(0xFFDCFCE7);
         text = const Color(0xFF166534);
         label = 'HƯỚNG DẪN';

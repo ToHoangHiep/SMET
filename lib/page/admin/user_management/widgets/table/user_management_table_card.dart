@@ -17,6 +17,7 @@ class UserManagementTableCard extends StatelessWidget {
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
   final ValueChanged<UserModel> onEditUser;
+  final ValueChanged<UserModel> onViewUser;
   final ValueChanged<UserModel> onToggleActive;
 
   const UserManagementTableCard({
@@ -34,6 +35,7 @@ class UserManagementTableCard extends StatelessWidget {
     required this.onPrevPage,
     required this.onNextPage,
     required this.onEditUser,
+    required this.onViewUser,
     required this.onToggleActive,
   });
 
@@ -128,7 +130,7 @@ class UserManagementTableCard extends StatelessWidget {
               child: DataTable2(
                 columnSpacing: 20,
                 horizontalMargin: 20,
-                minWidth: 900,
+                minWidth: 1100,
                 headingRowHeight: 50,
                 dataRowHeight: 70,
                 headingRowColor: WidgetStateProperty.all(
@@ -140,6 +142,17 @@ class UserManagementTableCard extends StatelessWidget {
                     size: ColumnSize.L,
                     label: Text(
                       'NHÂN VIÊN',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  DataColumn2(
+                    size: ColumnSize.M,
+                    label: Text(
+                      'PHÒNG BAN',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF6B7280),
@@ -240,7 +253,7 @@ class UserManagementTableCard extends StatelessWidget {
                 backgroundColor: primaryColor.withValues(alpha: 0.1),
                 child: Text(
                   '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
-                  '${user.lastName.isNotEmpty ? user.lastName[0] : ''}',
+                  '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
                   style: TextStyle(
                     color: primaryColor,
                     fontSize: 12,
@@ -249,27 +262,40 @@ class UserManagementTableCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    user.fullName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF111827),
+
+              Expanded(
+                // 👈 QUAN TRỌNG
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      user.fullName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF111827),
+                      ),
                     ),
-                  ),
-                  Text(
-                    user.email,
-                    style: const TextStyle(
-                      color: Color(0xFF6B7280),
-                      fontSize: 12,
+                    Tooltip(
+                      message: user.email,
+                      child: Text(
+                        user.email,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
+          ),
+        ),
+
+        DataCell(
+          Text(
+            user.department ?? 'Chưa có',
+            style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
           ),
         ),
         DataCell(UserManagementRoleBadge(role: user.role)),
@@ -302,6 +328,15 @@ class UserManagementTableCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.visibility,
+                  size: 20,
+                  color: Colors.grey,
+                ),
+                onPressed: () => onViewUser(user),
+                tooltip: 'Xem chi tiết',
+              ),
               IconButton(
                 icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
                 onPressed: () => onEditUser(user),

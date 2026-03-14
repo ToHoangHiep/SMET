@@ -44,19 +44,19 @@ class ProfileWebHeader extends StatelessWidget {
               final role = currentUser?.role;
 
               switch (role) {
-                case UserRole.admin:
+                case UserRole.ADMIN:
                   context.go('/user_management');
                   break;
 
-                case UserRole.projectManager:
+                case UserRole.PROJECT_MANAGER:
                   context.go('/');
                   break;
 
-                case UserRole.mentor:
+                case UserRole.MENTOR:
                   context.go('/');
                   break;
 
-                case UserRole.employee:
+                case UserRole.USER:
                   context.go('/');
                   break;
 
