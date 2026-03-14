@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
+import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
+import 'package:smet/page/employee/course_detail/screen/course_detail_base.dart';
+import 'package:smet/page/employee/dashboard/screen/employee_dashboard_base.dart';
+import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_base.dart';
 import 'package:smet/page/home/home.dart';
 import 'package:smet/page/login/login.dart';
 import 'package:smet/page/notification/screen/notification_page.dart';
@@ -75,6 +79,38 @@ class AppPages {
       //   path: '/employee/dashboard',
       //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển nhân viên'),
       // ),
+      // Employee Routes
+      GoRoute(
+        path: '/employee/dashboard',
+        builder: (context, state) => const EmployeeDashboardPage(),
+      ),
+      GoRoute(
+        path: '/employee/courses',
+        builder: (context, state) => const CourseCatalogPage(),
+      ),
+      GoRoute(
+        path: '/employee/course/:id',
+        builder: (context, state) {
+          final courseId = state.pathParameters['id'] ?? '';
+          return CourseDetailPage(courseId: courseId);
+        },
+      ),
+      // Learning Workspace Route
+      GoRoute(
+        path: '/employee/learn/:courseId',
+        builder: (context, state) {
+          final courseId = state.pathParameters['courseId'] ?? '';
+          return LearningWorkspacePage(courseId: courseId);
+        },
+      ),
+      GoRoute(
+        path: '/employee/learn/:courseId/:lessonId',
+        builder: (context, state) {
+          final courseId = state.pathParameters['courseId'] ?? '';
+          final lessonId = state.pathParameters['lessonId'] ?? '';
+          return LearningWorkspacePage(courseId: courseId, lessonId: lessonId);
+        },
+      ),
     ],
   );
 }
