@@ -44,20 +44,6 @@ class LoginWeb extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'About',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'Contact Support',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -107,7 +93,7 @@ class LoginWeb extends StatelessWidget {
                           const SizedBox(height: 18),
                           const Center(
                             child: Text(
-                              'Welcome back',
+                              'Xin chào',
                               style: TextStyle(
                                 fontSize: 42,
                                 fontWeight: FontWeight.bold,
@@ -119,7 +105,7 @@ class LoginWeb extends StatelessWidget {
                           const SizedBox(height: 8),
                           const Center(
                             child: Text(
-                              'Sign in to access your training dashboard',
+                              'Đăng nhập để truy cập vào hệ thống',
                               style: TextStyle(
                                 color: Color(0xFF6B7280),
                                 fontSize: 15,

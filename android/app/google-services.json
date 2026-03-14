@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "653101893191",
+    "project_id": "smets-f061d",
+    "storage_bucket": "smets-f061d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:653101893191:android:8e242f2b792b3f36385362",
+        "android_client_info": {
+          "package_name": "com.example.smet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEPxMgYbyLzjgTGbAcctelew8ggLJPRdY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

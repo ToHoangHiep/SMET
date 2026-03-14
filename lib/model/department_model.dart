@@ -1,43 +1,40 @@
 import 'package:flutter/material.dart';
 
 class DepartmentModel {
-  final String id;
+  final int id;
   final String name;
-  final String description;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String leadName;
-  final String leadAvatarUrl;
-  final int teamSize;
-  final int activeProjects;
+  final String code;
+  final bool active;
+  final int? projectManagerId;
+  final String? projectManagerName;
 
   DepartmentModel({
     required this.id,
     required this.name,
-    required this.description,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.leadName,
-    required this.leadAvatarUrl,
-    required this.teamSize,
-    required this.activeProjects,
+    required this.code,
+    required this.active,
+    this.projectManagerId,
+    this.projectManagerName,
   });
 
-  // Hỗ trợ parse từ JSON sau này khi có API thật
   factory DepartmentModel.fromJson(Map<String, dynamic> json) {
     return DepartmentModel(
-      id: json['id'] ?? '',
+      id: json['id'] ?? 0,
       name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      icon: Icons.business, // Nên có hàm map string sang IconData ở thực tế
-      iconColor: Colors.blue,
-      iconBgColor: Colors.blue.withOpacity(0.1),
-      leadName: json['lead_name'] ?? '',
-      leadAvatarUrl: json['lead_avatar_url'] ?? '',
-      teamSize: json['team_size'] ?? 0,
-      activeProjects: json['active_projects'] ?? 0,
+      code: json['code'] ?? '',
+      active: json['active'] ?? false,
+      projectManagerId: json['projectManagerId'],
+      projectManagerName: json['projectManagerName'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      "id": id,
+      "name": name,
+      "code": code,
+      "active": active,
+      "projectManagerId": projectManagerId,
+    };
   }
 }

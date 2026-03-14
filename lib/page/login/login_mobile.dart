@@ -15,6 +15,7 @@ class LoginMobile extends StatelessWidget {
               constraints: BoxConstraints(
                 minHeight: constraints.maxHeight - 48,
               ),
+
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
@@ -27,10 +28,16 @@ class LoginMobile extends StatelessWidget {
                         size: 56,
                         color: Color(0xFF2563EB),
                       ),
+                      const Icon(
+                        Icons.school,
+                        size: 56,
+                        color: Color(0xFF2563EB),
+                      ),
                       const SizedBox(height: 20),
                       const Text(
                         "Sign In",
                         textAlign: TextAlign.center,
+
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,

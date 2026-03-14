@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
 import '../widgets/mobile/profile_mobile_app_bar.dart';
@@ -6,13 +8,15 @@ import '../widgets/profile_user_header.dart';
 class ProfilePageMobile extends StatelessWidget {
   final Widget formContent;
   final UserModel? currentUser;
-  final VoidCallback? onEditAvatar;
+  final Uint8List? avatarBytes;
+  final VoidCallback? onAvatarTap;
 
   const ProfilePageMobile({
     super.key,
     required this.formContent,
     this.currentUser,
-    this.onEditAvatar,
+    this.avatarBytes,
+    this.onAvatarTap,
   });
 
   @override
@@ -45,7 +49,8 @@ class ProfilePageMobile extends StatelessWidget {
     return ProfileUserHeader(
       currentUser: currentUser,
       variant: ProfileUserHeaderVariant.mobile,
-      onEditAvatar: onEditAvatar,
+      avatarBytes: avatarBytes,
+      onAvatarTap: onAvatarTap,
     );
   }
 }

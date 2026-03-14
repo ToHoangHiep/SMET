@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
-import 'package:smet/service/admin/user_management/api_user_management.dart';
-import 'package:smet/service/common/current_user_store.dart';
+import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:developer';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,43 +19,25 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
-  final ApiService _apiService = ApiService();
-  final CurrentUserStore _currentUserStore = CurrentUserStore.instance;
 
-  // Hàm xử lý đăng nhập
-  Future<void> _onLoginPressed() async {
-    final email = _emailController.text.trim().toLowerCase();
+  void _onLoginPressed() async {
+    try {
+      await AuthService.login(_emailController.text, _passwordController.text);
 
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng nhập email'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
+      final userJson = await AuthService.getMe();
+
+      log("USER JSON FROM /auth/me: $userJson");
+
+      final user = UserModel.fromJson(userJson);
+
+      log("USER ROLE AFTER PARSE: ${user.role}");
+
+      context.go(user.rolePath);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
-
-    final users = await _apiService.getUsers();
-    if (!mounted) return;
-
-    final matchedIndex = users.indexWhere((u) => u.email.toLowerCase() == email);
-    final matchedUser = matchedIndex == -1 ? null : users[matchedIndex];
-
-    if (matchedUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm thấy tài khoản với email này'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    _currentUserStore.setCurrentUser(matchedUser);
-
-    if (!mounted) return;
-    context.go('/');
   }
 
   // CHỈ MỤC CHUNG: Toàn bộ nội dung bên trong Form
@@ -63,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Text(
-          "Email address",
+          "Địa chỉ email",
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: Color(0xFF374151),
@@ -73,7 +57,7 @@ class _LoginPageState extends State<LoginPage> {
         TextField(
           controller: _emailController,
           decoration: InputDecoration(
-            hintText: "you@company.com",
+            hintText: "you@.com",
             prefixIcon: const Icon(Icons.mail_outline, size: 20),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(
@@ -84,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 20),
         const Text(
-          "Password",
+          "Mật khẩu",
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: Color(0xFF374151),
@@ -112,12 +96,12 @@ class _LoginPageState extends State<LoginPage> {
               activeColor: const Color(0xFF2563EB),
               onChanged: (val) => setState(() => _rememberMe = val!),
             ),
-            const Text("Remember me", style: TextStyle(fontSize: 14)),
+            const Text("Ghi nhớ đăng nhập", style: TextStyle(fontSize: 14)),
             const Spacer(),
             TextButton(
               onPressed: () {},
               child: const Text(
-                "Forgot password?",
+                "Quên mật khẩu?",
                 style: TextStyle(color: Color(0xFF2563EB)),
               ),
             ),
@@ -137,7 +121,7 @@ class _LoginPageState extends State<LoginPage> {
               elevation: 2,
             ),
             child: const Text(
-              "Sign in",
+              "Đăng nhập",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,
