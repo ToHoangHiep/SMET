@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
+import 'package:smet/page/admin/widgets/admin_sidebar.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
-import '../widgets/shell/user_management_sidebar.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
@@ -81,7 +81,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
-  final Color _primaryColor = const Color(0xFF137FEC);
+  final Color _primaryColor = const Color(0xFF6366F1); // Indigo như login
   final Color _bgLight = const Color(0xFFF3F6FC);
 
   final List<Map<String, String>> _roleOptions = const [
@@ -323,9 +323,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
       body: SafeArea(
         child: Row(
           children: [
-            UserManagementSidebar(
+            AdminSidebar(
               primaryColor: _primaryColor,
               userDisplayName: _currentUserName,
+              activeRoute: '/user_management',
               onProfileTap: () => context.go('/profile'),
               onLogout: () async {
                 final router = GoRouter.of(context);
@@ -480,19 +481,41 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
                 const SizedBox(height: 32),
                 _buildDetailCard('ID', user.id.toString(), Icons.tag, 0),
-                _buildDetailCard('Tên nhân viên', user.fullName, Icons.person_outline, 1),
-                _buildDetailCard('Vai trò', _getRoleLabel(user.role), Icons.badge_outlined, 2),
-                _buildDetailCard('Số điện thoại', user.phone.isNotEmpty ? user.phone : 'Chưa cập nhật', Icons.phone_outlined, 3),
+                _buildDetailCard(
+                  'Tên nhân viên',
+                  user.fullName,
+                  Icons.person_outline,
+                  1,
+                ),
+                _buildDetailCard(
+                  'Vai trò',
+                  _getRoleLabel(user.role),
+                  Icons.badge_outlined,
+                  2,
+                ),
+                _buildDetailCard(
+                  'Số điện thoại',
+                  user.phone.isNotEmpty ? user.phone : 'Chưa cập nhật',
+                  Icons.phone_outlined,
+                  3,
+                ),
                 _buildDetailCard('Email', user.email, Icons.email_outlined, 4),
                 _buildDetailCard(
                   'Trạng thái',
                   user.isActive ? 'Hoạt động' : 'Không hoạt động',
-                  user.isActive ? Icons.check_circle_outline : Icons.cancel_outlined,
+                  user.isActive
+                      ? Icons.check_circle_outline
+                      : Icons.cancel_outlined,
                   5,
                   isStatus: true,
                   isActive: user.isActive,
                 ),
-                _buildDetailCard('Phòng ban', user.department ?? 'Chưa phân công', Icons.business_outlined, 6),
+                _buildDetailCard(
+                  'Phòng ban',
+                  user.department ?? 'Chưa phân công',
+                  Icons.business_outlined,
+                  6,
+                ),
                 _buildDetailCard(
                   'Ngày tạo',
                   _formatDate(user.createdAt ?? user.lastUpdated),
@@ -508,9 +531,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 const SizedBox(height: 28),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _buildCloseButton(),
-                  ],
+                  children: [_buildCloseButton()],
                 ),
               ],
             ),
@@ -612,7 +633,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  Widget _buildDetailCard(String label, String value, IconData icon, int index, {bool isStatus = false, bool isActive = false}) {
+  Widget _buildDetailCard(
+    String label,
+    String value,
+    IconData icon,
+    int index, {
+    bool isStatus = false,
+    bool isActive = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AnimatedContainer(
@@ -623,10 +651,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFFFAFBFC),
-              const Color(0xFFF8FAFC),
-            ],
+            colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
           ),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFE5E7EB)),
@@ -636,19 +661,23 @@ class _UserManagementPageState extends State<UserManagementPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isStatus
-                    ? (isActive
-                        ? const Color(0xFFDCFCE7)
-                        : const Color(0xFFF3F4F6))
-                    : _primaryColor.withValues(alpha: 0.08),
+                color:
+                    isStatus
+                        ? (isActive
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFFF3F4F6))
+                        : _primaryColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
                 size: 18,
-                color: isStatus
-                    ? (isActive ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF))
-                    : _primaryColor,
+                color:
+                    isStatus
+                        ? (isActive
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF9CA3AF))
+                        : _primaryColor,
               ),
             ),
             const SizedBox(width: 16),
@@ -668,9 +697,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   Text(
                     value,
                     style: TextStyle(
-                      color: isStatus
-                          ? (isActive ? const Color(0xFF16A34A) : const Color(0xFF6B7280))
-                          : const Color(0xFF111827),
+                      color:
+                          isStatus
+                              ? (isActive
+                                  ? const Color(0xFF16A34A)
+                                  : const Color(0xFF6B7280))
+                              : const Color(0xFF111827),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -784,9 +816,10 @@ class _AnimatedButtonState extends State<_AnimatedButton>
       duration: const Duration(milliseconds: 100),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -810,14 +843,16 @@ class _AnimatedButtonState extends State<_AnimatedButton>
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             decoration: BoxDecoration(
-              color: _isHovered
-                  ? widget.primaryColor.withValues(alpha: 0.1)
-                  : Colors.white,
+              color:
+                  _isHovered
+                      ? widget.primaryColor.withValues(alpha: 0.1)
+                      : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _isHovered
-                    ? widget.primaryColor.withValues(alpha: 0.5)
-                    : const Color(0xFFD1D5DB),
+                color:
+                    _isHovered
+                        ? widget.primaryColor.withValues(alpha: 0.5)
+                        : const Color(0xFFD1D5DB),
               ),
             ),
             child: InkWell(
@@ -828,17 +863,19 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                   Icon(
                     widget.icon,
                     size: 20,
-                    color: _isHovered
-                        ? widget.primaryColor
-                        : const Color(0xFF6B7280),
+                    color:
+                        _isHovered
+                            ? widget.primaryColor
+                            : const Color(0xFF6B7280),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     widget.label.toUpperCase(),
                     style: TextStyle(
-                      color: _isHovered
-                          ? widget.primaryColor
-                          : const Color(0xFF6B7280),
+                      color:
+                          _isHovered
+                              ? widget.primaryColor
+                              : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       letterSpacing: 0.5,

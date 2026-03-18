@@ -6,7 +6,7 @@ class DepartmentManagementTopHeader extends StatefulWidget {
 
   const DepartmentManagementTopHeader({
     super.key,
-    this.primaryColor = const Color(0xFF137FEC),
+    this.primaryColor = const Color(0xFF6366F1), // Indigo như login
   });
 
   @override

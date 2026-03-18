@@ -102,7 +102,7 @@ class DepartmentService {
   }
 
   /// ================= UPDATE =================
-  /// PUT /api/departments/updateDepartment/{id}
+  /// PATCH /api/departments/{id}
   Future<DepartmentModel?> updateDepartment({
     required int id,
     required String name,
@@ -113,16 +113,15 @@ class DepartmentService {
     List<int>? userIds,
   }) async {
     try {
-      final url = "$baseUrl/departments/updateDepartment/$id";
+      final url = "$baseUrl/departments/$id";
 
       final body = {
         "name": name,
         "code": code,
-        "isActive": isActive,
-        "is_active": isActive, // Fallback for snake_case
+        "is_active": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
-        if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
-        if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
+        "mentorIds": mentorIds ?? [],
+        "userIds": userIds ?? [],
       };
 
       _logRequest(
@@ -133,7 +132,7 @@ class DepartmentService {
       );
 
       final token = await _getToken();
-      final response = await http.put(
+      final response = await http.patch(
         Uri.parse(url),
         headers: _headers(token!),
         body: jsonEncode(body),
@@ -418,7 +417,7 @@ class DepartmentService {
     int? projectManagerId,
   }) async {
     try {
-      final url = "$baseUrl/departments/updateDepartment/$departmentId";
+      final url = "$baseUrl/departments/$departmentId";
 
       final body = {
         "name": departmentName,
@@ -437,7 +436,7 @@ class DepartmentService {
       );
 
       final token = await _getToken();
-      final response = await http.put(
+      final response = await http.patch(
         Uri.parse(url),
         headers: _headers(token!),
         body: jsonEncode(body),

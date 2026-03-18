@@ -46,9 +46,10 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
       duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.05),
       end: Offset.zero,
@@ -129,7 +130,9 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
             ],
           ),
           child: Icon(
-            widget.isUpdateMode ? Icons.edit_note_rounded : Icons.person_add_rounded,
+            widget.isUpdateMode
+                ? Icons.edit_note_rounded
+                : Icons.person_add_rounded,
             color: Colors.white,
             size: 26,
           ),
@@ -140,7 +143,9 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.isUpdateMode ? 'Cập nhật nhân viên' : 'Tạo nhân viên mới',
+                widget.isUpdateMode
+                    ? 'Cập nhật nhân viên'
+                    : 'Tạo nhân viên mới',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -153,10 +158,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 widget.isUpdateMode
                     ? 'Cập nhật thông tin nhân viên trong hệ thống'
                     : 'Thêm nhân viên mới vào hệ thống',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
               ),
             ],
           ),
@@ -176,10 +178,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFFFAFBFC),
-            const Color(0xFFF8FAFC),
-          ],
+          colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
@@ -207,7 +206,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF374151),
+                  color: Color(0xFF6366F1),
                 ),
               ),
             ],
@@ -258,10 +257,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFFFAFBFC),
-            const Color(0xFFF8FAFC),
-          ],
+          colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
@@ -289,7 +285,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF374151),
+                  color: Color(0xFF6366F1),
                 ),
               ),
             ],
@@ -331,10 +327,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFFFAFBFC),
-            const Color(0xFFF8FAFC),
-          ],
+          colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
@@ -362,7 +355,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF374151),
+                  color: Color(0xFF6366F1),
                 ),
               ),
             ],
@@ -428,9 +421,7 @@ class _AnimatedCloseButtonState extends State<_AnimatedCloseButton> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: _isHovered
-              ? const Color(0xFFFEF2F2)
-              : Colors.transparent,
+          color: _isHovered ? const Color(0xFFFEF2F2) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         child: InkWell(
@@ -438,9 +429,7 @@ class _AnimatedCloseButtonState extends State<_AnimatedCloseButton> {
           borderRadius: BorderRadius.circular(10),
           child: Icon(
             Icons.close_rounded,
-            color: _isHovered
-                ? const Color(0xFFEF4444)
-                : Colors.grey[400],
+            color: _isHovered ? const Color(0xFFEF4444) : Colors.grey[400],
             size: 22,
           ),
         ),
@@ -479,15 +468,16 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: _isFocused
-            ? [
-                BoxShadow(
-                  color: widget.primaryColor.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : [],
+        boxShadow:
+            _isFocused
+                ? [
+                  BoxShadow(
+                    color: widget.primaryColor.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+                : [],
       ),
       child: TextFormField(
         controller: widget.controller,
@@ -524,7 +514,10 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField> {
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
     );
@@ -555,15 +548,16 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: _isFocused
-            ? [
-                BoxShadow(
-                  color: widget.primaryColor.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : [],
+        boxShadow:
+            _isFocused
+                ? [
+                  BoxShadow(
+                    color: widget.primaryColor.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+                : [],
       ),
       child: DropdownButtonFormField<UserRole>(
         initialValue: widget.value,
@@ -583,9 +577,7 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
             size: 20,
             color: _isFocused ? widget.primaryColor : Colors.grey[400],
           ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: Colors.grey.shade200),
@@ -596,13 +588,13 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
         items: const [
-          DropdownMenuItem(
-            value: UserRole.ADMIN,
-            child: Text('Quản trị viên'),
-          ),
+          DropdownMenuItem(value: UserRole.ADMIN, child: Text('Quản trị viên')),
           DropdownMenuItem(
             value: UserRole.PROJECT_MANAGER,
             child: Text('Quản lý dự án'),
@@ -611,10 +603,7 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
             value: UserRole.MENTOR,
             child: Text('Người hướng dẫn'),
           ),
-          DropdownMenuItem(
-            value: UserRole.USER,
-            child: Text('Nhân viên'),
-          ),
+          DropdownMenuItem(value: UserRole.USER, child: Text('Nhân viên')),
         ],
       ),
     );
@@ -635,7 +624,8 @@ class _AnimatedOutlinedButton extends StatefulWidget {
   });
 
   @override
-  State<_AnimatedOutlinedButton> createState() => _AnimatedOutlinedButtonState();
+  State<_AnimatedOutlinedButton> createState() =>
+      _AnimatedOutlinedButtonState();
 }
 
 class _AnimatedOutlinedButtonState extends State<_AnimatedOutlinedButton>
@@ -651,9 +641,10 @@ class _AnimatedOutlinedButtonState extends State<_AnimatedOutlinedButton>
       duration: const Duration(milliseconds: 100),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -677,14 +668,13 @@ class _AnimatedOutlinedButtonState extends State<_AnimatedOutlinedButton>
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             decoration: BoxDecoration(
-              color: _isHovered
-                  ? const Color(0xFFF9FAFB)
-                  : Colors.white,
+              color: _isHovered ? const Color(0xFFF9FAFB) : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _isHovered
-                    ? widget.primaryColor.withValues(alpha: 0.5)
-                    : const Color(0xFFD1D5DB),
+                color:
+                    _isHovered
+                        ? widget.primaryColor.withValues(alpha: 0.5)
+                        : const Color(0xFFD1D5DB),
               ),
             ),
             child: InkWell(
@@ -695,17 +685,19 @@ class _AnimatedOutlinedButtonState extends State<_AnimatedOutlinedButton>
                   Icon(
                     widget.icon,
                     size: 20,
-                    color: _isHovered
-                        ? widget.primaryColor
-                        : const Color(0xFF6B7280),
+                    color:
+                        _isHovered
+                            ? widget.primaryColor
+                            : const Color(0xFF6B7280),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     widget.label,
                     style: TextStyle(
-                      color: _isHovered
-                          ? widget.primaryColor
-                          : const Color(0xFF6B7280),
+                      color:
+                          _isHovered
+                              ? widget.primaryColor
+                              : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -734,7 +726,8 @@ class _AnimatedElevatedButton extends StatefulWidget {
   });
 
   @override
-  State<_AnimatedElevatedButton> createState() => _AnimatedElevatedButtonState();
+  State<_AnimatedElevatedButton> createState() =>
+      _AnimatedElevatedButtonState();
 }
 
 class _AnimatedElevatedButtonState extends State<_AnimatedElevatedButton>
@@ -750,9 +743,10 @@ class _AnimatedElevatedButtonState extends State<_AnimatedElevatedButton>
       duration: const Duration(milliseconds: 100),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -779,43 +773,38 @@ class _AnimatedElevatedButtonState extends State<_AnimatedElevatedButton>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: _isHovered
-                    ? [
-                        widget.primaryColor,
-                        widget.primaryColor.withValues(alpha: 0.85),
-                      ]
-                    : [
-                        widget.primaryColor,
-                        widget.primaryColor,
-                      ],
+                colors:
+                    _isHovered
+                        ? [
+                          widget.primaryColor,
+                          widget.primaryColor.withValues(alpha: 0.85),
+                        ]
+                        : [widget.primaryColor, widget.primaryColor],
               ),
               borderRadius: BorderRadius.circular(12),
-              boxShadow: _isHovered
-                  ? [
-                      BoxShadow(
-                        color: widget.primaryColor.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: widget.primaryColor.withValues(alpha: 0.2),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+              boxShadow:
+                  _isHovered
+                      ? [
+                        BoxShadow(
+                          color: widget.primaryColor.withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                      : [
+                        BoxShadow(
+                          color: widget.primaryColor.withValues(alpha: 0.2),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
             ),
             child: InkWell(
               onTap: widget.onPressed,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    widget.icon,
-                    size: 20,
-                    color: Colors.white,
-                  ),
+                  Icon(widget.icon, size: 20, color: Colors.white),
                   const SizedBox(width: 8),
                   Text(
                     widget.label,

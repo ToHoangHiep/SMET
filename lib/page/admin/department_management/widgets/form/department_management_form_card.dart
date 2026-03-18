@@ -20,7 +20,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
 
   const DepartmentManagementFormCard({
     super.key,
-    this.primaryColor = const Color(0xFF137FEC),
+    this.primaryColor = const Color(0xFF6366F1), // Indigo như login
     required this.formKey,
     required this.isUpdateMode,
     required this.nameController,
@@ -38,10 +38,12 @@ class DepartmentManagementFormCard extends StatefulWidget {
   });
 
   @override
-  State<DepartmentManagementFormCard> createState() => _DepartmentManagementFormCardState();
+  State<DepartmentManagementFormCard> createState() =>
+      _DepartmentManagementFormCardState();
 }
 
-class _DepartmentManagementFormCardState extends State<DepartmentManagementFormCard> {
+class _DepartmentManagementFormCardState
+    extends State<DepartmentManagementFormCard> {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
@@ -99,7 +101,9 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
-            widget.isUpdateMode ? Icons.edit_outlined : Icons.add_business_outlined,
+            widget.isUpdateMode
+                ? Icons.edit_outlined
+                : Icons.add_business_outlined,
             color: widget.primaryColor,
             size: 22,
           ),
@@ -118,7 +122,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
                   ),
                 ),
                 TextSpan(
-                  text: widget.isUpdateMode ? ' / Cập nhật phòng ban' : ' / Tạo mới phòng ban',
+                  text:
+                      widget.isUpdateMode
+                          ? ' / Cập nhật phòng ban'
+                          : ' / Tạo mới phòng ban',
                   style: const TextStyle(color: Color(0xFF64748B)),
                 ),
               ],
@@ -139,7 +146,7 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF374151),
+            color: Color(0xFF6366F1),
           ),
         ),
         const SizedBox(height: 8),
@@ -151,7 +158,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
             hintStyle: TextStyle(color: Colors.grey[400]),
             filled: true,
             fillColor: const Color(0xFFFAFBFC),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -185,7 +195,7 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF374151),
+            color: Color(0xFF6366F1),
           ),
         ),
         const SizedBox(height: 8),
@@ -197,7 +207,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
             hintStyle: TextStyle(color: Colors.grey[400]),
             filled: true,
             fillColor: const Color(0xFFFAFBFC),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -231,7 +244,7 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF374151),
+            color: Color(0xFF6366F1),
           ),
         ),
         const SizedBox(height: 8),
@@ -242,7 +255,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
                 onTap: widget.onPickManager,
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFAFBFC),
                     borderRadius: BorderRadius.circular(12),
@@ -250,20 +266,26 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.person_outline, color: widget.primaryColor, size: 20),
+                      Icon(
+                        Icons.person_outline,
+                        color: widget.primaryColor,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           widget.selectedManager != null
-                              ? '${widget.selectedManager!.fullName} (${widget.selectedManager!.role.displayName})'
+                              ? '${widget.selectedManager!.fullName} (${widget.selectedManager!.role.displayName})${widget.selectedManager!.department != null ? ' - ${widget.selectedManager!.department}' : ' - Chưa có'}'
                               : widget.managerFallbackText.isEmpty
-                                  ? 'Chọn người quản lý'
-                                  : widget.managerFallbackText,
+                              ? 'Chọn người quản lý'
+                              : widget.managerFallbackText,
                           style: TextStyle(
                             fontSize: 14,
-                            color: (widget.selectedManager != null || widget.managerFallbackText.isNotEmpty)
-                                ? const Color(0xFF0F172A)
-                                : Colors.grey[400],
+                            color:
+                                (widget.selectedManager != null ||
+                                        widget.managerFallbackText.isNotEmpty)
+                                    ? const Color(0xFF0F172A)
+                                    : Colors.grey[400],
                           ),
                         ),
                       ),
@@ -278,7 +300,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.primaryColor,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -300,7 +325,7 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF374151),
+            color: Color(0xFF6366F1),
           ),
         ),
         const SizedBox(height: 8),
@@ -324,9 +349,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? widget.primaryColor.withValues(alpha: 0.1)
-              : Colors.transparent,
+          color:
+              isSelected
+                  ? widget.primaryColor.withValues(alpha: 0.1)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? widget.primaryColor : const Color(0xFFE5E7EB),
@@ -346,7 +372,8 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? widget.primaryColor : const Color(0xFF6B7280),
+                color:
+                    isSelected ? widget.primaryColor : const Color(0xFF6B7280),
               ),
             ),
           ],
@@ -366,7 +393,7 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF374151),
+                color: Color(0xFF6366F1),
               ),
             ),
             const SizedBox(width: 8),
@@ -393,7 +420,9 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
               label: const Text('Thêm thành viên'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: widget.primaryColor,
-                side: BorderSide(color: widget.primaryColor.withValues(alpha: 0.5)),
+                side: BorderSide(
+                  color: widget.primaryColor.withValues(alpha: 0.5),
+                ),
               ),
             ),
           ],
@@ -403,7 +432,10 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: widget.selectedEmployees.map((e) => _buildEmployeeChip(e)).toList(),
+            children:
+                widget.selectedEmployees
+                    .map((e) => _buildEmployeeChip(e))
+                    .toList(),
           ),
         ],
       ],
@@ -412,9 +444,21 @@ class _DepartmentManagementFormCardState extends State<DepartmentManagementFormC
 
   Widget _buildEmployeeChip(UserModel employee) {
     return Chip(
-      label: Text(
-        '${employee.fullName} (${employee.role.displayName})',
-        style: const TextStyle(fontSize: 12),
+      label: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 12, color: Color(0xFF6366F1)),
+          children: [
+            TextSpan(text: employee.fullName),
+            TextSpan(text: ' (${employee.role.displayName})'),
+            TextSpan(
+              text:
+                  employee.department != null
+                      ? ' - ${employee.department}'
+                      : ' - Chưa có',
+              style: const TextStyle(color: Color(0xFF6366F1)),
+            ),
+          ],
+        ),
       ),
       deleteIcon: const Icon(Icons.close, size: 18),
       onDeleted: () => widget.onRemoveEmployee(employee),
