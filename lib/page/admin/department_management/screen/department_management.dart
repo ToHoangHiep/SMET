@@ -4,9 +4,9 @@ import 'package:smet/model/department_model.dart';
 import 'package:smet/model/user_model.dart' as user_model;
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/service/common/user_selection_service.dart';
+import 'package:smet/page/admin/widgets/admin_sidebar.dart';
 import '../widgets/form/department_management_form_card.dart';
 import '../widgets/shell/department_management_page_header.dart';
-import '../widgets/shell/department_management_sidebar.dart';
 import '../widgets/shell/department_management_top_header.dart';
 import '../widgets/table/department_management_table_section.dart';
 import '../widgets/dialog/user_selection_dialog.dart';
@@ -17,7 +17,7 @@ import 'dart:developer';
 
 // --- ĐỊNH NGHĨA MÀU SẮC CHUNG ---
 class AppColors {
-  static const Color primary = Color(0xFF137FEC);
+  static const Color primary = Color(0xFF6366F1); // Indigo như login
   static const Color bgLight = Color(0xFFF3F6FC);
   static const Color textDark = Color(0xFF0F172A);
   static const Color textMuted = Color(0xFF64748B);
@@ -63,7 +63,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   user_model.UserModel? _selectedManager;
   final List<user_model.UserModel> _selectedEmployees = [];
 
-  final Color _primaryColor = const Color(0xFF137FEC);
+  final Color _primaryColor = const Color(0xFF6366F1); // Indigo như login
   final Color _bgLight = const Color(0xFFF3F6FC);
 
   @override
@@ -124,6 +124,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       primaryColor: _primaryColor,
       managers: managers,
       currentManager: _selectedManager,
+      excludeDepartmentId: _editingDepartmentId,
     );
 
     if (selected == null) return;
@@ -158,6 +159,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       primaryColor: _primaryColor,
       members: availableUsers,
       preSelectedMembers: _selectedEmployees,
+      excludeDepartmentId: _editingDepartmentId,
     );
 
     if (result == null) return;
@@ -175,7 +177,8 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       final departmentResult = await _departmentService.getDepartments();
       final usersResult = await _apiService.getUsers();
 
-      final departments = departmentResult['departments'] as List<DepartmentModel>;
+      final departments =
+          departmentResult['departments'] as List<DepartmentModel>;
       final users = usersResult['users'] as List<user_model.UserModel>;
       final totalElements = departmentResult['totalElements'] as int;
 
@@ -216,9 +219,10 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       body: SafeArea(
         child: Row(
           children: [
-            DepartmentManagementSidebar(
+            AdminSidebar(
               primaryColor: _primaryColor,
               userDisplayName: _currentUserName,
+              activeRoute: '/department_management',
               onLogout: () async {
                 print("LOGOUT CLICKED");
 
@@ -233,9 +237,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
             Expanded(
               child: Column(
                 children: [
-                  DepartmentManagementTopHeader(
-                    primaryColor: _primaryColor,
-                  ),
+                  DepartmentManagementTopHeader(primaryColor: _primaryColor),
                   Expanded(
                     child:
                         _isLoading
@@ -395,16 +397,19 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       managers = [];
     }
 
-    final match = managers
-        .where((u) => u.id == department.projectManagerId)
-        .toList();
+    final match =
+        managers.where((u) => u.id == department.projectManagerId).toList();
     final manager = match.isEmpty ? null : match.first;
 
     // Gọi API lấy danh sách members của department
     List<Map<String, dynamic>> departmentMembers = [];
     try {
-      departmentMembers = await _departmentService.getDepartmentMembers(department.id);
-      log("Loaded ${departmentMembers.length} members for department ${department.id}");
+      departmentMembers = await _departmentService.getDepartmentMembers(
+        department.id,
+      );
+      log(
+        "Loaded ${departmentMembers.length} members for department ${department.id}",
+      );
     } catch (e) {
       log("Error loading department members: $e");
     }
@@ -489,14 +494,16 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     final pmId = _selectedManager!.id;
 
     // Tách riêng USER và MENTOR từ danh sách đã chọn
-    final mentorList = _selectedEmployees
-        .where((e) => e.role.name == 'MENTOR')
-        .map((e) => e.id)
-        .toList();
-    final userList = _selectedEmployees
-        .where((e) => e.role.name == 'USER')
-        .map((e) => e.id)
-        .toList();
+    final mentorList =
+        _selectedEmployees
+            .where((e) => e.role.name == 'MENTOR')
+            .map((e) => e.id)
+            .toList();
+    final userList =
+        _selectedEmployees
+            .where((e) => e.role.name == 'USER')
+            .map((e) => e.id)
+            .toList();
 
     final created = await _departmentService.createDepartment(
       name: _createNameController.text.trim(),
@@ -534,14 +541,16 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     final pmId = _selectedManager?.id;
 
     // Tách riêng USER và MENTOR từ danh sách đã chọn
-    final mentorList = _selectedEmployees
-        .where((e) => e.role.name == 'MENTOR')
-        .map((e) => e.id)
-        .toList();
-    final userList = _selectedEmployees
-        .where((e) => e.role.name == 'USER')
-        .map((e) => e.id)
-        .toList();
+    final mentorList =
+        _selectedEmployees
+            .where((e) => e.role.name == 'MENTOR')
+            .map((e) => e.id)
+            .toList();
+    final userList =
+        _selectedEmployees
+            .where((e) => e.role.name == 'USER')
+            .map((e) => e.id)
+            .toList();
 
     final updated = await _departmentService.updateDepartment(
       id: _editingDepartmentId!,

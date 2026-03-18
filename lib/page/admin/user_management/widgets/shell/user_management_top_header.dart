@@ -4,7 +4,8 @@ class UserManagementTopHeader extends StatefulWidget {
   const UserManagementTopHeader({super.key});
 
   @override
-  State<UserManagementTopHeader> createState() => _UserManagementTopHeaderState();
+  State<UserManagementTopHeader> createState() =>
+      _UserManagementTopHeaderState();
 }
 
 class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
@@ -19,9 +20,10 @@ class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _controller.forward();
   }
 
@@ -104,9 +106,10 @@ class _NotificationButtonState extends State<_NotificationButton>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _pulseAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -123,10 +126,7 @@ class _NotificationButtonState extends State<_NotificationButton>
       badge: AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {
-          return Transform.scale(
-            scale: _pulseAnimation.value,
-            child: child,
-          );
+          return Transform.scale(scale: _pulseAnimation.value, child: child);
         },
         child: Container(
           width: 10,
@@ -175,9 +175,7 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: _isHovered
-              ? const Color(0xFFF9FAFB)
-              : Colors.transparent,
+          color: _isHovered ? const Color(0xFFF9FAFB) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Stack(
@@ -188,18 +186,12 @@ class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
               borderRadius: BorderRadius.circular(12),
               child: Icon(
                 widget.icon,
-                color: _isHovered
-                    ? const Color(0xFF4F46E5)
-                    : Colors.grey[500],
+                color: _isHovered ? const Color(0xFF4F46E5) : Colors.grey[500],
                 size: 22,
               ),
             ),
             if (widget.badge != null)
-              Positioned(
-                right: -2,
-                top: -2,
-                child: widget.badge!,
-              ),
+              Positioned(right: -2, top: -2, child: widget.badge!),
           ],
         ),
       ),

@@ -14,6 +14,7 @@ class UserSelectionDialog extends StatefulWidget {
   final List<UserModel> users;
   final bool isMultiSelect;
   final List<UserModel> preSelectedUsers;
+  final int? excludeDepartmentId; // ID phòng ban cần loại trừ (người đã có phòng ban khác)
 
   const UserSelectionDialog({
     super.key,
@@ -23,6 +24,7 @@ class UserSelectionDialog extends StatefulWidget {
     required this.users,
     this.isMultiSelect = false,
     this.preSelectedUsers = const [],
+    this.excludeDepartmentId,
   });
 
   static Future<UserModel?> selectManager({
@@ -30,6 +32,7 @@ class UserSelectionDialog extends StatefulWidget {
     required Color primaryColor,
     required List<UserModel> managers,
     UserModel? currentManager,
+    int? excludeDepartmentId,
   }) async {
     return showDialog<UserModel>(
       context: context,
@@ -39,6 +42,7 @@ class UserSelectionDialog extends StatefulWidget {
         selectionType: UserSelectionType.manager,
         users: managers,
         preSelectedUsers: currentManager != null ? [currentManager] : [],
+        excludeDepartmentId: excludeDepartmentId,
       ),
     );
   }
@@ -48,6 +52,7 @@ class UserSelectionDialog extends StatefulWidget {
     required Color primaryColor,
     required List<UserModel> members,
     List<UserModel>? preSelectedMembers,
+    int? excludeDepartmentId,
   }) async {
     return showDialog<List<UserModel>>(
       context: context,
@@ -58,6 +63,7 @@ class UserSelectionDialog extends StatefulWidget {
         users: members,
         isMultiSelect: true,
         preSelectedUsers: preSelectedMembers ?? [],
+        excludeDepartmentId: excludeDepartmentId,
       ),
     );
   }
@@ -108,7 +114,14 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       // Role filter
       final matchesRole = _roleFilter == 'ALL' || user.role.name == _roleFilter;
 
-      return matchesSearch && matchesRole;
+      // Department filter: exclude users from other departments (unless pre-selected)
+      final isPreSelected = widget.preSelectedUsers.any((u) => u.id == user.id);
+      final matchesDepartment = widget.excludeDepartmentId == null ||
+          user.departmentId == null ||
+          user.departmentId == widget.excludeDepartmentId ||
+          isPreSelected;
+
+      return matchesSearch && matchesRole && matchesDepartment;
     }).toList();
   }
 
@@ -507,18 +520,65 @@ class _UserListTile extends StatelessWidget {
                   Text(
                     user.email,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey[500],
+                    style: const TextStyle(
+                      color: Color(0xFF6366F1),
                       fontSize: 12,
                     ),
                   ),
+                  if (user.department != null && user.department!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.apartment,
+                          size: 12,
+                          color: Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            user.department!,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF6366F1),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.apartment_outlined,
+                          size: 12,
+                          color: Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Chưa có',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF6366F1),
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (user.userName != null && user.userName!.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       '@${user.userName}',
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.grey[400],
+                      style: const TextStyle(
+                        color: Color(0xFF6366F1),
                         fontSize: 11,
                       ),
                     ),

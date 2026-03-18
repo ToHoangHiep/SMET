@@ -41,15 +41,18 @@ class DepartmentManagementTableSection extends StatefulWidget {
   });
 
   @override
-  State<DepartmentManagementTableSection> createState() => _DepartmentManagementTableSectionState();
+  State<DepartmentManagementTableSection> createState() =>
+      _DepartmentManagementTableSectionState();
 }
 
-class _DepartmentManagementTableSectionState extends State<DepartmentManagementTableSection>
+class _DepartmentManagementTableSectionState
+    extends State<DepartmentManagementTableSection>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   final TextEditingController _codeSearchController = TextEditingController();
-  final TextEditingController _managerSearchController = TextEditingController();
+  final TextEditingController _managerSearchController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -166,11 +169,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.search_off_rounded,
-                size: 64,
-                color: Colors.grey[300],
-              ),
+              Icon(Icons.search_off_rounded, size: 64, color: Colors.grey[300]),
               const SizedBox(height: 16),
               Text(
                 'Không tìm thấy dữ liệu',
@@ -183,10 +182,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
               const SizedBox(height: 8),
               Text(
                 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[400],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[400]),
               ),
             ],
           ),
@@ -203,9 +199,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
         minWidth: 1100,
         headingRowHeight: 56,
         dataRowHeight: 72,
-        headingRowColor: WidgetStateProperty.all(
-          const Color(0xFFFAFBFC),
-        ),
+        headingRowColor: WidgetStateProperty.all(const Color(0xFFFAFBFC)),
         dividerThickness: 0,
         border: TableBorder.symmetric(
           inside: BorderSide(color: Colors.grey.shade100, width: 1),
@@ -274,7 +268,10 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: widget.primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -309,9 +306,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
         if (states.contains(WidgetState.hovered)) {
           return widget.primaryColor.withValues(alpha: 0.04);
         }
-        return index.isEven
-            ? Colors.white
-            : const Color(0xFFFAFBFC);
+        return index.isEven ? Colors.white : const Color(0xFFFAFBFC);
       }),
       cells: [
         DataCell(
@@ -327,11 +322,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
             onTap: () => widget.onShowDetail(dept),
           ),
         ),
-        DataCell(
-          _ManagerCell(
-            managerName: dept.projectManagerName,
-          ),
-        ),
+        DataCell(_ManagerCell(managerName: dept.projectManagerName)),
         DataCell(
           _StatusToggle(
             primaryColor: widget.primaryColor,
@@ -353,6 +344,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
                 icon: Icons.edit_outlined,
                 onPressed: () => widget.onEdit(dept),
                 tooltip: 'Chỉnh sửa',
+                primaryColor: widget.primaryColor,
               ),
               const SizedBox(width: 4),
               _ActionButton(
@@ -360,6 +352,7 @@ class _DepartmentManagementTableSectionState extends State<DepartmentManagementT
                 onPressed: () => widget.onDelete(dept),
                 tooltip: 'Xóa',
                 isDelete: true,
+                primaryColor: widget.primaryColor,
               ),
             ],
           ),
@@ -416,15 +409,16 @@ class _SearchFieldState extends State<_SearchField> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: _isFocused
-            ? [
-                BoxShadow(
-                  color: widget.primaryColor.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : [],
+        boxShadow:
+            _isFocused
+                ? [
+                  BoxShadow(
+                    color: widget.primaryColor.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+                : [],
       ),
       child: TextField(
         controller: widget.controller,
@@ -438,15 +432,20 @@ class _SearchFieldState extends State<_SearchField> {
             widget.icon,
             color: _isFocused ? widget.primaryColor : Colors.grey[400],
           ),
-          suffixIcon: widget.controller.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear_rounded, color: Colors.grey[400], size: 18),
-                  onPressed: () {
-                    widget.controller.clear();
-                    widget.onChanged('');
-                  },
-                )
-              : null,
+          suffixIcon:
+              widget.controller.text.isNotEmpty
+                  ? IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: Colors.grey[400],
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      widget.controller.clear();
+                      widget.onChanged('');
+                    },
+                  )
+                  : null,
           filled: true,
           fillColor: const Color(0xFFFAFBFC),
           border: OutlineInputBorder(
@@ -461,7 +460,10 @@ class _SearchFieldState extends State<_SearchField> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: widget.primaryColor, width: 1.5),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
       ),
     );
@@ -497,20 +499,24 @@ class _StatusFilter extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedStatus,
-          icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey[600]),
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.grey[600],
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           borderRadius: BorderRadius.circular(12),
-          items: statusOptions
-              .map(
-                (item) => DropdownMenuItem<String>(
-                  value: item['value'],
-                  child: Text(
-                    item['label']!,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              )
-              .toList(),
+          items:
+              statusOptions
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: item['value'],
+                      child: Text(
+                        item['label']!,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  )
+                  .toList(),
           onChanged: (val) {
             if (val == null) return;
             onChanged(val);
@@ -525,10 +531,7 @@ class _DepartmentCodeBadge extends StatelessWidget {
   final Color primaryColor;
   final String code;
 
-  const _DepartmentCodeBadge({
-    required this.primaryColor,
-    required this.code,
-  });
+  const _DepartmentCodeBadge({required this.primaryColor, required this.code});
 
   @override
   Widget build(BuildContext context) {
@@ -590,18 +593,17 @@ class _ManagerCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          Icons.person_outline,
-          size: 16,
-          color: Colors.grey[400],
-        ),
+        Icon(Icons.person_outline, size: 16, color: Colors.grey[400]),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             managerName ?? 'Chưa phân công',
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: managerName != null ? const Color(0xFF374151) : Colors.grey[400],
+              color:
+                  managerName != null
+                      ? const Color(0xFF374151)
+                      : Colors.grey[400],
               fontSize: 13,
             ),
           ),
@@ -635,14 +637,16 @@ class _StatusToggleState extends State<_StatusToggle> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: widget.isActive
-              ? const Color(0xFFDCFCE7)
-              : const Color(0xFFF3F4F6),
+          color:
+              widget.isActive
+                  ? const Color(0xFFDCFCE7)
+                  : const Color(0xFFF3F4F6),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: widget.isActive
-                ? const Color(0xFF86EFAC)
-                : const Color(0xFFE5E7EB),
+            color:
+                widget.isActive
+                    ? const Color(0xFF86EFAC)
+                    : const Color(0xFFE5E7EB),
           ),
         ),
         child: Row(
@@ -654,18 +658,20 @@ class _StatusToggleState extends State<_StatusToggle> {
               height: 8,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: widget.isActive
-                    ? const Color(0xFF22C55E)
-                    : const Color(0xFF9CA3AF),
+                color:
+                    widget.isActive
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFF9CA3AF),
               ),
             ),
             const SizedBox(width: 6),
             Text(
               widget.isActive ? 'Hoạt động' : 'Tắt',
               style: TextStyle(
-                color: widget.isActive
-                    ? const Color(0xFF16A34A)
-                    : const Color(0xFF6B7280),
+                color:
+                    widget.isActive
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFF6B7280),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -678,12 +684,14 @@ class _StatusToggleState extends State<_StatusToggle> {
 }
 
 class _ActionButton extends StatefulWidget {
+  final Color primaryColor;
   final IconData icon;
   final VoidCallback onPressed;
   final String tooltip;
   final bool isDelete;
 
   const _ActionButton({
+    required this.primaryColor,
     required this.icon,
     required this.onPressed,
     required this.tooltip,
@@ -699,13 +707,15 @@ class _ActionButtonState extends State<_ActionButton> {
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = widget.isDelete
-        ? (_isHovered ? const Color(0xFFEF4444) : Colors.grey[500])
-        : (_isHovered ? const Color(0xFF4F46E5) : Colors.grey[500]);
+    final iconColor =
+        widget.isDelete
+            ? (_isHovered ? const Color(0xFFEF4444) : Colors.grey[500])
+            : (_isHovered ? const Color(0xFF4F46E5) : Colors.grey[500]);
 
-    final bgColor = widget.isDelete
-        ? (_isHovered ? const Color(0xFFFEF2F2) : Colors.transparent)
-        : (_isHovered ? const Color(0xFFEEF2FF) : Colors.transparent);
+    final bgColor =
+        widget.isDelete
+            ? (_isHovered ? const Color(0xFFFEF2F2) : Colors.transparent)
+            : (_isHovered ? const Color(0xFFEEF2FF) : Colors.transparent);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -722,11 +732,7 @@ class _ActionButtonState extends State<_ActionButton> {
           child: InkWell(
             onTap: widget.onPressed,
             borderRadius: BorderRadius.circular(8),
-            child: Icon(
-              widget.icon,
-              size: 18,
-              color: iconColor,
-            ),
+            child: Icon(widget.icon, size: 18, color: iconColor),
           ),
         ),
       ),
@@ -765,14 +771,14 @@ class _PaginationButtonState extends State<_PaginationButton> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: _isHovered && widget.isEnabled
-              ? widget.primaryColor.withValues(alpha: 0.1)
-              : Colors.transparent,
+          color:
+              _isHovered && widget.isEnabled
+                  ? widget.primaryColor.withValues(alpha: 0.1)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: widget.isEnabled
-                ? Colors.grey.shade300
-                : Colors.grey.shade200,
+            color:
+                widget.isEnabled ? Colors.grey.shade300 : Colors.grey.shade200,
           ),
         ),
         child: InkWell(
@@ -781,9 +787,10 @@ class _PaginationButtonState extends State<_PaginationButton> {
           child: Icon(
             widget.icon,
             size: 20,
-            color: widget.isEnabled
-                ? (_isHovered ? widget.primaryColor : Colors.grey[600])
-                : Colors.grey[300],
+            color:
+                widget.isEnabled
+                    ? (_isHovered ? widget.primaryColor : Colors.grey[600])
+                    : Colors.grey[300],
           ),
         ),
       ),
