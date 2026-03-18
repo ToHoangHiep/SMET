@@ -45,21 +45,66 @@ class UserManagementApi {
     log("====================================");
   }
 
+  /// Parse int từ response (backend có thể trả int, double, hoặc string).
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
   /// ================= GET USERS =================
-  Future<List<UserModel>> getUsers() async {
+  /// Backend hỗ trợ: pagination, search, filter
+  Future<Map<String, dynamic>> getUsers({
+    int page = 0,
+    int size = 10,
+    String? keyword,
+    String? role,
+    int? departmentId,
+  }) async {
     try {
       final token = await _getToken();
-      final url = "$baseUrl/admin/listUser";
+      
+      // Build query params
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (role != null && role.isNotEmpty && role != 'ALL') {
+        queryParams['role'] = role;
+      }
+      if (departmentId != null) {
+        queryParams['departmentId'] = departmentId.toString();
+      }
+      
+      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
 
-      _logRequest("GET USERS", url, headers: _headers(token!));
+      _logRequest("GET USERS", uri.toString(), headers: _headers(token!));
 
-      final res = await http.get(Uri.parse(url), headers: _headers(token));
+      final res = await http.get(uri, headers: _headers(token));
 
       _logResponse(res);
 
       if (res.statusCode == 200) {
-        final List data = jsonDecode(res.body);
-        return data.map((e) => UserModel.fromJson(e)).toList();
+        final Map<String, dynamic> responseData = jsonDecode(res.body);
+        final List<dynamic> data = responseData['data'] ?? [];
+        // Parse số từ backend (có thể là int/double/string)
+        final totalElements = _parseInt(responseData['totalElements']) ?? 0;
+        final totalPages = _parseInt(responseData['totalPages']) ?? 0;
+        final page = _parseInt(responseData['page']) ?? 0;
+        final size = _parseInt(responseData['size']) ?? 10;
+
+        return {
+          'users': data.map((e) => UserModel.fromJson(e)).toList(),
+          'page': page,
+          'size': size,
+          'totalElements': totalElements,
+          'totalPages': totalPages,
+        };
       }
 
       throw Exception("Get users failed");
@@ -201,6 +246,108 @@ class UserManagementApi {
       }
     } catch (e) {
       log("CREATE USER ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= FIND USERS FOR DEPARTMENT =================
+  /// Backend: GET /api/users/for-department?keyword=&role=&page=0&size=10
+  /// Dùng để lấy danh sách user theo department có phân trang
+  Future<Map<String, dynamic>> findUsersForDepartment({
+    String? keyword,
+    String? role,
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final token = await _getToken();
+
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+
+      final uri = Uri.parse("$baseUrl/users/for-department").replace(queryParameters: queryParams);
+
+      _logRequest("FIND USERS FOR DEPARTMENT", uri.toString(), headers: _headers(token!));
+
+      final res = await http.get(uri, headers: _headers(token));
+
+      _logResponse(res);
+
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(res.body);
+        final List<dynamic> content = data['content'] ?? data['data'] ?? [];
+
+        return {
+          'users': content.map((e) => UserModel.fromJson(e)).toList(),
+          'page': data['page'] ?? page,
+          'size': data['size'] ?? size,
+          'totalElements': data['totalElements'] ?? 0,
+          'totalPages': data['totalPages'] ?? 0,
+        };
+      }
+
+      throw Exception("Find users for department failed");
+    } catch (e) {
+      log("FIND USERS FOR DEPARTMENT ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= FIND USERS FOR DEPARTMENT ASSIGN =================
+  /// Backend: GET /api/users/for-department/update?keyword=&role=&page=0&size=10
+  /// Dùng để assign user vào department
+  Future<Map<String, dynamic>> findUsersForDepartmentAssign({
+    String? keyword,
+    String? role,
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final token = await _getToken();
+
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+
+      final uri = Uri.parse("$baseUrl/users/for-department/update").replace(queryParameters: queryParams);
+
+      _logRequest("FIND USERS FOR DEPARTMENT ASSIGN", uri.toString(), headers: _headers(token!));
+
+      final res = await http.get(uri, headers: _headers(token));
+
+      _logResponse(res);
+
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(res.body);
+        final List<dynamic> content = data['content'] ?? data['data'] ?? [];
+
+        return {
+          'users': content.map((e) => UserModel.fromJson(e)).toList(),
+          'page': data['page'] ?? page,
+          'size': data['size'] ?? size,
+          'totalElements': data['totalElements'] ?? 0,
+          'totalPages': data['totalPages'] ?? 0,
+        };
+      }
+
+      throw Exception("Find users for department assign failed");
+    } catch (e) {
+      log("FIND USERS FOR DEPARTMENT ASSIGN ERROR: $e");
       rethrow;
     }
   }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
 
-class DepartmentManagementFormCard extends StatelessWidget {
+class DepartmentManagementFormCard extends StatefulWidget {
+  final Color primaryColor;
   final GlobalKey<FormState> formKey;
   final bool isUpdateMode;
   final TextEditingController nameController;
@@ -19,6 +20,7 @@ class DepartmentManagementFormCard extends StatelessWidget {
 
   const DepartmentManagementFormCard({
     super.key,
+    this.primaryColor = const Color(0xFF137FEC),
     required this.formKey,
     required this.isUpdateMode,
     required this.nameController,
@@ -36,287 +38,430 @@ class DepartmentManagementFormCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final inputBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-    );
+  State<DepartmentManagementFormCard> createState() => _DepartmentManagementFormCardState();
+}
 
-    return Container(
+class _DepartmentManagementFormCardState extends State<DepartmentManagementFormCard> {
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: widget.primaryColor.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Form(
-        key: formKey,
+        key: widget.formKey,
         child: Center(
           child: SizedBox(
             width: 560,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                RichText(
-                  text: TextSpan(
-                    style: const TextStyle(fontSize: 14),
-                    children: [
-                      const TextSpan(
-                        text: 'Danh sách bộ phận',
-                        style: TextStyle(
-                          color: Color(0xFF137FEC),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      TextSpan(
-                        text:
-                            isUpdateMode
-                                ? ' / Cập nhật bộ phận'
-                                : ' / Tạo bộ phận',
-                        style: const TextStyle(color: Color(0xFF64748B)),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 26),
-                TextFormField(
-                  controller: nameController,
-                  style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: '* Tên bộ phận',
-                    hintText: 'Tên bộ phận',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    border: inputBorder,
-                    enabledBorder: inputBorder,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập tên bộ phận';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: codeController,
-                  style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: '* Mã bộ phận',
-                    hintText: 'Mã bộ phận',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    border: inputBorder,
-                    enabledBorder: inputBorder,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập mã bộ phận';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: onPickManager,
-                        borderRadius: BorderRadius.circular(8),
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: 'Người quản lý',
-                            hintText: 'Chọn người quản lý (Quản lý dự án)',
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            border: inputBorder,
-                            enabledBorder: inputBorder,
-                          ),
-                          child: Text(
-                            selectedManager != null
-                                ? '${selectedManager!.fullName} (${selectedManager!.role.displayName})'
-                                : managerFallbackText.isEmpty
-                                ? ''
-                                : managerFallbackText,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color:
-                                  (selectedManager != null ||
-                                          managerFallbackText.isNotEmpty)
-                                      ? const Color(0xFF0F172A)
-                                      : const Color(0xFF64748B),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      height: 40,
-                      child: OutlinedButton(
-                        onPressed: onPickManager,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF137FEC),
-                          side: const BorderSide(color: Color(0xFF137FEC)),
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('CHỌN NGƯỜI QUẢN LÝ'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Trạng thái hoạt động',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Radio<bool>(
-                      value: true,
-                      groupValue: isActive,
-                      onChanged: (value) {
-                        if (value != null) onActiveChanged(value);
-                      },
-                    ),
-                    const Text('Bật', style: TextStyle(fontSize: 14)),
-                    const SizedBox(width: 8),
-                    Radio<bool>(
-                      value: false,
-                      groupValue: isActive,
-                      onChanged: (value) {
-                        if (value != null) onActiveChanged(value);
-                      },
-                    ),
-                    const Text('Tắt', style: TextStyle(fontSize: 14)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 40,
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          selectedEmployees.isEmpty
-                              ? 'Nhân viên trực thuộc'
-                              : '${selectedEmployees.length} nhân viên đã chọn',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color:
-                                selectedEmployees.isEmpty
-                                    ? const Color(0xFF64748B)
-                                    : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      height: 40,
-                      child: OutlinedButton(
-                        onPressed: onPickEmployees,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF137FEC),
-                          side: const BorderSide(color: Color(0xFF137FEC)),
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('THÊM NHÂN VIÊN'),
-                      ),
-                    ),
-                  ],
-                ),
-                if (selectedEmployees.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Thành viên (chỉ Mentor / Nhân viên)',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children:
-                        selectedEmployees
-                            .map(
-                              (e) => Chip(
-                                label: Text(
-                                  '${e.fullName} (${e.role.displayName})',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                onDeleted: () => onRemoveEmployee(e),
-                              ),
-                            )
-                            .toList(),
-                  ),
-                ],
-                const SizedBox(height: 22),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    SizedBox(
-                      height: 38,
-                      child: OutlinedButton(
-                        onPressed: onCancel,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF137FEC),
-                          side: const BorderSide(color: Color(0xFF137FEC)),
-                          textStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('HỦY'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      height: 38,
-                      child: ElevatedButton(
-                        onPressed: onSubmit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF137FEC),
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: Text(isUpdateMode ? 'CẬP NHẬT' : 'XÁC NHẬN'),
-                      ),
-                    ),
-                  ],
-                ),
+                _buildFormHeader(),
+                const SizedBox(height: 28),
+                _buildNameField(),
+                const SizedBox(height: 20),
+                _buildCodeField(),
+                const SizedBox(height: 20),
+                _buildManagerField(),
+                const SizedBox(height: 20),
+                _buildStatusField(),
+                const SizedBox(height: 20),
+                _buildEmployeesField(),
+                const SizedBox(height: 28),
+                _buildActionButtons(),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFormHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: widget.primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            widget.isUpdateMode ? Icons.edit_outlined : Icons.add_business_outlined,
+            color: widget.primaryColor,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 14),
+              children: [
+                TextSpan(
+                  text: 'Quản lý phòng ban',
+                  style: TextStyle(
+                    color: widget.primaryColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                TextSpan(
+                  text: widget.isUpdateMode ? ' / Cập nhật phòng ban' : ' / Tạo mới phòng ban',
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        _buildCloseButton(),
+      ],
+    );
+  }
+
+  Widget _buildNameField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Tên phòng ban',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: widget.nameController,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Nhập tên phòng ban',
+            hintStyle: TextStyle(color: Colors.grey[400]),
+            filled: true,
+            fillColor: const Color(0xFFFAFBFC),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: widget.primaryColor, width: 1.5),
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Vui lòng nhập tên phòng ban';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCodeField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Mã phòng ban',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: widget.codeController,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Nhập mã phòng ban',
+            hintStyle: TextStyle(color: Colors.grey[400]),
+            filled: true,
+            fillColor: const Color(0xFFFAFBFC),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: widget.primaryColor, width: 1.5),
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Vui lòng nhập mã phòng ban';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManagerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Người quản lý',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: widget.onPickManager,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFBFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_outline, color: widget.primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          widget.selectedManager != null
+                              ? '${widget.selectedManager!.fullName} (${widget.selectedManager!.role.displayName})'
+                              : widget.managerFallbackText.isEmpty
+                                  ? 'Chọn người quản lý'
+                                  : widget.managerFallbackText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: (widget.selectedManager != null || widget.managerFallbackText.isNotEmpty)
+                                ? const Color(0xFF0F172A)
+                                : Colors.grey[400],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: widget.onPickManager,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('CHỌN'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Trạng thái hoạt động',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildStatusOption(true, 'Hoạt động'),
+            const SizedBox(width: 16),
+            _buildStatusOption(false, 'Không hoạt động'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusOption(bool value, String label) {
+    final isSelected = widget.isActive == value;
+    return InkWell(
+      onTap: () => widget.onActiveChanged(value),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? widget.primaryColor.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? widget.primaryColor : const Color(0xFFE5E7EB),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              size: 20,
+              color: isSelected ? widget.primaryColor : Colors.grey[400],
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? widget.primaryColor : const Color(0xFF6B7280),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmployeesField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Thành viên',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (widget.selectedEmployees.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: widget.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${widget.selectedEmployees.length}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: widget.primaryColor,
+                  ),
+                ),
+              ),
+            const Spacer(),
+            OutlinedButton.icon(
+              onPressed: widget.onPickEmployees,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Thêm thành viên'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: widget.primaryColor,
+                side: BorderSide(color: widget.primaryColor.withValues(alpha: 0.5)),
+              ),
+            ),
+          ],
+        ),
+        if (widget.selectedEmployees.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: widget.selectedEmployees.map((e) => _buildEmployeeChip(e)).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEmployeeChip(UserModel employee) {
+    return Chip(
+      label: Text(
+        '${employee.fullName} (${employee.role.displayName})',
+        style: const TextStyle(fontSize: 12),
+      ),
+      deleteIcon: const Icon(Icons.close, size: 18),
+      onDeleted: () => widget.onRemoveEmployee(employee),
+      backgroundColor: const Color(0xFFFAFBFC),
+      side: const BorderSide(color: Color(0xFFE5E7EB)),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        OutlinedButton(
+          onPressed: widget.onCancel,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF6B7280),
+            side: const BorderSide(color: Color(0xFFE5E7EB)),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Text('HỦY BỎ'),
+        ),
+        const SizedBox(width: 12),
+        ElevatedButton(
+          onPressed: widget.onSubmit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.primaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 0,
+          ),
+          child: Text(widget.isUpdateMode ? 'CẬP NHẬT' : 'TẠO MỚI'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCloseButton() {
+    return IconButton(
+      onPressed: widget.onCancel,
+      icon: const Icon(Icons.close),
+      color: Colors.grey[400],
     );
   }
 }

@@ -49,7 +49,7 @@ class ProfileWebHeader extends StatelessWidget {
                   break;
 
                 case UserRole.PROJECT_MANAGER:
-                  context.go('/');
+                  context.go('/pm/dashboard');
                   break;
 
                 case UserRole.MENTOR:
