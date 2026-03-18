@@ -1,1 +1,1 @@
-const baseUrl = "http://api-smets.fptzone.site/api";
+const baseUrl = "https://api-smets.fptzone.site/api";
