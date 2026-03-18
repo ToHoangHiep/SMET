@@ -1,1 +1,1 @@
-const baseUrl = "http://api-smets.fptzone.site/api";
+const baseUrl = "http://localhost:1331/api";

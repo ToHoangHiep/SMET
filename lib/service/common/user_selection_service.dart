@@ -25,37 +25,72 @@ Future<UserModel?> getUserById(int userId) async {
   return null;
 }
 
-/// Enum mirror từ backend - dùng để xác định context khi chọn user
+/// Enum để xác định context khi chọn user - map với API mới
 enum UserSelectionContext {
-  /// Admin: Chọn Project Manager cho Department
+  /// Admin: Chọn Project Manager cho Department (lấy user có role PROJECT_MANAGER)
   departmentProjectManager,
 
-  /// Admin: Thêm Members vào Department (USER + MENTOR)
+  /// Admin: Thêm Members vào Department (lấy user có role USER + MENTOR)
   departmentMembers,
 
-  /// PM: Chọn Lead cho Project
+  /// PM: Chọn Lead cho Project (lấy user có role PROJECT_MANAGER)
   projectLead,
 
-  /// PM: Thêm Mentors vào Project
+  /// PM: Thêm Mentors vào Project (lấy user có role MENTOR)
   projectMentors,
 
-  /// PM: Thêm Users vào Project
+  /// PM: Thêm Users vào Project (lấy user có role USER)
   projectMembers,
 }
 
-/// Map Flutter enum → backend string (UserSelectionContext enum name)
-String toApiValue(UserSelectionContext context) {
+/// Map Flutter enum → API endpoint và query params
+class UserSelectionConfig {
+  final String endpoint;
+  final String? roleFilter;
+  final bool requiresDepartmentId;
+
+  const UserSelectionConfig({
+    required this.endpoint,
+    this.roleFilter,
+    this.requiresDepartmentId = false,
+  });
+}
+
+UserSelectionConfig _getConfig(UserSelectionContext context) {
   switch (context) {
     case UserSelectionContext.departmentProjectManager:
-      return 'DEPARTMENT_PROJECT_MANAGER';
+      // Backend: /api/users/department/managers - lấy PROJECT_MANAGER
+      return const UserSelectionConfig(
+        endpoint: '/users/department/managers',
+        roleFilter: 'PROJECT_MANAGER',
+      );
     case UserSelectionContext.departmentMembers:
-      return 'DEPARTMENT_MEMBERS';
+      // Backend: /api/users/department/members - lấy USER và MENTOR
+      return const UserSelectionConfig(
+        endpoint: '/users/department/members',
+        roleFilter: null,
+      );
     case UserSelectionContext.projectLead:
-      return 'PROJECT_LEAD';
+      // Backend: /api/users/for-project với role=PROJECT_MANAGER
+      return const UserSelectionConfig(
+        endpoint: '/users/for-project',
+        roleFilter: 'PROJECT_MANAGER',
+        requiresDepartmentId: true,
+      );
     case UserSelectionContext.projectMentors:
-      return 'PROJECT_MENTORS';
+      // Backend: /api/users/for-project với role=MENTOR
+      return const UserSelectionConfig(
+        endpoint: '/users/for-project',
+        roleFilter: 'MENTOR',
+        requiresDepartmentId: true,
+      );
     case UserSelectionContext.projectMembers:
-      return 'PROJECT_MEMBERS';
+      // Backend: /api/users/for-project với role=USER
+      return const UserSelectionConfig(
+        endpoint: '/users/for-project',
+        roleFilter: 'USER',
+        requiresDepartmentId: true,
+      );
   }
 }
 
@@ -71,18 +106,51 @@ String toApiValue(UserSelectionContext context) {
 /// // PM: Thêm Mentors vào Project
 /// final mentors = await fetchSelectableUsers(
 ///     UserSelectionContext.projectMentors,
+///     departmentId: 1,
 /// );
 /// ```
 Future<List<UserModel>> fetchSelectableUsers(
-    UserSelectionContext context) async {
+  UserSelectionContext context, {
+  int? departmentId,
+  String? keyword,
+  List<int>? excludeUserIds,
+  int page = 0,
+  int size = 100,
+}) async {
   final token = await AuthService.getToken();
   if (token == null) throw Exception("Token not found");
 
-  log("TOKEN: $token");
-  log("Fetching selectable users with context: ${toApiValue(context)}");
+  final config = _getConfig(context);
 
-  final uri = Uri.parse("$baseUrl/users/selectable").replace(
-    queryParameters: {'context': toApiValue(context)},
+  log("Fetching selectable users with context: $context");
+  log("Config: endpoint=${config.endpoint}, role=${config.roleFilter}, requiresDeptId=${config.requiresDepartmentId}");
+
+  // Build query params
+  final queryParams = <String, String>{
+    'page': page.toString(),
+    'size': size.toString(),
+  };
+
+  if (keyword != null && keyword.isNotEmpty) {
+    queryParams['keyword'] = keyword;
+  }
+
+  if (excludeUserIds != null && excludeUserIds.isNotEmpty) {
+    queryParams['excludeUserIds'] = excludeUserIds.join(',');
+  }
+
+  // Thêm role parameter lên backend nếu có
+  if (config.roleFilter != null) {
+    queryParams['role'] = config.roleFilter!;
+  }
+
+  // Thêm departmentId nếu cần
+  if (config.requiresDepartmentId && departmentId != null) {
+    queryParams['departmentId'] = departmentId.toString();
+  }
+
+  final uri = Uri.parse("$baseUrl${config.endpoint}").replace(
+    queryParameters: queryParams,
   );
 
   log("URL: $uri");
@@ -99,8 +167,26 @@ Future<List<UserModel>> fetchSelectableUsers(
   log("Response body: ${response.body}");
 
   if (response.statusCode == 200) {
-    final List data = jsonDecode(response.body);
-    return data.map((e) => UserModel.fromJson(e)).toList();
+    final Map<String, dynamic> data = jsonDecode(response.body);
+    
+    // Backend trả về PageResponse nên cần extract content/data
+    List<dynamic> content = data['content'] ?? data['data'] ?? [];
+    
+    final users = content.map((e) => UserModel.fromJson(e)).toList();
+
+    // Filter role ở client nếu cần
+    if (config.roleFilter != null) {
+      return users.where((u) => u.role.name == config.roleFilter).toList();
+    }
+
+    // Filter cho departmentMembers: chỉ lấy MENTOR và USER
+    if (context == UserSelectionContext.departmentMembers) {
+      return users.where((u) =>
+        u.role.name == 'MENTOR' || u.role.name == 'USER'
+      ).toList();
+    }
+
+    return users;
   } else {
     throw Exception('Failed to load users: ${response.statusCode}');
   }

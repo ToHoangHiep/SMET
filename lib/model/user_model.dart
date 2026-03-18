@@ -26,6 +26,7 @@ class UserModel {
   bool isActive;
   final bool mustChangePassword;
   final String? department;
+  final String? departmentCode;
   final String? avatarUrl;
   final DateTime? createdAt;
   final DateTime? lastUpdated;
@@ -42,6 +43,7 @@ class UserModel {
     this.isActive = true,
     this.mustChangePassword = false,
     this.department,
+    this.departmentCode,
     this.avatarUrl,
     this.createdAt,
     this.lastUpdated,
@@ -90,18 +92,18 @@ class UserModel {
       role: _parseRole(json['role']),
       isActive: json['isActive'] ?? json['active'] ?? true,
       mustChangePassword: json['mustChangePassword'] ?? false,
-      // Parse department - có thể là String (tên) hoặc Object {id, name, code}
-      department: json["department"] is Map
-          ? json["department"]["name"]?.toString()
-          : json["department"]?.toString(),
+      // Parse department - backend trả về departmentName, departmentCode ở root level
+      department: json["departmentName"]?.toString() ?? 
+                  (json["department"] is Map ? json["department"]["name"]?.toString() : null),
+      departmentCode: json["departmentCode"]?.toString() ?? 
+                      (json["department"] is Map ? json["department"]["code"]?.toString() : null),
       avatarUrl: json['avatarUrl']?.toString(),
       createdAt: parseDate(json['createdAt']),
       lastUpdated:
           parseDate(json['lastUpdated']) ?? parseDate(json['updatedAt']),
-      // Parse departmentId - ưu tiên từ object department, fallback từ trường direct
-      departmentId: json["department"] is Map
-          ? (json["department"]["id"] as int?) ?? json['departmentId']
-          : json['departmentId'],
+      // Parse departmentId - ưu tiên từ root level, fallback từ object department
+      departmentId: json['departmentId'] ?? 
+                   (json["department"] is Map ? (json["department"]["id"] as int?) : null),
     );
   }
 
@@ -116,6 +118,7 @@ class UserModel {
       'role': role.name,
       'avatarUrl': avatarUrl,
       'departmentId': departmentId,
+      'departmentCode': departmentCode,
     };
   }
 

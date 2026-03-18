@@ -222,39 +222,96 @@ class ProjectMemberService {
     return results;
   }
 
-  /// GET SELECTABLE USERS
-  /// Sử dụng endpoint /users/selectable?context=xxx
-  /// context: PROJECT_LEAD, PROJECT_MENTOR, PROJECT_MEMBER
-  static Future<List<Map<String, dynamic>>> getSelectableUsers({
-    required String context,
+  /// GET USERS FOR PROJECT (NEW API)
+  /// Endpoint: /api/users/for-project?departmentId=xxx&keyword=xxx&excludeUserIds=xxx&page=0&size=100
+  static Future<List<Map<String, dynamic>>> getUsersForProject({
+    required int departmentId,
+    String? keyword,
+    List<int>? excludeUserIds,
+    int page = 0,
+    int size = 100,
+  }) async {
+    final result = await getUsersForProjectPaginated(
+      departmentId: departmentId,
+      keyword: keyword,
+      excludeUserIds: excludeUserIds,
+      page: page,
+      size: size,
+    );
+    return result['users'] as List<Map<String, dynamic>>;
+  }
+
+  /// GET USERS FOR PROJECT với phân trang (trả về đủ thông tin page/total)
+  /// Dùng cho UI "Chọn thành viên" có search + pagination
+  static Future<Map<String, dynamic>> getUsersForProjectPaginated({
+    required int departmentId,
+    String? keyword,
+    List<int>? excludeUserIds,
+    String? role, // Filter by role: ADMIN, PROJECT_MANAGER, MENTOR, USER
+    int page = 0,
+    int size = 10,
   }) async {
     try {
       final token = await AuthService.getToken();
-      final url = "$baseUrl/users/selectable?context=$context";
+      final queryParams = <String, String>{
+        'departmentId': departmentId.toString(),
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (excludeUserIds != null && excludeUserIds.isNotEmpty) {
+        queryParams['excludeUserIds'] = excludeUserIds.join(',');
+      }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+      final uri = Uri.parse("$baseUrl/users/for-project").replace(queryParameters: queryParams);
 
-      log("========== GET SELECTABLE USERS ==========");
-      log("URL: $url");
-      log("CONTEXT: $context");
+      log("========== GET USERS FOR PROJECT (PAGINATED) ==========");
+      log("URL: $uri");
 
       final response = await http.get(
-        Uri.parse(url),
+        uri,
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
         },
       );
 
-      log("GET SELECTABLE USERS STATUS: ${response.statusCode}");
-      log("GET SELECTABLE USERS RESPONSE: ${response.body}");
+      log("GET USERS FOR PROJECT STATUS: ${response.statusCode}");
 
       if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map) {
+          return {'users': <Map<String, dynamic>>[], 'page': 0, 'size': size, 'totalElements': 0, 'totalPages': 0};
+        }
+        final usersList = decoded['content'] ?? decoded['data'];
+        final list = usersList != null ? List<Map<String, dynamic>>.from(usersList) : <Map<String, dynamic>>[];
+        return {
+          'users': list,
+          'page': decoded['page'] ?? page,
+          'size': decoded['size'] ?? size,
+          'totalElements': decoded['totalElements'] ?? 0,
+          'totalPages': decoded['totalPages'] ?? 0,
+        };
       }
-
-      return [];
+      return {'users': <Map<String, dynamic>>[], 'page': 0, 'size': size, 'totalElements': 0, 'totalPages': 0};
     } catch (e) {
-      log("GET SELECTABLE USERS ERROR: $e");
-      return [];
+      log("GET USERS FOR PROJECT ERROR: $e");
+      return {'users': <Map<String, dynamic>>[], 'page': 0, 'size': 10, 'totalElements': 0, 'totalPages': 0};
     }
+  }
+
+  /// Legacy: GET SELECTABLE USERS (giữ lại để tương thích ngược nếu cần)
+  @Deprecated('Use getUsersForProject instead')
+  static Future<List<Map<String, dynamic>>> getSelectableUsers({
+    required String context,
+  }) async {
+    return getUsersForProject(
+      departmentId: 1, // Sẽ được cập nhật sau
+      keyword: null,
+    );
   }
 }
