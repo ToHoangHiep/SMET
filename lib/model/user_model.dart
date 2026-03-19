@@ -25,6 +25,7 @@ class UserModel {
   final UserRole role;
   bool isActive;
   final bool mustChangePassword;
+  bool isTwoFactorEnabled; // 2FA flag
   final String? department;
   final String? departmentCode;
   final String? avatarUrl;
@@ -42,6 +43,7 @@ class UserModel {
     required this.role,
     this.isActive = true,
     this.mustChangePassword = false,
+    this.isTwoFactorEnabled = false,
     this.department,
     this.departmentCode,
     this.avatarUrl,
@@ -92,6 +94,7 @@ class UserModel {
       role: _parseRole(json['role']),
       isActive: json['isActive'] ?? json['active'] ?? true,
       mustChangePassword: json['mustChangePassword'] ?? false,
+      isTwoFactorEnabled: json['twoFactorEnabled'] ?? json['isTwoFactorEnabled'] ?? false,
       // Parse department - backend trả về departmentName, departmentCode ở root level
       department: json["departmentName"]?.toString() ?? 
                   (json["department"] is Map ? json["department"]["name"]?.toString() : null),
