@@ -223,6 +223,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
               primaryColor: _primaryColor,
               userDisplayName: _currentUserName,
               activeRoute: '/department_management',
+              onProfileTap: () => context.go('/profile'),
               onLogout: () async {
                 print("LOGOUT CLICKED");
 
