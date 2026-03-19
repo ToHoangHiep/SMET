@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -314,6 +312,8 @@ class _ProfilePageState extends State<ProfilePage> {
           confirmPassController: _confirmPassController,
           primaryColor: _primaryColor,
           onUpdatePassword: _handleUpdatePassword,
+          currentUser: _currentUser,
+          on2FAStatusChanged: _loadUserProfile,
         ),
       ],
     );

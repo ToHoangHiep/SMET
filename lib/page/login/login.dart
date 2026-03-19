@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/login/login_Web.dart';
 import 'package:smet/page/login/login_mobile.dart';
+import 'package:smet/page/login/two_factor_verification_screen.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'dart:developer';
@@ -46,20 +47,61 @@ class _LoginPageState extends State<LoginPage>
   }
 
   void _onLoginPressed() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Vui lòng nhập email và mật khẩu"),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await AuthService.login(_emailController.text, _passwordController.text);
+      final result = await AuthService.login(
+        _emailController.text,
+        _passwordController.text,
+      );
 
+      // Check if 2FA is required
+      if (result['twoFactorRequired'] == true) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => TwoFactorVerificationScreen(
+                    email: result['email'] ?? _emailController.text,
+                    rememberMe: result['rememberMe'] ?? _rememberMe,
+                    requirePasswordChange:
+                        result['requirePasswordChange'] ?? false,
+                  ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Normal login success - get user and navigate
       final userJson = await AuthService.getMe();
-
-      log("USER JSON FROM /auth/me: $userJson");
-
       final user = UserModel.fromJson(userJson);
 
       log("USER ROLE AFTER PARSE: ${user.role}");
 
       if (mounted) {
-        context.go(user.rolePath);
+        // Check if password change is required
+        if (user.mustChangePassword) {
+          context.go('/first-login-password');
+        } else {
+          context.go(user.rolePath);
+        }
+      }
+    } on RequirePasswordChangeException catch (e) {
+      // Server yêu cầu đổi mật khẩu → chuyển hướng sang trang đổi mật khẩu
+      if (mounted) {
+        context.go('/first-login-password');
       }
     } catch (e) {
       if (mounted) {
