@@ -5,20 +5,26 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2be7dddb-d937-4ca2-bb89-685b72915825" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_mobile.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_web.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_mobile.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_detail_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_detail_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_update_course_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_update_course_web.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.flutter-plugins-dependencies" beforeDir="false" afterPath="$PROJECT_DIR$/.flutter-plugins-dependencies" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Dart_SDK.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Dart_SDK.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ios/Runner/GeneratedPluginRegistrant.h" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Runner/GeneratedPluginRegistrant.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ios/Runner/GeneratedPluginRegistrant.m" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Runner/GeneratedPluginRegistrant.m" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ios/Flutter/Generated.xcconfig" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Flutter/Generated.xcconfig" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ios/Flutter/ephemeral/flutter_lldb_helper.py" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Flutter/ephemeral/flutter_lldb_helper.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ios/Flutter/ephemeral/flutter_lldbinit" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Flutter/ephemeral/flutter_lldbinit" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ios/Flutter/flutter_export_environment.sh" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Flutter/flutter_export_environment.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/smet.iml" beforeDir="false" afterPath="$PROJECT_DIR$/smet.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_mobile.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_mobile.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_web.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_web.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_mobile.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_mobile.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_web.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_web.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard_mobile.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard_mobile.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard_web.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard_web.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/router/app_router.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/router/app_router.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/macos/Flutter/ephemeral/Flutter-Generated.xcconfig" beforeDir="false" afterPath="$PROJECT_DIR$/macos/Flutter/ephemeral/Flutter-Generated.xcconfig" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/macos/Flutter/ephemeral/flutter_export_environment.sh" beforeDir="false" afterPath="$PROJECT_DIR$/macos/Flutter/ephemeral/flutter_export_environment.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -51,6 +57,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;ToHoangHiep&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/ToHoangHiep/SMET.git&quot;,
+    &quot;accountId&quot;: &quot;1886ebe5-9c21-4e38-85b9-beca22a14bd6&quot;
+  }
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2
 }</component>
@@ -75,6 +93,7 @@
     &quot;Flutter.main.dart.executor&quot;: &quot;Run&quot;,
     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'mentor_course_detail_web.dart';
 import 'mentor_create_course_web.dart';
+import 'mentor_update_course_web.dart';
+import '../mentor_dashboard/mentor_sidebar.dart';
+import '../mentor_dashboard/mentor_dashboard.dart';
 class MentorCourseWeb extends StatefulWidget {
   const MentorCourseWeb({super.key});
 
@@ -52,37 +57,7 @@ class _MentorCourseWebState extends State<MentorCourseWeb> {
         children: [
 
           /// SIDEBAR
-          Container(
-            width: 240,
-            color: Colors.white,
-            child: Column(
-              children: [
-
-                const SizedBox(height: 30),
-
-                const Icon(Icons.school, size: 40, color: Colors.blue),
-
-                const SizedBox(height: 10),
-
-                const Text(
-                  "SMETS",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                _menuItem(Icons.dashboard, "Tổng quan"),
-                _menuItem(Icons.menu_book, "Khóa học", selected: true),
-                _menuItem(Icons.people, "Học viên"),
-                _menuItem(Icons.message, "Tin nhắn"),
-                _menuItem(Icons.settings, "Cài đặt"),
-
-              ],
-            ),
-          ),
+          // const MentorSidebar(selectedIndex: 1),
 
           /// MAIN CONTENT
           Expanded(
@@ -135,13 +110,23 @@ class _MentorCourseWebState extends State<MentorCourseWeb> {
 
                         /// CREATE BUTTON
                         ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
+                          onPressed: () async {
+                            final newCourse = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => const MentorCreateCourseWeb(),
                               ),
                             );
+
+                            if (newCourse != null) {
+                              setState(() {
+                                courses.add({
+                                  "title": newCourse["title"],
+                                  "lessons": newCourse["lessons"],
+                                  "status": newCourse["status"],
+                                });
+                              });
+                            }
                           },
                           icon: const Icon(Icons.add),
                           label: const Text("Tạo khóa học mới"),
@@ -259,24 +244,6 @@ class _MentorCourseWebState extends State<MentorCourseWeb> {
       ),
     );
   }
-
-  static Widget _menuItem(IconData icon, String text,
-      {bool selected = false}) {
-    return Container(
-      color: selected ? const Color(0xffeef3ff) : Colors.transparent,
-      child: ListTile(
-        leading: Icon(icon, color: selected ? Colors.blue : Colors.grey),
-        title: Text(
-          text,
-          style: TextStyle(
-            color: selected ? Colors.blue : Colors.black87,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        onTap: () {},
-      ),
-    );
-  }
 }
 
 /// COURSE CARD
@@ -376,15 +343,83 @@ class _CourseCardState extends State<CourseCard> {
 
                   const Spacer(),
 
-                  const Icon(Icons.visibility, size: 18),
+                  GestureDetector(
+                    onTap: () {
+                      context.go('/mentor/courses/${widget.title}');
+                    },
+                    child: const Icon(Icons.visibility, size: 18),
+                  ),
 
                   const SizedBox(width: 10),
 
-                  const Icon(Icons.edit, size: 18),
+                  GestureDetector(
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MentorUpdateCourseWeb(
+                            title: widget.title,
+                            lessons: widget.lessons,
+                            status: widget.status,
+                          ),
+                        ),
+                      );
+
+                      if (result == true) {
+                        setState(() {
+                          // refresh UI nếu cần
+                        });
+                      }
+                    },
+                    child: const Icon(Icons.edit, size: 18),
+                  ),
 
                   const SizedBox(width: 10),
 
-                  const Icon(Icons.delete, size: 18, color: Colors.red),
+                  GestureDetector(
+                    onTap: () {
+
+                      showDialog(
+                        context: context,
+                        builder: (context) {
+
+                          return AlertDialog(
+                            title: const Text("Xóa khóa học"),
+                            content: const Text("Bạn có chắc muốn xóa khóa học này không?"),
+
+                            actions: [
+
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                                child: const Text("Hủy"),
+                              ),
+
+                              TextButton(
+                                onPressed: () {
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Đã xóa khóa học"),
+                                    ),
+                                  );
+
+                                  Navigator.pop(context);
+                                },
+                                child: const Text(
+                                  "Xóa",
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                    },
+                    child: const Icon(Icons.delete, size: 18, color: Colors.red),
+                  ),
                 ],
               )
             ],

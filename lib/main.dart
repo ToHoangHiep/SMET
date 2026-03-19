@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:smet/page/mentor_course/mentor_course.dart';
-
+import 'package:smet/router/app_router.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    usePathUrlStrategy();
+  }
   runApp(const MyApp());
 }
 
@@ -10,9 +15,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      home: MentorCourse(),
+      routerConfig: AppPages.router,
     );
   }
 }

@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class MentorCreateCourseMobile extends StatefulWidget {
-  const MentorCreateCourseMobile({super.key});
+class MentorUpdateCourseWeb extends StatefulWidget {
+  final String title;
+  final String lessons;
+  final String status;
+
+  const MentorUpdateCourseWeb({
+    super.key,
+    required this.title,
+    required this.lessons,
+    required this.status,
+  });
 
   @override
-  State<MentorCreateCourseMobile> createState() =>
-      _MentorCreateCourseMobileState();
+  State<MentorUpdateCourseWeb> createState() => _MentorUpdateCourseWebState();
 }
 
-class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
+class _MentorUpdateCourseWebState extends State<MentorUpdateCourseWeb>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -23,11 +31,16 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    titleController = TextEditingController();
-    subtitleController = TextEditingController();
-    descriptionController = TextEditingController();
-    youtubeController = TextEditingController();
-    meetController = TextEditingController();
+
+    // Giả lập dữ liệu cũ (sau này lấy từ backend)
+    titleController = TextEditingController(text: widget.title);
+    subtitleController = TextEditingController(text: "Phụ đề mẫu");
+    descriptionController =
+        TextEditingController(text: "Mô tả khóa học hiện tại...");
+    youtubeController =
+        TextEditingController(text: "https://youtube.com/...");
+    meetController =
+        TextEditingController(text: "https://meet.google.com/...");
   }
 
   @override
@@ -43,79 +56,73 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
 
   /// Build breadcrumb navigation with back button
   Widget _buildBreadcrumb(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          // Back button
-          InkWell(
-            onTap: () => context.pop(),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xfff5f6fa),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.arrow_back, size: 18, color: Color(0xff1a90ff)),
-                  SizedBox(width: 4),
-                  Text(
-                    "Quay lại",
-                    style: TextStyle(
-                      color: Color(0xff1a90ff),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
+    return Row(
+      children: [
+        // Back button
+        InkWell(
+          onTap: () => context.pop(),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xfff5f6fa),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.arrow_back, size: 20, color: Color(0xff1a90ff)),
+                SizedBox(width: 4),
+                Text(
+                  "Quay lại",
+                  style: TextStyle(
+                    color: Color(0xff1a90ff),
+                    fontWeight: FontWeight.w500,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+        ),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 16),
 
-          // Separator
-          const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+        // Separator
+        const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 16),
 
-          // Courses link
-          InkWell(
-            onTap: () => context.push('/mentor/courses'),
-            child: const Text(
-              "Khóa học",
-              style: TextStyle(
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
+        // Courses link
+        InkWell(
+          onTap: () => context.push('/mentor/courses'),
+          child: const Text(
+            "Khóa học",
+            style: TextStyle(
+              color: Colors.grey,
+              fontWeight: FontWeight.w500,
             ),
           ),
+        ),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 16),
 
-          // Separator
-          const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+        // Separator
+        const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 16),
 
-          // Current page title
-          const Flexible(
-            child: Text(
-              "Tạo khóa học mới",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-                fontSize: 13,
-              ),
-              overflow: TextOverflow.ellipsis,
+        // Current page title
+        Flexible(
+          child: Text(
+            "Cập nhật: ${widget.title}",
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -123,24 +130,27 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xfff5f6fa),
-      body: Column(
+      body: Row(
         children: [
-          // Header with breadcrumb
-          Container(
-            padding: const EdgeInsets.only(
-              top: 50,
-              left: 16,
-              right: 16,
-            ),
-            color: Colors.white,
+          /// MAIN CONTENT
+          Expanded(
             child: Column(
               children: [
-                _buildBreadcrumb(context),
-                const SizedBox(height: 12),
+                // Breadcrumb
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: 30,
+                    left: 30,
+                    right: 30,
+                  ),
+                  child: _buildBreadcrumb(context),
+                ),
+
                 // Tab bar
                 Container(
+                  margin: const EdgeInsets.only(top: 20, left: 30, right: 30),
                   decoration: BoxDecoration(
-                    color: const Color(0xfff5f6fa),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TabBar(
@@ -153,7 +163,7 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
                     dividerColor: Colors.transparent,
                     labelStyle: const TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 15,
                     ),
                     tabs: const [
                       Tab(text: "Thông tin khóa học"),
@@ -161,23 +171,23 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
                     ],
                   ),
                 ),
+
+                // Tab content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // Tab 1: Thông tin khóa học
+                      _buildCourseInfoTab(),
+
+                      // Tab 2: Cấu trúc khóa học
+                      _buildStructureTab(),
+                    ],
+                  ),
+                )
               ],
             ),
-          ),
-
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // Tab 1: Thông tin khóa học
-                _buildCourseInfoTab(),
-
-                // Tab 2: Cấu trúc khóa học
-                _buildStructureTab(),
-              ],
-            ),
-          ),
+          )
         ],
       ),
     );
@@ -186,13 +196,13 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
   /// Tab 1: Thông tin khóa học
   Widget _buildCourseInfoTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           /// FORM CONTAINER
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -202,7 +212,7 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
               children: [
                 /// COVER IMAGE
                 Container(
-                  height: 160,
+                  height: 200,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     color: Colors.grey[300],
@@ -210,16 +220,13 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
                   child: Center(
                     child: ElevatedButton.icon(
                       onPressed: () {},
-                      icon: const Icon(Icons.photo_camera, size: 20),
-                      label: const Text(
-                        "Thay đổi ảnh bìa",
-                        style: TextStyle(fontSize: 13),
-                      ),
+                      icon: const Icon(Icons.photo_camera),
+                      label: const Text("Thay đổi ảnh bìa"),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 /// COURSE NAME
                 _buildField(
@@ -262,45 +269,41 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           /// ACTION BUTTONS
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Đã lưu khóa học"),
-                        ),
-                      );
-                      context.pop();
-                    },
-                    icon: const Icon(Icons.save, size: 18),
-                    label: const Text("Lưu khóa học"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff1a90ff),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Đã cập nhật khóa học"),
+                      ),
+                    );
+                    context.pop();
+                  },
+                  icon: const Icon(Icons.save),
+                  label: const Text("Cập nhật khóa học"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff1a90ff),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton(
                   onPressed: () => context.pop(),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                  ),
                   child: const Text("Hủy"),
                 ),
               ],
@@ -314,7 +317,7 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
   /// Tab 2: Cấu trúc khóa học
   Widget _buildStructureTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -324,21 +327,17 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
               const Text(
                 "Danh sách chương",
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               ElevatedButton.icon(
                 onPressed: () {},
-                icon: const Icon(Icons.add, size: 18),
+                icon: const Icon(Icons.add),
                 label: const Text("Thêm Chương"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xff1a90ff),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
                 ),
               )
             ],
@@ -370,21 +369,14 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
     IconData? icon,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: controller,
         maxLines: maxLines,
-        style: const TextStyle(fontSize: 14),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(fontSize: 14),
           hintText: hintText,
-          hintStyle: const TextStyle(fontSize: 13),
-          prefixIcon: icon != null ? Icon(icon, size: 20) : null,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
-          ),
+          prefixIcon: icon != null ? Icon(icon) : null,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
           ),

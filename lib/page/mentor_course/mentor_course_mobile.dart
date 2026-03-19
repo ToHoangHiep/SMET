@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'mentor_course_detail_mobile.dart';
 import 'mentor_create_course_mobile.dart';
+import 'mentor_update_course_mobile.dart';
+import '../mentor_dashboard/mentor_sidebar.dart';
+
 class MentorCourseMobile extends StatefulWidget {
   const MentorCourseMobile({super.key});
 
@@ -35,11 +39,25 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     return Scaffold(
       backgroundColor: const Color(0xfff5f6fa),
 
+      /// DRAWER - Dùng chung MentorSidebar
+      drawer: Drawer(
+        child: Container(
+          width: 250,
+          color: Colors.white,
+          child: const MentorSidebar(selectedIndex: 1),
+        ),
+      ),
+
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
         centerTitle: true,
-        leading: const Icon(Icons.menu, color: Colors.black),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         title: const Text(
           "Bảng điều khiển Mentor",
           style: TextStyle(color: Colors.black),
@@ -134,42 +152,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
         ],
       ),
 
-      /// BOTTOM NAVIGATION
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: "Tổng quan",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book),
-            label: "Khóa học",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: "Học viên",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message),
-            label: "Tin nhắn",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: "Cài đặt",
-          ),
-        ],
-
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pop(context);
-          }
-        },
-      ),
+      /// BOTTOM NAVIGATION - Removed, using Drawer sidebar instead
     );
   }
 
@@ -269,15 +252,79 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
                     const Spacer(),
 
-                    const Icon(Icons.visibility, size: 20),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MentorCourseDetailMobile(
+                              title: title,
+                              mentorName: "Nguyễn Văn A",
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Icon(Icons.visibility, size: 20),
+                    ),
 
                     const SizedBox(width: 12),
 
-                    const Icon(Icons.edit, size: 20),
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MentorUpdateCourseMobile(),
+                          ),
+                        );
+                      },
+                    ),
 
                     const SizedBox(width: 12),
 
-                    const Icon(Icons.delete, size: 20, color: Colors.red),
+                    GestureDetector(
+                      onTap: () {
+
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+
+                            return AlertDialog(
+                              title: const Text("Xóa khóa học"),
+                              content: const Text("Bạn có chắc muốn xóa khóa học này không?"),
+
+                              actions: [
+
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text("Hủy"),
+                                ),
+
+                                TextButton(
+                                  onPressed: () {
+
+                                    setState(() {
+                                      courses.removeWhere((c) => c["title"] == title);
+                                    });
+
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text(
+                                    "Xóa",
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                      },
+                      child: const Icon(Icons.delete, size: 20, color: Colors.red),
+                    ),
                   ],
                 )
               ],

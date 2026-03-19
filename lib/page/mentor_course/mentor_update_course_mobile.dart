@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class MentorCreateCourseMobile extends StatefulWidget {
-  const MentorCreateCourseMobile({super.key});
+class MentorUpdateCourseMobile extends StatefulWidget {
+  final String? title;
+  final String? lessons;
+  final String? status;
+
+  const MentorUpdateCourseMobile({
+    super.key,
+    this.title,
+    this.lessons,
+    this.status,
+  });
 
   @override
-  State<MentorCreateCourseMobile> createState() =>
-      _MentorCreateCourseMobileState();
+  State<MentorUpdateCourseMobile> createState() =>
+      _MentorUpdateCourseMobileState();
 }
 
-class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
+class _MentorUpdateCourseMobileState extends State<MentorUpdateCourseMobile>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -23,11 +32,12 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    titleController = TextEditingController();
-    subtitleController = TextEditingController();
-    descriptionController = TextEditingController();
-    youtubeController = TextEditingController();
-    meetController = TextEditingController();
+    titleController = TextEditingController(text: widget.title ?? "Flutter for Beginners");
+    subtitleController = TextEditingController(text: "Learn Flutter from scratch");
+    descriptionController = TextEditingController(
+        text: "This course teaches Flutter from basic to advanced");
+    youtubeController = TextEditingController(text: "https://youtube.com/...");
+    meetController = TextEditingController(text: "https://meet.google.com/...");
   }
 
   @override
@@ -103,10 +113,10 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
           const SizedBox(width: 8),
 
           // Current page title
-          const Flexible(
+          Flexible(
             child: Text(
-              "Tạo khóa học mới",
-              style: TextStyle(
+              "Cập nhật khóa học",
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
                 fontSize: 13,
@@ -278,13 +288,13 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text("Đã lưu khóa học"),
+                          content: Text("Đã cập nhật khóa học"),
                         ),
                       );
                       context.pop();
                     },
                     icon: const Icon(Icons.save, size: 18),
-                    label: const Text("Lưu khóa học"),
+                    label: const Text("Cập nhật khóa học"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xff1a90ff),
                       foregroundColor: Colors.white,

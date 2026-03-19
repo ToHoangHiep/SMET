@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smet/page/mentor_dashboard/mentor_sidebar.dart';
 
 class MentorDashboardWeb extends StatelessWidget {
   const MentorDashboardWeb({super.key});
@@ -11,39 +12,8 @@ class MentorDashboardWeb extends StatelessWidget {
       body: Row(
         children: [
 
-          /// SIDEBAR
-          Container(
-            width: 250,
-            color: Colors.white,
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
-
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.school, color: Color(0xff1a90ff)),
-                    SizedBox(width: 8),
-                    Text(
-                      "SMETS",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  ],
-                ),
-
-                const SizedBox(height: 40),
-
-                _menuItem(Icons.dashboard, "Tổng quan"),
-                _menuItem(Icons.menu_book, "Khóa học"),
-                _menuItem(Icons.people, "Học viên"),
-                _menuItem(Icons.chat, "Tin nhắn"),
-                _menuItem(Icons.settings, "Cài đặt"),
-              ],
-            ),
-          ),
+          /// SIDEBAR - Dùng chung MentorSidebar
+          // const MentorSidebar(selectedIndex: 0),
 
           /// MAIN CONTENT
           Expanded(
@@ -247,13 +217,6 @@ class MentorDashboardWeb extends StatelessWidget {
           )
         ],
       ),
-    );
-  }
-
-  static Widget _menuItem(IconData icon, String title) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
     );
   }
 

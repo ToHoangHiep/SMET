@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../mentor_course/mentor_course.dart';
+import 'mentor_sidebar.dart';
 
 class MentorDashboardMobile extends StatelessWidget {
   const MentorDashboardMobile({super.key});
@@ -7,25 +9,37 @@ class MentorDashboardMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xfff5f7f8),
+
+      /// DRAWER - Dùng chung MentorSidebar
+      drawer: Drawer(
+        child: Container(
+          width: 250,
+          color: Colors.white,
+          child: const MentorSidebar(selectedIndex: 0),
+        ),
+      ),
+
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
-        title: const Row(
-          children: [
-            Icon(Icons.school, color: Color(0xff1a90ff)),
-            SizedBox(width: 8),
-            Text(
-              "SMETS Người quản trị",
-              style: TextStyle(color: Colors.black, fontSize: 18),
-            ),
-          ],
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
         ),
+        title: const Text(
+          "SMETS",
+          style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
         actions: const [
           Icon(Icons.search, color: Colors.black54),
           SizedBox(width: 10),
           CircleAvatar(
-            backgroundImage: NetworkImage(
-                "https://lh3.googleusercontent.com/aida-public/AB6AXuBWLiqpFmgOF57zCBqOqCPaAy_fiVLHuuBmUc4kL5OnkqsnCELHDrE9dvZhwuE7Tfdo2BfeJsnbI7eFzKecAAUvc4VDQyy9fhroLL9Fsq3Fe9m9OQdQsarQiEaDahR8Gu-wx5kEcJiFtw7okVymvu3-BArXeYWLirr9AGeRNlVEh_eVuk4lyRcMYsIs8xYl8bt-CFoFoYm8lmHXVccX_Hd0qO1alKdFyK5FS-2l0G8eVs6Im6Sh1BFPZ5RlhXyRxAEitnNLTq7OnPD4"),
+            radius: 16,
+            backgroundColor: Color(0xff1a90ff),
+            child: Icon(Icons.person, color: Colors.white, size: 18),
           ),
           SizedBox(width: 10),
         ],
@@ -162,49 +176,6 @@ class MentorDashboardMobile extends StatelessWidget {
             ),
           ],
         ),
-      ),
-
-      /// Bottom Navigation
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
-        type: BottomNavigationBarType.fixed,
-
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-
-        items: const [
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: "Tổng quan",
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book),
-            label: "Khóa học",
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: "Học viên",
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message),
-            label: "Tin nhắn",
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: "Cài đặt",
-          ),
-        ],
-
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pop(context);
-          }
-        },
       ),
     );
   }
