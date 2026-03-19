@@ -62,22 +62,37 @@ class AppPages {
       //   path: '/pm/learning_path',
       //   builder: (context, state) => const LearningPathPage(),
       // ),
-      // Role-based routes
-      // GoRoute(
-      //   path: '/user_management',
-      //   builder: (context, state) => const _PlaceholderPage(title: 'Quản lý người dùng'),
-      // ),
-      // GoRoute(
-      //   path: '/pm/dashboard',
-      //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển PM'),
-      // ),
-      // GoRoute(
-      //   path: '/mentor/dashboard',
-      //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển Mentor'),
-      // ),
+
       // GoRoute(
       //   path: '/employee/dashboard',
-      //   builder: (context, state) => const _PlaceholderPage(title: 'Bảng điều khiển nhân viên'),
+      //   builder: (context, state) => const EmployeeDashboardPage(),
+      // ),
+      // GoRoute(
+      //   path: '/employee/courses',
+      //   builder: (context, state) => const CourseCatalogPage(),
+      // ),
+      // GoRoute(
+      //   path: '/employee/course/:id',
+      //   builder: (context, state) {
+      //     final courseId = state.pathParameters['id'] ?? '';
+      //     return CourseDetailPage(courseId: courseId);
+      //   },
+      // ),
+      // // Learning Workspace Route
+      // GoRoute(
+      //   path: '/employee/learn/:courseId',
+      //   builder: (context, state) {
+      //     final courseId = state.pathParameters['courseId'] ?? '';
+      //     return LearningWorkspacePage(courseId: courseId);
+      //   },
+      // ),
+      // GoRoute(
+      //   path: '/employee/learn/:courseId/:lessonId',
+      //   builder: (context, state) {
+      //     final courseId = state.pathParameters['courseId'] ?? '';
+      //     final lessonId = state.pathParameters['lessonId'] ?? '';
+      //     return LearningWorkspacePage(courseId: courseId, lessonId: lessonId);
+      //   },
       // ),
       // Employee Routes
       GoRoute(

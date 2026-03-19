@@ -25,7 +25,7 @@ class UserService {
       throw Exception("Token not found");
     }
 
-    final url = Uri.parse("$baseUrl/users/updateProfile");
+    final url = Uri.parse("$baseUrl/users/profile");
 
     final response = await http.put(
       url,

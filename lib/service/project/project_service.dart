@@ -8,13 +8,31 @@ import 'dart:developer';
 class ProjectService {
   static String get _baseUrl => baseUrl;
 
-  /// GET ALL PROJECTS
-  static Future<List<ProjectModel>> getAll() async {
+  /// GET ALL PROJECTS (có phân trang, tìm kiếm, lọc theo status)
+  static Future<List<ProjectModel>> getAll({
+    String? keyword,
+    String? status,
+    int page = 0,
+    int size = 10,
+  }) async {
     final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/projects/listProject");
+    
+    // Build query params
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'size': size.toString(),
+    };
+    if (keyword != null && keyword.isNotEmpty) {
+      queryParams['keyword'] = keyword;
+    }
+    if (status != null && status.isNotEmpty) {
+      queryParams['status'] = status;
+    }
+    
+    final uri = Uri.parse("$_baseUrl/projects/get").replace(queryParameters: queryParams);
 
     final response = await http.get(
-      url,
+      uri,
       headers: {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
@@ -24,8 +42,12 @@ class ProjectService {
     log("GET ALL PROJECTS STATUS: ${response.statusCode}");
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map((json) => ProjectModel.fromJson(json)).toList();
+      // Backend trả về PageResponse nên cần extract content
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      // Backend có thể trả về 'content' hoặc 'data' tùy version
+      final List<dynamic> content = data['content'] ?? data['data'] ?? [];
+      log("PROJECTS RESPONSE: ${response.body}");
+      return content.map((json) => ProjectModel.fromJson(json)).toList();
     } else {
       throw Exception("Cannot get projects");
     }
@@ -34,7 +56,7 @@ class ProjectService {
   /// GET PROJECT BY ID
   static Future<ProjectModel> getById(int id) async {
     final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/projects/findProject/$id");
+    final url = Uri.parse("$_baseUrl/projects/get/$id");
 
     final response = await http.get(
       url,
@@ -58,22 +80,24 @@ class ProjectService {
     required String title,
     String? description,
     required int departmentId,
-    String status = 'DRAFT',
-    int? userId,
+    required int leaderId,
+    List<int>? memberIds,
+    String status = 'INACTIVE',
   }) async {
     final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/projects/createProject");
+    final url = Uri.parse("$_baseUrl/projects/create");
 
     final bodyMap = {
       'title': title,
       'description': description,
       'departmentId': departmentId,
+      'leaderId': leaderId,
       'status': status,
     };
 
-    // Thêm createdBy nếu có (để set người tạo project)
-    if (userId != null) {
-      bodyMap['createdBy'] = userId;
+    // Thêm memberIds nếu có
+    if (memberIds != null && memberIds.isNotEmpty) {
+      bodyMap['memberIds'] = memberIds;
     }
 
     final response = await http.post(
@@ -95,16 +119,29 @@ class ProjectService {
     }
   }
 
-  /// UPDATE PROJECT
+  /// UPDATE PROJECT (title, description, members)
   static Future<ProjectModel> update({
     required int id,
     required String title,
     String? description,
     required int departmentId,
-    String status = 'DRAFT',
+    required int leaderId,
+    List<int>? memberIds,
   }) async {
     final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/projects/updateProject/$id");
+    final url = Uri.parse("$_baseUrl/projects/update/$id");
+
+    final bodyMap = {
+      'title': title,
+      'description': description,
+      'departmentId': departmentId,
+      'leaderId': leaderId,
+    };
+
+    // Thêm memberIds nếu có
+    if (memberIds != null && memberIds.isNotEmpty) {
+      bodyMap['memberIds'] = memberIds;
+    }
 
     final response = await http.put(
       url,
@@ -112,12 +149,7 @@ class ProjectService {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
       },
-      body: jsonEncode({
-        'title': title,
-        'description': description,
-        'departmentId': departmentId,
-        'status': status,
-      }),
+      body: jsonEncode(bodyMap),
     );
 
     log("UPDATE PROJECT STATUS: ${response.statusCode}");
@@ -129,10 +161,10 @@ class ProjectService {
     }
   }
 
-  /// DELETE PROJECT
+  /// DELETE PROJECT (chỉ xóa được khi status là INACTIVE)
   static Future<void> delete(int id) async {
     final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/projects/$id");
+    final url = Uri.parse("$_baseUrl/projects/delete/$id");
 
     final response = await http.delete(
       url,
@@ -153,7 +185,7 @@ class ProjectService {
   /// UPDATE PROJECT STATUS
   static Future<ProjectModel> updateStatus(int id, String status) async {
     final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/projects/$id/status");
+    final url = Uri.parse("$_baseUrl/projects/update/$id/status?status=$status");
 
     final response = await http.patch(
       url,
@@ -161,9 +193,6 @@ class ProjectService {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
       },
-      body: jsonEncode({
-        'status': status,
-      }),
     );
 
     log("UPDATE PROJECT STATUS STATUS: ${response.statusCode}");

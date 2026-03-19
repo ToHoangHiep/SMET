@@ -3,14 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
+import 'package:smet/page/admin/widgets/admin_sidebar.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
-import '../widgets/shell/user_management_sidebar.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smet/service/common/auth_service.dart';
+
+int? _parsePaginationInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -24,13 +32,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   String _searchQuery = '';
   String _selectedRole = 'ALL';
-  String _selectedDepartment = 'ALL';
+  int? _selectedDepartmentId;
 
   List<UserModel> _users = [];
   bool _isLoading = true;
 
-  int _currentPage = 1;
-  final int _rowsPerPage = 5;
+  int _currentPage = 0;
+  final int _rowsPerPage = 10;
+  int _totalElements = 0;
+  int _totalPages = 0;
 
   bool _isCreateMode = false;
   bool _isUpdateMode = false;
@@ -46,6 +56,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   UserRole _createRole = UserRole.USER;
   String _currentUserName = 'Admin';
 
+  @override
   void initState() {
     super.initState();
     _loadCurrentUser();
@@ -65,74 +76,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
       });
     } catch (e) {
       setState(() {
-        _currentUserName = 'Admin'; // Nếu lỗi thì dùng mặc định
+        _currentUserName = 'Admin';
       });
     }
   }
 
-  final Color _primaryColor = const Color(0xFF137FEC);
+  final Color _primaryColor = const Color(0xFF6366F1); // Indigo như login
   final Color _bgLight = const Color(0xFFF3F6FC);
 
   final List<Map<String, String>> _roleOptions = const [
     {'value': 'ALL', 'label': 'Tất cả vai trò'},
     {'value': 'ADMIN', 'label': 'Quản trị viên'},
-    {'value': 'PM', 'label': 'Quản lý dự án'},
+    {'value': 'PROJECT_MANAGER', 'label': 'Quản lý dự án'},
     {'value': 'MENTOR', 'label': 'Người hướng dẫn'},
     {'value': 'USER', 'label': 'Nhân viên'},
   ];
-
-  final List<Map<String, String>> _departmentOptions = const [
-    {'value': 'ALL', 'label': 'Tất cả phòng ban'},
-    {'value': 'IT', 'label': 'Phòng IT'},
-    {'value': 'HR', 'label': 'Phòng HR'},
-    {'value': 'FINANCE', 'label': 'Phòng Finance'},
-  ];
-
-  List<UserModel> get _filteredUsers {
-    return _users.where((user) {
-      final nameLower = '${user.firstName} ${user.lastName}'.toLowerCase();
-      final emailLower = user.email.toLowerCase();
-      final queryLower = _searchQuery.toLowerCase();
-
-      final matchesSearch =
-          nameLower.contains(queryLower) || emailLower.contains(queryLower);
-
-      String roleString;
-
-      switch (user.role) {
-        case UserRole.ADMIN:
-          roleString = "ADMIN";
-          break;
-        case UserRole.PROJECT_MANAGER:
-          roleString = "PM";
-          break;
-        case UserRole.MENTOR:
-          roleString = "MENTOR";
-          break;
-        case UserRole.USER:
-          roleString = "USER";
-          break;
-      }
-      final matchesRole = _selectedRole == 'ALL' || roleString == _selectedRole;
-      final matchesDepartment =
-          _selectedDepartment == 'ALL' ||
-          user.department == _selectedDepartment;
-
-      return matchesSearch && matchesRole && matchesDepartment;
-    }).toList();
-  }
-
-  List<UserModel> get _paginatedUsers {
-    final start = (_currentPage - 1) * _rowsPerPage;
-    final end = start + _rowsPerPage;
-
-    if (start >= _filteredUsers.length) return [];
-
-    return _filteredUsers.sublist(
-      start,
-      end > _filteredUsers.length ? _filteredUsers.length : end,
-    );
-  }
 
   @override
   void dispose() {
@@ -144,13 +102,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
     super.dispose();
   }
 
-  Future<void> _fetchUsers() async {
+  Future<void> _fetchUsers({bool resetPage = false}) async {
+    if (resetPage) {
+      _currentPage = 0;
+    }
     setState(() => _isLoading = true);
-    final users = await _apiService.getUsers();
-    setState(() {
-      _users = users;
-      _isLoading = false;
-    });
+
+    try {
+      final result = await _apiService.getUsers(
+        page: _currentPage,
+        size: _rowsPerPage,
+        keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
+        role: _selectedRole != 'ALL' ? _selectedRole : null,
+        departmentId: _selectedDepartmentId,
+      );
+
+      setState(() {
+        _users = result['users'] as List<UserModel>;
+        _totalElements = _parsePaginationInt(result['totalElements']) ?? 0;
+        _totalPages = _parsePaginationInt(result['totalPages']) ?? 0;
+        if (_totalPages > 0 && _currentPage >= _totalPages) {
+          _currentPage = _totalPages - 1;
+        }
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _handleImportExcel() async {
@@ -174,8 +152,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
 
     try {
-      final newUsers = await _apiService.importExcelFile(file);
-      ;
+      await _apiService.importExcelFile(file);
 
       if (mounted) {
         Navigator.pop(context);
@@ -346,13 +323,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
       body: SafeArea(
         child: Row(
           children: [
-            UserManagementSidebar(
+            AdminSidebar(
               primaryColor: _primaryColor,
               userDisplayName: _currentUserName,
+              activeRoute: '/user_management',
+              onProfileTap: () => context.go('/profile'),
               onLogout: () async {
+                final router = GoRouter.of(context);
                 await AuthService.logout();
                 if (!mounted) return;
-                context.go('/login');
+                router.go('/login');
               },
             ),
             Expanded(
@@ -394,47 +374,48 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               ? _buildViewUserCard()
                               : UserManagementTableCard(
                                 primaryColor: _primaryColor,
-                                paginatedUsers: _paginatedUsers,
-                                filteredUsers: _filteredUsers,
+                                paginatedUsers: _users,
+                                filteredUsers: _users,
                                 roleOptions: _roleOptions,
                                 isLoading: _isLoading,
                                 selectedRole: _selectedRole,
-                                currentPage: _currentPage,
+                                currentPage: _currentPage + 1,
                                 rowsPerPage: _rowsPerPage,
+                                totalElements: _totalElements,
                                 onSearchChanged: (value) {
                                   setState(() {
                                     _searchQuery = value;
-                                    _currentPage = 1;
                                   });
+                                  _fetchUsers(resetPage: true);
                                 },
                                 onRoleChanged: (val) {
                                   setState(() {
                                     _selectedRole = val;
-                                    _currentPage = 1;
                                   });
+                                  _fetchUsers(resetPage: true);
                                 },
                                 onPrevPage:
-                                    _currentPage > 1
+                                    _currentPage > 0
                                         ? () {
                                           setState(() {
                                             _currentPage--;
                                           });
+                                          _fetchUsers();
                                         }
                                         : null,
                                 onNextPage:
-                                    _currentPage * _rowsPerPage <
-                                            _filteredUsers.length
+                                    _currentPage < _totalPages - 1
                                         ? () {
                                           setState(() {
                                             _currentPage++;
                                           });
+                                          _fetchUsers();
                                         }
                                         : null,
                                 onEditUser: _openUpdateUserScreen,
                                 onViewUser: _openViewUserScreen,
                                 onToggleActive: (user) async {
                                   await _apiService.toggleUserActive(user.id);
-
                                   await _fetchUsers();
                                 },
                               ),
@@ -453,163 +434,459 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Widget _buildViewUserCard() {
     final user = _viewingUser!;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Center(
-        child: SizedBox(
-          width: 620,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(fontSize: 14),
-                      children: [
-                        TextSpan(
-                          text: 'Quản lý nhân viên',
-                          style: TextStyle(
-                            color: _primaryColor,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const TextSpan(
-                          text: ' / Chi tiết nhân viên',
-                          style: TextStyle(color: Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _closeCreateUserScreen,
-                    color: Colors.grey,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Center(
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundColor: _primaryColor.withValues(alpha: 0.1),
-                      child: Text(
-                        '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
-                        '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
-                        style: TextStyle(
-                          color: _primaryColor,
-                          fontSize: 32,
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        key: ValueKey(user.id),
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          boxShadow: [
+            BoxShadow(
+              color: _primaryColor.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Center(
+          child: SizedBox(
+            width: 560,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildViewHeader(),
+                const SizedBox(height: 32),
+                Center(
+                  child: Column(
+                    children: [
+                      _buildUserAvatar(),
+                      const SizedBox(height: 20),
+                      Text(
+                        user.fullName,
+                        style: const TextStyle(
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                          letterSpacing: -0.3,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      user.fullName,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    UserManagementRoleBadge(role: user.role),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              _buildDetailRow('ID', user.id.toString()),
-              const SizedBox(height: 16),
-              _buildDetailRow('Tên nhân viên', user.fullName),
-              const SizedBox(height: 16),
-              _buildDetailRow('Vai trò', user.role.toString()),
-              const SizedBox(height: 16),
-              _buildDetailRow('Số điện thoại', user.phone),
-              const SizedBox(height: 16),
-              _buildDetailRow('Email', user.email),
-              const SizedBox(height: 16),
-              _buildDetailRow(
-                'Trạng thái',
-                user.isActive ? 'Hoạt động' : 'Không hoạt động',
-              ),
-              const SizedBox(height: 16),
-              _buildDetailRow('Phòng ban', user.department ?? ''),
-              const SizedBox(height: 16),
-
-              _buildDetailRow(
-                'Ngày tạo',
-                (user.createdAt ?? user.lastUpdated).toString().split(' ')[0],
-              ),
-              const SizedBox(height: 16),
-              _buildDetailRow(
-                'Cập nhật gần nhất',
-                user.lastUpdated.toString().split(' ')[0],
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: _closeCreateUserScreen,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryColor,
-                      side: BorderSide(color: _primaryColor),
-                    ),
-                    child: const Text('ĐÓNG'),
+                      const SizedBox(height: 10),
+                      UserManagementRoleBadge(role: user.role),
+                    ],
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 32),
+                _buildDetailCard('ID', user.id.toString(), Icons.tag, 0),
+                _buildDetailCard(
+                  'Tên nhân viên',
+                  user.fullName,
+                  Icons.person_outline,
+                  1,
+                ),
+                _buildDetailCard(
+                  'Vai trò',
+                  _getRoleLabel(user.role),
+                  Icons.badge_outlined,
+                  2,
+                ),
+                _buildDetailCard(
+                  'Số điện thoại',
+                  user.phone.isNotEmpty ? user.phone : 'Chưa cập nhật',
+                  Icons.phone_outlined,
+                  3,
+                ),
+                _buildDetailCard('Email', user.email, Icons.email_outlined, 4),
+                _buildDetailCard(
+                  'Trạng thái',
+                  user.isActive ? 'Hoạt động' : 'Không hoạt động',
+                  user.isActive
+                      ? Icons.check_circle_outline
+                      : Icons.cancel_outlined,
+                  5,
+                  isStatus: true,
+                  isActive: user.isActive,
+                ),
+                _buildDetailCard(
+                  'Phòng ban',
+                  user.department ?? 'Chưa phân công',
+                  Icons.business_outlined,
+                  6,
+                ),
+                _buildDetailCard(
+                  'Ngày tạo',
+                  _formatDate(user.createdAt ?? user.lastUpdated),
+                  Icons.calendar_today_outlined,
+                  7,
+                ),
+                _buildDetailCard(
+                  'Cập nhật gần nhất',
+                  _formatDate(user.lastUpdated),
+                  Icons.update_outlined,
+                  8,
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [_buildCloseButton()],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildViewHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.person_outline_rounded,
+            color: _primaryColor,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 14),
+              children: [
+                TextSpan(
+                  text: 'Quản lý nhân viên',
+                  style: TextStyle(
+                    color: _primaryColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const TextSpan(
+                  text: ' / Chi tiết nhân viên',
+                  style: TextStyle(color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        _AnimatedCloseIcon(
+          primaryColor: _primaryColor,
+          onPressed: _closeCreateUserScreen,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserAvatar() {
+    final user = _viewingUser!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _primaryColor.withValues(alpha: 0.2),
+            _primaryColor.withValues(alpha: 0.05),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 150,
-            child: Text(
-              label,
-              style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+      child: Container(
+        width: 90,
+        height: 90,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _primaryColor.withValues(alpha: 0.15),
+              _primaryColor.withValues(alpha: 0.05),
+            ],
+          ),
+          border: Border.all(
+            color: _primaryColor.withValues(alpha: 0.2),
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
+            '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
+            style: TextStyle(
+              color: _primaryColor,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Color(0xFF111827),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  void _handleLogout() async {
-    await AuthService.logout();
-    if (!mounted) return;
-    context.go('/login');
+  Widget _buildDetailCard(
+    String label,
+    String value,
+    IconData icon,
+    int index, {
+    bool isStatus = false,
+    bool isActive = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 300 + (index * 50)),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color:
+                    isStatus
+                        ? (isActive
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFFF3F4F6))
+                        : _primaryColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color:
+                    isStatus
+                        ? (isActive
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF9CA3AF))
+                        : _primaryColor,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color:
+                          isStatus
+                              ? (isActive
+                                  ? const Color(0xFF16A34A)
+                                  : const Color(0xFF6B7280))
+                              : const Color(0xFF111827),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCloseButton() {
+    return _AnimatedButton(
+      onPressed: _closeCreateUserScreen,
+      label: 'Đóng',
+      icon: Icons.close_rounded,
+      primaryColor: _primaryColor,
+    );
+  }
+
+  String _getRoleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.ADMIN:
+        return 'Quản trị viên';
+      case UserRole.PROJECT_MANAGER:
+        return 'Quản lý dự án';
+      case UserRole.MENTOR:
+        return 'Người hướng dẫn';
+      default:
+        return 'Nhân viên';
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+}
+
+class _AnimatedCloseIcon extends StatefulWidget {
+  final Color primaryColor;
+  final VoidCallback onPressed;
+
+  const _AnimatedCloseIcon({
+    required this.primaryColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_AnimatedCloseIcon> createState() => _AnimatedCloseIconState();
+}
+
+class _AnimatedCloseIconState extends State<_AnimatedCloseIcon> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: _isHovered ? const Color(0xFFFEF2F2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: InkWell(
+          onTap: widget.onPressed,
+          borderRadius: BorderRadius.circular(10),
+          child: Icon(
+            Icons.close_rounded,
+            color: _isHovered ? const Color(0xFFEF4444) : Colors.grey[400],
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedButton extends StatefulWidget {
+  final VoidCallback onPressed;
+  final String label;
+  final IconData icon;
+  final Color primaryColor;
+
+  const _AnimatedButton({
+    required this.onPressed,
+    required this.label,
+    required this.icon,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_AnimatedButton> createState() => _AnimatedButtonState();
+}
+
+class _AnimatedButtonState extends State<_AnimatedButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTapDown: (_) => _controller.forward(),
+        onTapUp: (_) => _controller.reverse(),
+        onTapCancel: () => _controller.reverse(),
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color:
+                  _isHovered
+                      ? widget.primaryColor.withValues(alpha: 0.1)
+                      : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color:
+                    _isHovered
+                        ? widget.primaryColor.withValues(alpha: 0.5)
+                        : const Color(0xFFD1D5DB),
+              ),
+            ),
+            child: InkWell(
+              onTap: widget.onPressed,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 20,
+                    color:
+                        _isHovered
+                            ? widget.primaryColor
+                            : const Color(0xFF6B7280),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.label.toUpperCase(),
+                    style: TextStyle(
+                      color:
+                          _isHovered
+                              ? widget.primaryColor
+                              : const Color(0xFF6B7280),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

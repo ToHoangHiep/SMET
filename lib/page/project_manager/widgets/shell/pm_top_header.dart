@@ -4,10 +4,7 @@ import 'package:go_router/go_router.dart';
 class PmTopHeader extends StatelessWidget {
   final String currentPage;
 
-  const PmTopHeader({
-    super.key,
-    required this.currentPage,
-  });
+  const PmTopHeader({super.key, required this.currentPage});
 
   @override
   Widget build(BuildContext context) {
@@ -16,9 +13,7 @@ class PmTopHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[200]!),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
       ),
       child: Row(
         children: [
@@ -37,11 +32,6 @@ class PmTopHeader extends StatelessWidget {
             tooltip: 'Thông báo',
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: () => context.go('/profile'),
-            tooltip: 'Hồ sơ',
-          ),
         ],
       ),
     );
