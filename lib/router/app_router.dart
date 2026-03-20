@@ -3,10 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
 import 'package:smet/page/first_login_password/first_login_password_page.dart';
-// import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
-// import 'package:smet/page/employee/course_detail/screen/course_detail_base.dart';
-// import 'package:smet/page/employee/dashboard/screen/employee_dashboard_base.dart';
-// import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_base.dart';
+import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
+import 'package:smet/page/employee/course_detail/screen/course_detail_base.dart';
+import 'package:smet/page/employee/dashboard/screen/employee_dashboard_base.dart';
+import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_base.dart';
 import 'package:smet/page/home/home.dart';
 import 'package:smet/page/login/login.dart';
 import 'package:smet/page/notification/screen/notification_page.dart';
@@ -25,7 +25,10 @@ class AppPages {
     initialLocation: initial,
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      GoRoute(path: '/first-login-password', builder: (context, state) => const FirstLoginPasswordPage()),
+      GoRoute(
+        path: '/first-login-password',
+        builder: (context, state) => const FirstLoginPasswordPage(),
+      ),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
       GoRoute(
         path: '/user_management',
