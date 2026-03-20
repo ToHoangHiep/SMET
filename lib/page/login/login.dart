@@ -65,6 +65,15 @@ class _LoginPageState extends State<LoginPage>
         _passwordController.text,
       );
 
+    // 🚫 Chặn mobile cho role chỉ dùng Web
+    if (!kIsWeb && user.role == UserRole.admin) {
+      context.go('/user_management');
+      return;
+    }
+
+    // Điều hướng theo role
+    context.go(user.rolePath);
+  }
       // Check if 2FA is required
       if (result['twoFactorRequired'] == true) {
         if (mounted) {
