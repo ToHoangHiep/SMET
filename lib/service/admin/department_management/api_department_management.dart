@@ -45,47 +45,19 @@ class DepartmentService {
     };
   }
 
-  /// ================= GET ALL =================
-  Future<List<DepartmentModel>> getDepartments() async {
-    try {
-      final url = "$baseUrl/departments/getAllDepartment";
-
-      _logRequest("GET DEPARTMENTS", url);
-
-      final token = await _getToken();
-      final response = await http.get(
-        Uri.parse(url),
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        List data = jsonDecode(response.body);
-
-        log("TOTAL DEPARTMENTS: ${data.length}");
-
-        return data.map((e) => DepartmentModel.fromJson(e)).toList();
-      }
-
-      throw Exception("Failed to load departments");
-    } catch (e) {
-      log("GET DEPARTMENTS ERROR: $e");
-      rethrow;
-    }
-  }
-
   /// ================= CREATE =================
+  /// POST /api/departments/createDepartment
   Future<DepartmentModel> createDepartment({
     required String name,
     required String code,
-    required bool active,
+    bool isActive = true,
     int? projectManagerId,
+    List<int>? mentorIds,
+    List<int>? userIds,
   }) async {
     try {
       final url = "$baseUrl/departments/createDepartment";
 
-      // Lấy id người đăng nhập để gửi createdBy (backend sẽ lưu vào cột created_by)
       int? createdById;
       try {
         final me = await AuthService.getMe();
@@ -96,8 +68,10 @@ class DepartmentService {
       final body = {
         "name": name,
         "code": code,
-        "active": active,
+        "is_active": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
+        if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
+        if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
         if (createdById != null) "createdBy": createdById,
       };
 
@@ -120,7 +94,7 @@ class DepartmentService {
         return DepartmentModel.fromJson(jsonDecode(response.body));
       }
 
-      throw Exception("Create department failed");
+      throw Exception("Create department failed: ${response.body}");
     } catch (e) {
       log("CREATE DEPARTMENT ERROR: $e");
       rethrow;
@@ -128,21 +102,26 @@ class DepartmentService {
   }
 
   /// ================= UPDATE =================
+  /// PATCH /api/departments/{id}
   Future<DepartmentModel?> updateDepartment({
     required int id,
     required String name,
     required String code,
-    required bool active,
+    required bool isActive,
     int? projectManagerId,
+    List<int>? mentorIds,
+    List<int>? userIds,
   }) async {
     try {
-      final url = "$baseUrl/departments/updateDepartment/$id";
+      final url = "$baseUrl/departments/$id";
 
       final body = {
         "name": name,
         "code": code,
-        "active": active,
+        "is_active": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
+        "mentorIds": mentorIds ?? [],
+        "userIds": userIds ?? [],
       };
 
       _logRequest(
@@ -153,7 +132,7 @@ class DepartmentService {
       );
 
       final token = await _getToken();
-      final response = await http.put(
+      final response = await http.patch(
         Uri.parse(url),
         headers: _headers(token!),
         body: jsonEncode(body),
@@ -173,6 +152,7 @@ class DepartmentService {
   }
 
   /// ================= DELETE =================
+  /// DELETE /api/departments/{id}
   Future<bool> deleteDepartment(int id) async {
     try {
       final url = "$baseUrl/departments/$id";
@@ -195,59 +175,67 @@ class DepartmentService {
     }
   }
 
-  /// ================= ADD USERS TO DEPARTMENT =================
-  /// Dùng endpoint updateDepartment để thêm users vào department
-  Future<bool> addUsersToDepartment({
-    required int departmentId,
-    required String departmentName,
-    required String departmentCode,
-    required bool active,
-    required List<int> userIds,
-    int? projectManagerId,
+  /// ================= SEARCH / GET ALL =================
+  /// GET /api/departments
+  Future<Map<String, dynamic>> searchDepartments({
+    String? keyword,
+    bool? active,
+    int page = 0,
+    int size = 10,
   }) async {
     try {
-      // Dùng endpoint update thay vì endpoint riêng
-      final url = "$baseUrl/departments/updateDepartment/$departmentId";
-
-      final body = {
-        "name": departmentName,
-        "code": departmentCode,
-        "active": active,
-        "userIds": userIds,
-        if (projectManagerId != null) "projectManagerId": projectManagerId,
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
       };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (active != null) {
+        queryParams['active'] = active.toString();
+      }
 
-      _logRequest(
-        "ADD USERS TO DEPARTMENT (via update)",
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(body),
+      final uri = Uri.parse("$baseUrl/departments").replace(
+        queryParameters: queryParams,
       );
 
+      _logRequest("GET DEPARTMENTS", uri.toString());
+
       final token = await _getToken();
-      final response = await http.put(
-        Uri.parse(url),
+      final response = await http.get(
+        uri,
         headers: _headers(token!),
-        body: jsonEncode(body),
       );
 
       _logResponse(response);
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        Map<String, dynamic> data = jsonDecode(response.body);
+        List content = data['data'] ?? [];
+
+        log("TOTAL DEPARTMENTS: ${data['totalElements'] ?? content.length}");
+
+        return {
+          'departments': content.map((e) => DepartmentModel.fromJson(e)).toList(),
+          'totalElements': data['totalElements'] ?? content.length,
+          'totalPages': data['totalPages'] ?? 1,
+        };
+      }
+
+      throw Exception("Failed to load departments");
     } catch (e) {
-      log("ADD USERS TO DEPARTMENT ERROR: $e");
+      log("GET DEPARTMENTS ERROR: $e");
       rethrow;
     }
   }
 
-  /// ================= GET USERS IN DEPARTMENT =================
-  Future<List<Map<String, dynamic>>> getUsersInDepartment(
-    int departmentId,
-  ) async {
+  /// ================= GET BY ID =================
+  /// GET /api/departments/findDepartment/{id}
+  Future<DepartmentModel?> getDepartmentById(int id) async {
     try {
-      final url = "$baseUrl/departments/$departmentId/users";
+      final url = "$baseUrl/departments/findDepartment/$id";
 
-      _logRequest("GET USERS IN DEPARTMENT", url);
+      _logRequest("GET DEPARTMENT BY ID", url);
 
       final token = await _getToken();
       final response = await http.get(
@@ -258,76 +246,18 @@ class DepartmentService {
       _logResponse(response);
 
       if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+        return DepartmentModel.fromJson(jsonDecode(response.body));
       }
 
-      return [];
-    } catch (e) {
-      log("GET USERS IN DEPARTMENT ERROR: $e");
-      return [];
-    }
-  }
-
-  /// ================= GET SELECTABLE USERS (NEW) =================
-  /// Sử dụng endpoint /users/selectable?context=xxx
-  /// Backend: @GetMapping("/selectable") @PreAuthorize("hasRole('ADMIN') or hasRole('PROJECT_MANAGER')")
-  Future<List<Map<String, dynamic>>> getSelectableUsers({
-    required String context,
-  }) async {
-    try {
-      final url = "$baseUrl/users/selectable?context=$context";
-
-      _logRequest("GET SELECTABLE USERS", url);
-
-      final token = await _getToken();
-      final response = await http.get(
-        Uri.parse(url),
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-      }
-
-      return [];
-    } catch (e) {
-      log("GET SELECTABLE USERS ERROR: $e");
-      return [];
-    }
-  }
-
-  /// ================= GET DEPARTMENT BY PROJECT MANAGER ID =================
-  /// Tìm department mà user là projectManager
-  Future<DepartmentModel?> getDepartmentByProjectManagerId(
-    int projectManagerId,
-  ) async {
-    try {
-      final departments = await getDepartments();
-
-      // Tìm department có projectManager.id = projectManagerId
-      final matched = departments.firstWhere(
-        (d) => d.projectManagerId == projectManagerId,
-        orElse: () => DepartmentModel(id: 0, name: '', code: '', active: false),
-      );
-      if (matched.id != 0) {
-        log(
-          "Found department for projectManagerId $projectManagerId: ${matched.id} - ${matched.name}",
-        );
-        return matched;
-      }
-
-      log("No department found for projectManagerId: $projectManagerId");
       return null;
     } catch (e) {
-      log("GET DEPARTMENT BY PROJECT MANAGER ERROR: $e");
+      log("GET DEPARTMENT BY ID ERROR: $e");
       return null;
     }
   }
 
-  /// ================= GET DEPARTMENT MEMBERS =================
-  /// Lấy danh sách thành viên của department theo API mới
+  /// ================= GET MEMBERS =================
+  /// GET /api/departments/{id}/members
   Future<List<Map<String, dynamic>>> getDepartmentMembers(int departmentId) async {
     try {
       final url = "$baseUrl/departments/$departmentId/members";
@@ -350,6 +280,174 @@ class DepartmentService {
     } catch (e) {
       log("GET DEPARTMENT MEMBERS ERROR: $e");
       return [];
+    }
+  }
+
+  /// ================= GET PROJECT MANAGERS FOR DEPARTMENT =================
+  /// GET /api/departments/department/managers
+  Future<Map<String, dynamic>> getProjectManagersForDepartment({
+    String? keyword,
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+
+      final uri = Uri.parse("$baseUrl/departments/department/managers").replace(
+        queryParameters: queryParams,
+      );
+
+      _logRequest("GET PROJECT MANAGERS FOR DEPARTMENT", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+
+      throw Exception("Failed to load project managers");
+    } catch (e) {
+      log("GET PROJECT MANAGERS ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= GET PROJECT MEMBERS FOR DEPARTMENT =================
+  /// GET /api/departments/department/members
+  Future<Map<String, dynamic>> getProjectMembersForDepartment({
+    String? keyword,
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+
+      final uri = Uri.parse("$baseUrl/departments/department/members").replace(
+        queryParameters: queryParams,
+      );
+
+      _logRequest("GET PROJECT MEMBERS FOR DEPARTMENT", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+
+      throw Exception("Failed to load project members");
+    } catch (e) {
+      log("GET PROJECT MEMBERS ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// ================= GET DEPARTMENT BY PROJECT MANAGER ID =================
+  Future<DepartmentModel?> getDepartmentByProjectManagerId(
+    int projectManagerId,
+  ) async {
+    try {
+      final result = await searchDepartments(page: 0, size: 1000);
+      final departments = result['departments'] as List<DepartmentModel>;
+
+      final matched = departments.firstWhere(
+        (d) => d.projectManagerId == projectManagerId,
+        orElse: () => DepartmentModel(id: 0, name: '', code: '', isActive: false),
+      );
+      if (matched.id != 0) {
+        log(
+          "Found department for projectManagerId $projectManagerId: ${matched.id} - ${matched.name}",
+        );
+        return matched;
+      }
+
+      log("No department found for projectManagerId: $projectManagerId");
+      return null;
+    } catch (e) {
+      log("GET DEPARTMENT BY PROJECT MANAGER ERROR: $e");
+      return null;
+    }
+  }
+
+  /// ================= GET ALL (Legacy - for compatibility) =================
+  Future<Map<String, dynamic>> getDepartments({
+    String? keyword,
+    bool? active,
+    int page = 0,
+    int size = 10,
+  }) async {
+    return searchDepartments(
+      keyword: keyword,
+      active: active,
+      page: page,
+      size: size,
+    );
+  }
+
+  /// ================= ADD USERS TO DEPARTMENT (Legacy) =================
+  Future<bool> addUsersToDepartment({
+    required int departmentId,
+    required String departmentName,
+    required String departmentCode,
+    required bool isActive,
+    required List<int> userIds,
+    int? projectManagerId,
+  }) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId";
+
+      final body = {
+        "name": departmentName,
+        "code": departmentCode,
+        "isActive": isActive,
+        "is_active": isActive, // Fallback for snake_case
+        if (userIds.isNotEmpty) "userIds": userIds,
+        if (projectManagerId != null) "projectManagerId": projectManagerId,
+      };
+
+      _logRequest(
+        "ADD USERS TO DEPARTMENT (via update)",
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final token = await _getToken();
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
+
+      _logResponse(response);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      log("ADD USERS TO DEPARTMENT ERROR: $e");
+      rethrow;
     }
   }
 }

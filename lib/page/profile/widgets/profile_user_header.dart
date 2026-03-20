@@ -50,6 +50,8 @@ class ProfileUserHeader extends StatelessWidget {
   }
 
   Widget _buildWebContent(String role) {
+    final department = currentUser?.department;
+    
     return Row(
       children: [
         ProfileUserAvatar(
@@ -78,6 +80,17 @@ class ProfileUserHeader extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              if (department != null && department.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  department,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -93,6 +106,8 @@ class ProfileUserHeader extends StatelessWidget {
   }
 
   Widget _buildMobileContent(String role) {
+    final department = currentUser?.department;
+    
     return Column(
       children: [
         ProfileUserAvatar(
@@ -116,6 +131,13 @@ class ProfileUserHeader extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(role, style: TextStyle(fontSize: 14, color: Colors.grey[500])),
+        if (department != null && department.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            department,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
         const SizedBox(height: 16),
         Wrap(
           alignment: WrapAlignment.center,

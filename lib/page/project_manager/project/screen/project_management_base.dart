@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -7,9 +8,7 @@ import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/project_model.dart';
 import 'package:smet/service/project/project_service.dart';
 import 'package:smet/service/project/project_member_service.dart';
-import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
-import 'package:smet/service/common/user_selection_service.dart';
 import 'dart:developer';
 
 class ProjectManagementPage extends StatefulWidget {
@@ -23,6 +22,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   String _currentUserName = 'Project Manager';
   int? _currentUserId;
   int? _currentDepartmentId;
+  String?
+  _currentDepartmentName; // Tên phòng ban (từ /auth/me hoặc getDepartmentByProjectManagerId) khi PM không gọi được GET /departments
   bool _isLoadingEmployees = false;
 
   // API Data
@@ -31,8 +32,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   bool _isSubmitting = false;
   String _nameQuery = '';
   String _statusFilter = 'Tất cả';
-  int _currentPage = 1;
-  final int _rowsPerPage = 5;
+  int _currentPage = 0;
+  final int _rowsPerPage = 10;
   bool _isCreateMode = false;
   bool _isUpdateMode = false;
   String? _editingProjectId;
@@ -41,47 +42,49 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       TextEditingController();
   final TextEditingController _createManagerController =
       TextEditingController();
-  String _createStatus = 'DRAFT';
+  String _createStatus = 'INACTIVE';
   DateTime? _startDate;
   DateTime? _endDate;
-  Map<String, dynamic>? _selectedTeamLead;
-  Map<String, dynamic>? _selectedMentor;
+  int? _selectedLeaderId; // Leader của dự án
+  String?
+  _selectedLeaderName; // Tên trưởng nhóm (để hiển thị khi không có _leadOptions)
   List<Map<String, dynamic>> _selectedMembers = [];
 
-  // Department list for dropdown
-  List<DepartmentModel> _departments = [];
-
-  // Separate lists for Lead, Mentors, Members
+  // Separate lists for Lead, Members
   List<Map<String, dynamic>> _leadOptions = [];
-  List<Map<String, dynamic>> _mentorOptions = [];
   List<Map<String, dynamic>> _memberOptions = [];
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
-    _loadEmployees();
     _loadProjects();
-    _loadDepartments();
   }
 
-  Future<void> _loadDepartments() async {
-    try {
-      final api = DepartmentService();
-      final depts = await api.getDepartments();
-      setState(() {
-        _departments = depts;
-      });
-      log("Loaded ${depts.length} departments");
-    } catch (e) {
-      log("Error loading departments: $e");
+  Future<void> _loadProjects({bool resetPage = false}) async {
+    if (resetPage) {
+      _currentPage = 0;
     }
-  }
-
-  Future<void> _loadProjects() async {
     setState(() => _isLoadingProjects = true);
     try {
-      final projects = await ProjectService.getAll();
+      // Chuyển đổi status filter sang format backend
+      String? statusFilter;
+      if (_statusFilter != 'Tất cả') {
+        if (_statusFilter == 'Nháp') {
+          statusFilter = 'INACTIVE';
+        } else if (_statusFilter == 'Đang thực hiện') {
+          statusFilter = 'ACTIVE';
+        } else if (_statusFilter == 'Hoàn thành') {
+          statusFilter = 'COMPLETED';
+        }
+      }
+
+      final projects = await ProjectService.getAll(
+        keyword: _nameQuery.isNotEmpty ? _nameQuery : null,
+        status: statusFilter,
+        page: _currentPage,
+        size: _rowsPerPage,
+      );
       setState(() {
         _projects = projects;
       });
@@ -115,39 +118,49 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       final currentUserId = userData['id'] as int?;
       log("Current User ID: $currentUserId");
 
-      // Thử lấy departmentId từ userData trước
+      // Thử lấy departmentId và departmentName từ userData trước
       int? deptId;
+      String? deptName;
       if (userData['departmentId'] != null) {
         deptId = userData['departmentId'] as int?;
         log("Got departmentId from direct field: $deptId");
-      } else {
-        // Fallback: lấy departmentId từ object department (nếu có)
-        final department = userData['department'];
+      }
+      // Backend UserDto trả về departmentName trực tiếp (flat field)
+      deptName = userData['departmentName']?.toString();
+      if (deptName != null && deptName.isNotEmpty) {
+        log("Got departmentName from /auth/me: $deptName");
+      }
+      // Fallback: thử từ object department (nếu có)
+      final department = userData['department'];
+      if (department is Map) {
         log("Department raw: $department");
-        if (department is Map) {
-          log("Department keys: ${department.keys.toList()}");
-          deptId = department['id'] as int?;
-          log("Got departmentId from object: $deptId");
-        }
+        if (deptId == null) deptId = department['id'] as int?;
+        deptName ??= department['name']?.toString();
+        log("Got departmentName from department object: $deptName");
       }
 
       // Nếu vẫn không có departmentId, tìm department có projectManagerId = currentUserId
       if (deptId == null && currentUserId != null) {
         try {
           final deptService = DepartmentService();
-          final department = await deptService.getDepartmentByProjectManagerId(
+          final dept = await deptService.getDepartmentByProjectManagerId(
             currentUserId,
           );
-          if (department != null) {
-            deptId = department.id;
-            log("Got departmentId from projectManager lookup: $deptId");
+          if (dept != null) {
+            deptId = dept.id;
+            deptName ??= dept.name;
+            log(
+              "Got departmentId from projectManager lookup: $deptId, name: $deptName",
+            );
           }
         } catch (e) {
           log("Error finding department by projectManagerId: $e");
         }
       }
 
-      log("FINAL - ID: $currentUserId, DepartmentId: $deptId");
+      log(
+        "FINAL - ID: $currentUserId, DepartmentId: $deptId, DepartmentName: $deptName",
+      );
 
       setState(() {
         _currentUserName =
@@ -158,7 +171,13 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         }
         _currentUserId = currentUserId;
         _currentDepartmentId = deptId;
+        _currentDepartmentName = deptName;
       });
+
+      // Sau khi có departmentId, load employees
+      if (deptId != null) {
+        _loadEmployees();
+      }
     } catch (e) {
       debugPrint('Error loading current user: $e');
       setState(() {
@@ -168,28 +187,22 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   Future<void> _loadEmployees() async {
+    if (_currentDepartmentId == null) return;
+
     setState(() => _isLoadingEmployees = true);
     try {
-      // Load users with proper context for project roles
-      final leads = await ProjectMemberService.getSelectableUsers(
-        context: 'PROJECT_LEAD',
-      );
-      final mentors = await ProjectMemberService.getSelectableUsers(
-        context: 'PROJECT_MENTORS',
-      );
-      final members = await ProjectMemberService.getSelectableUsers(
-        context: 'PROJECT_MEMBERS',
+      // API mới: /api/users/for-project?departmentId=xxx
+      final allUsers = await ProjectMemberService.getUsersForProject(
+        departmentId: _currentDepartmentId!,
       );
 
       log("========== LOAD USERS FOR PROJECT ==========");
-      log("Leads (PROJECT_LEAD): ${leads.length}");
-      log("Mentors (PROJECT_MENTORS): ${mentors.length}");
-      log("Members (PROJECT_MEMBERS): ${members.length}");
+      log("Total users: ${allUsers.length}");
 
       setState(() {
-        _leadOptions = leads;
-        _mentorOptions = mentors;
-        _memberOptions = members;
+        // Tất cả user đều có thể làm leader hoặc member
+        _leadOptions = allUsers;
+        _memberOptions = allUsers;
       });
     } catch (e) {
       debugPrint('Error loading employees: $e');
@@ -210,13 +223,16 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   void setNameQuery(String v) => setState(() {
     _nameQuery = v;
-    _currentPage = 1;
+    _loadProjects(resetPage: true);
   });
   void setStatusFilter(String v) => setState(() {
     _statusFilter = v;
-    _currentPage = 1;
+    _loadProjects(resetPage: true);
   });
-  void setCurrentPage(int v) => setState(() => _currentPage = v);
+  void setCurrentPage(int v) => setState(() {
+    _currentPage = v;
+    _loadProjects();
+  });
   void setCreateStatus(String v) => setState(() => _createStatus = v);
 
   void openEditProjectScreen(ProjectModel project) async {
@@ -227,115 +243,154 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       _createNameController.text = project.title;
       _createDescriptionController.text = project.description ?? '';
       _createStatus = project.status.name;
+      _selectedLeaderId = project.leaderId > 0 ? project.leaderId : null;
+      _selectedLeaderName = project.leaderName;
+
+      // Chuyển memberIds thành danh sách Map để hiển thị
+      _selectedMembers = [];
+      if (project.memberIds != null) {
+        for (final memberId in project.memberIds!) {
+          _selectedMembers.add({
+            'id': memberId,
+            'name':
+                project.memberNames != null &&
+                        project.memberIds!.indexOf(memberId) <
+                            project.memberNames!.length
+                    ? project.memberNames![project.memberIds!.indexOf(memberId)]
+                    : 'User $memberId',
+            'email': '',
+          });
+        }
+      }
     });
 
-    // Load project chi tiết để lấy leaderName, mentorName, members
-    try {
-      final detailedProject = await ProjectService.getById(project.id);
-      log(
-        "Project details: leaderName=${detailedProject.leaderName}, mentorName=${detailedProject.mentorName}, members=${detailedProject.members}",
-      );
+    log(
+      "Project loaded - LeaderId: ${project.leaderId}, Members: ${project.memberIds}",
+    );
+  }
 
-      setState(() {
-        // Trưởng nhóm
-        if (detailedProject.leaderName != null &&
-            detailedProject.leaderName!.isNotEmpty) {
-          _selectedTeamLead = {'name': detailedProject.leaderName, 'email': ''};
-        } else {
-          _selectedTeamLead = null;
-        }
+  /// Mở dialog xem chi tiết dự án (read-only). Có nút "Cập nhật" để chuyển sang chỉnh sửa.
+  void _showProjectView(ProjectModel project) {
+    final departmentName = _currentDepartmentName ?? 'Không xác định';
+    final statusLabel = project.status.label;
+    showDialog(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.folder_outlined, color: const Color(0xFF6366F1)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    project.title,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (project.description != null &&
+                      project.description!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        project.description!,
+                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                      ),
+                    ),
+                  _buildViewRow('Phòng ban', departmentName),
+                  _buildViewRow(
+                    'Trưởng nhóm',
+                    project.leaderName ?? 'User ${project.leaderId}',
+                  ),
+                  _buildViewRow('Trạng thái', statusLabel),
+                  if (project.memberIds != null &&
+                      project.memberIds!.isNotEmpty)
+                    _buildViewRow(
+                      'Thành viên',
+                      project.memberNames != null &&
+                              project.memberNames!.isNotEmpty
+                          ? project.memberNames!.join(', ')
+                          : '${project.memberIds!.length} thành viên',
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Đóng'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  openEditProjectScreen(project);
+                },
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Cập nhật'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+    );
+  }
 
-        // Người hướng dẫn
-        if (detailedProject.mentorName != null &&
-            detailedProject.mentorName!.isNotEmpty) {
-          _selectedMentor = {'name': detailedProject.mentorName, 'email': ''};
-        } else {
-          _selectedMentor = null;
-        }
-
-        // Thành viên
-        _selectedMembers = [];
-        if (detailedProject.members != null) {
-          for (final memberName in detailedProject.members!) {
-            _selectedMembers.add({'name': memberName, 'email': ''});
-          }
-        }
-      });
-
-      log(
-        "Parsed - Lead: $_selectedTeamLead, Mentor: $_selectedMentor, Members: $_selectedMembers",
-      );
-    } catch (e) {
-      log("Error loading project details: $e");
-    }
+  Widget _buildViewRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            ),
+          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadProjectMembers(int projectId) async {
     try {
-      // API trả về List<Map> với userId và role
-      final members = await ProjectMemberService.getMembers(projectId);
-      log("Loaded project members: $members");
-
-      // Lấy thông tin user trước
-      Map<String, dynamic>? lead;
-      Map<String, dynamic>? mentor;
-      List<Map<String, dynamic>> memberList = [];
-
-      for (final m in members) {
-        final role = m['role'] as String?;
-        final userId = m['userId'] as int;
-        final memberId = m['id'];
-
-        // Lấy username và email từ API
-        String displayName = 'User ${userId}';
-        String displayEmail = '';
-        try {
-          final user = await getUserById(userId);
-          if (user != null) {
-            displayName =
-                user.userName?.isNotEmpty == true
-                    ? user.userName!
-                    : 'User ${userId}';
-            displayEmail = user.email ?? '';
-          }
-        } catch (e) {
-          log("Error fetching user $userId: $e");
-          // Giữ nguyên displayName = 'User ${userId}'
-        }
-
-        if (role == 'PROJECT_LEAD') {
-          lead = {
-            'id': userId,
-            'memberId': memberId,
-            'name': displayName,
-            'email': displayEmail,
-          };
-        } else if (role == 'MENTOR') {
-          mentor = {
-            'id': userId,
-            'memberId': memberId,
-            'name': displayName,
-            'email': displayEmail,
-          };
-        } else if (role == 'MEMBER') {
-          memberList.add({
-            'id': userId,
-            'memberId': memberId,
-            'name': displayName,
-            'email': displayEmail,
-          });
-        }
-      }
+      // API mới trả về leaderId và memberIds trực tiếp trong project
+      final project = await ProjectService.getById(projectId);
+      log(
+        "Loaded project details: leaderId=${project.leaderId}, memberIds=${project.memberIds}",
+      );
 
       setState(() {
-        _selectedTeamLead = lead;
-        _selectedMentor = mentor;
-        _selectedMembers = memberList;
+        _selectedLeaderId = project.leaderId > 0 ? project.leaderId : null;
+        _selectedLeaderName = project.leaderName;
+
+        // Chuyển memberIds thành danh sách Map để hiển thị
+        _selectedMembers = [];
+        if (project.memberIds != null) {
+          for (final memberId in project.memberIds!) {
+            _selectedMembers.add({
+              'id': memberId,
+              'name': 'User $memberId',
+              'email': '',
+            });
+          }
+        }
       });
 
-      log(
-        "Parsed - Lead: $_selectedTeamLead, Mentor: $_selectedMentor, Members: $_selectedMembers",
-      );
+      log("Parsed - LeaderId: $_selectedLeaderId, Members: $_selectedMembers");
     } catch (e) {
       log("Error loading project members: $e");
     }
@@ -348,11 +403,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _createNameController.clear();
     _createDescriptionController.clear();
     _createManagerController.clear();
-    _createStatus = 'DRAFT';
+    _createStatus = 'INACTIVE';
     _startDate = null;
     _endDate = null;
-    _selectedTeamLead = null;
-    _selectedMentor = null;
+    _selectedLeaderId = null;
+    _selectedLeaderName = null;
     _selectedMembers = [];
   });
 
@@ -385,10 +440,28 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       return;
     }
 
+    if (_selectedLeaderId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn Trưởng nhóm'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
-      // Tạo project trước
+      // Chuẩn bị danh sách memberIds
+      final memberIds =
+          _selectedMembers.isNotEmpty
+              ? _selectedMembers
+                  .map((m) => int.parse(m['id'].toString()))
+                  .toList()
+              : null;
+
+      // Tạo project - Backend mới yêu cầu leaderId và memberIds
       final project = await ProjectService.create(
         title: _createNameController.text,
         description:
@@ -396,48 +469,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 ? _createDescriptionController.text
                 : null,
         departmentId: _currentDepartmentId!,
+        leaderId: _selectedLeaderId!,
+        memberIds: memberIds,
         status: _createStatus,
-        userId: _currentUserId,
       );
-
-      // Thêm PM (người tạo) vào project TRƯỚC để có quyền thêm member
-      // Backend yêu cầu user phải thuộc project mới được thêm member
-      // Sau đó thêm các thành viên khác vào project (nếu có)
-      if (_selectedTeamLead != null) {
-        log("========== ADD PROJECT LEAD ==========");
-        log("Project ID: ${project.id}");
-        log("User ID: ${_selectedTeamLead!['id']}");
-        log("Role: PROJECT_LEAD");
-        await ProjectMemberService.addMember(
-          projectId: project.id,
-          userId: int.parse(_selectedTeamLead!['id'].toString()),
-          role: 'PROJECT_LEAD',
-        );
-      }
-
-      if (_selectedMentor != null) {
-        log("========== ADD PROJECT MENTOR ==========");
-        log("Project ID: ${project.id}");
-        log("User ID: ${_selectedMentor!['id']}");
-        log("Role: MENTOR");
-        await ProjectMemberService.addMember(
-          projectId: project.id,
-          userId: int.parse(_selectedMentor!['id'].toString()),
-          role: 'MENTOR',
-        );
-      }
-
-      for (final member in _selectedMembers) {
-        log("========== ADD PROJECT MEMBER ==========");
-        log("Project ID: ${project.id}");
-        log("User ID: ${member['id']}");
-        log("Role: MEMBER");
-        await ProjectMemberService.addMember(
-          projectId: project.id,
-          userId: int.parse(member['id'].toString()),
-          role: 'MEMBER',
-        );
-      }
 
       // Reload danh sách project
       await _loadProjects();
@@ -475,6 +510,16 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   void submitUpdateProject() async {
     if (_editingProjectId == null) return;
 
+    if (_selectedLeaderId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn Trưởng nhóm'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -483,6 +528,15 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         (p) => p.id.toString() == _editingProjectId,
       );
 
+      // Chuẩn bị danh sách memberIds
+      final memberIds =
+          _selectedMembers.isNotEmpty
+              ? _selectedMembers
+                  .map((m) => int.parse(m['id'].toString()))
+                  .toList()
+              : null;
+
+      // Cập nhật project - Backend mới yêu cầu leaderId và memberIds
       await ProjectService.update(
         id: int.parse(_editingProjectId!),
         title: _createNameController.text,
@@ -491,132 +545,16 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 ? _createDescriptionController.text
                 : null,
         departmentId: editingProject.departmentId,
-        status: _createStatus,
+        leaderId: _selectedLeaderId!,
+        memberIds: memberIds,
       );
 
-      // Cập nhật members - lấy danh sách members hiện tại của project
-      final currentMembers = await ProjectMemberService.getMembers(
-        int.parse(_editingProjectId!),
-      );
-
-      // Map current members by role
-      final currentLead =
-          currentMembers.where((m) => m['role'] == 'PROJECT_LEAD').firstOrNull;
-      final currentMentor =
-          currentMembers.where((m) => m['role'] == 'MENTOR').firstOrNull;
-      final currentMemberList =
-          currentMembers.where((m) => m['role'] == 'MEMBER').toList();
-
-      // Xử lý PROJECT_LEAD
-      if (_selectedTeamLead != null) {
-        final newLeadId = int.parse(_selectedTeamLead!['id'].toString());
-        if (currentLead == null) {
-          // Thêm mới lead
-          await ProjectMemberService.addMember(
-            projectId: int.parse(_editingProjectId!),
-            userId: newLeadId,
-            role: 'PROJECT_LEAD',
-          );
-        } else {
-          final currentLeadUser = currentLead['user'] as Map<String, dynamic>?;
-          if (currentLeadUser != null && currentLeadUser['id'] != newLeadId) {
-            // Xóa lead cũ và thêm mới
-            await ProjectMemberService.removeMember(
-              projectId: int.parse(_editingProjectId!),
-              userId: currentLeadUser['id'] as int,
-            );
-            await ProjectMemberService.addMember(
-              projectId: int.parse(_editingProjectId!),
-              userId: newLeadId,
-              role: 'PROJECT_LEAD',
-            );
-          }
-        }
-      } else if (currentLead != null) {
-        // Nếu không chọn lead mà trước đó có lead, xóa lead cũ
-        final currentLeadUser = currentLead['user'] as Map<String, dynamic>?;
-        if (currentLeadUser != null) {
-          await ProjectMemberService.removeMember(
-            projectId: int.parse(_editingProjectId!),
-            userId: currentLeadUser['id'] as int,
-          );
-        }
-      }
-
-      // Xử lý MENTOR
-      if (_selectedMentor != null) {
-        final newMentorId = int.parse(_selectedMentor!['id'].toString());
-        if (currentMentor == null) {
-          // Thêm mới mentor
-          await ProjectMemberService.addMember(
-            projectId: int.parse(_editingProjectId!),
-            userId: newMentorId,
-            role: 'MENTOR',
-          );
-        } else {
-          final currentMentorUser =
-              currentMentor['user'] as Map<String, dynamic>?;
-          if (currentMentorUser != null &&
-              currentMentorUser['id'] != newMentorId) {
-            // Xóa mentor cũ và thêm mới
-            await ProjectMemberService.removeMember(
-              projectId: int.parse(_editingProjectId!),
-              userId: currentMentorUser['id'] as int,
-            );
-            await ProjectMemberService.addMember(
-              projectId: int.parse(_editingProjectId!),
-              userId: newMentorId,
-              role: 'MENTOR',
-            );
-          }
-        }
-      } else if (currentMentor != null) {
-        // Nếu không chọn mentor mà trước đó có mentor, xóa mentor cũ
-        final currentMentorUser =
-            currentMentor['user'] as Map<String, dynamic>?;
-        if (currentMentorUser != null) {
-          await ProjectMemberService.removeMember(
-            projectId: int.parse(_editingProjectId!),
-            userId: currentMentorUser['id'] as int,
-          );
-        }
-      }
-
-      // Xử lý MEMBERS - đồng bộ danh sách
-      final newMemberIds =
-          _selectedMembers.map((m) => int.parse(m['id'].toString())).toSet();
-      final currentMemberIds =
-          currentMemberList
-              .map((m) => (m['user'] as Map<String, dynamic>?)?['id'] as int?)
-              .where((id) => id != null)
-              .toSet();
-
-      // Thêm các member mới
-      for (final newMember in _selectedMembers) {
-        final newMemberId = int.parse(newMember['id'].toString());
-        if (!currentMemberIds.contains(newMemberId)) {
-          await ProjectMemberService.addMember(
-            projectId: int.parse(_editingProjectId!),
-            userId: newMemberId,
-            role: 'MEMBER',
-          );
-        }
-      }
-
-      // Xóa các member không còn trong danh sách
-      for (final currentMember in currentMemberList) {
-        final currentMemberUser =
-            currentMember['user'] as Map<String, dynamic>?;
-        if (currentMemberUser != null) {
-          final currentMemberId = currentMemberUser['id'] as int?;
-          if (currentMemberId != null &&
-              !newMemberIds.contains(currentMemberId)) {
-            await ProjectMemberService.removeMember(
-              projectId: int.parse(_editingProjectId!),
-              userId: currentMemberId,
-            );
-          }
-        }
+      // Cập nhật status riêng (nếu cần)
+      if (_createStatus != editingProject.status.name) {
+        await ProjectService.updateStatus(
+          int.parse(_editingProjectId!),
+          _createStatus,
+        );
       }
 
       // Reload danh sách project
@@ -706,345 +644,948 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     }
   }
 
-  Widget buildPageHeader() => Row(
-    children: [
-      const Text(
-        'DANH SÁCH DỰ ÁN',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF64748B),
+  Widget buildPageHeader() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
         ),
-      ),
-      const Spacer(),
-      if (!_isCreateMode && !_isUpdateMode)
-        ElevatedButton.icon(
-          onPressed: openCreateProjectScreen,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF137FEC),
-            foregroundColor: Colors.white,
-          ),
-          icon: const Icon(Icons.add),
-          label: const Text('Tạo dự án'),
-        ),
-    ],
-  );
-
-  Widget buildFormCard() => SingleChildScrollView(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      ],
+    ),
+    child: Row(
       children: [
-        Row(
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.folder_special,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IconButton(
-              onPressed: closeFormScreen,
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF64748B)),
+            const Text(
+              'Danh sách dự án',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2937),
+              ),
             ),
             Text(
-              _isUpdateMode ? 'Cập nhật dự án' : 'Tạo dự án mới',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
-              ),
+              'Quản lý và theo dõi các dự án của bạn',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
-        const SizedBox(height: 24),
-        _buildSectionCard(
-          icon: Icons.info_outline,
-          iconColor: const Color(0xFFEF4444),
-          title: 'Thông tin chung',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildFormField(
-                      label: 'Tên dự án',
-                      child: TextField(
-                        controller: _createNameController,
-                        decoration: InputDecoration(
-                          hintText: 'e.g. Hiện đại hóa cơ sở hạ tầng',
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: _buildFormField(
-                      label: 'Phòng ban',
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                        ),
-                        child: Text(
-                          _currentDepartmentId != null
-                              ? _departments
-                                      .where(
-                                        (d) => d.id == _currentDepartmentId,
-                                      )
-                                      .firstOrNull
-                                      ?.name ??
-                                  'Không xác định'
-                              : 'Chưa gán phòng ban',
-                          style: TextStyle(
-                            color:
-                                _currentDepartmentId != null
-                                    ? Colors.black87
-                                    : Colors.grey[400],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: _buildFormField(
-                      label: 'Trạng thái dự án',
-                      child: DropdownButtonFormField<String>(
-                        value: _createStatus,
-                        hint: Text(
-                          'Chọn trạng thái',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 14,
-                          ),
-                        ),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'DRAFT', child: Text('Nháp')),
-                          DropdownMenuItem(
-                            value: 'IN_PROGRESS',
-                            child: Text('Đang thực hiện'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'COMPLETED',
-                            child: Text('Hoàn thành'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'CANCELLED',
-                            child: Text('Đã hủy'),
-                          ),
-                        ],
-                        onChanged: (v) => setCreateStatus(v!),
-                      ),
-                    ),
-                  ),
-                ],
+        const Spacer(),
+        if (!_isCreateMode && !_isUpdateMode)
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF137FEC).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: openCreateProjectScreen,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF137FEC),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
               ),
-              const SizedBox(height: 16),
-              _buildFormField(
-                label: 'Mô tả',
-                child: TextField(
-                  controller: _createDescriptionController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'Mô tả ngắn gọn về mục tiêu và phạm vi dự án...',
-                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    contentPadding: const EdgeInsets.all(16),
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text(
+                'Tạo dự án',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget buildFormCard() => AnimatedContainer(
+    duration: const Duration(milliseconds: 300),
+    curve: Curves.easeInOut,
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with gradient
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Icon(
+                    _isUpdateMode ? Icons.edit_note : Icons.add_box,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isUpdateMode ? 'Cập nhật dự án' : 'Tạo dự án mới',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isUpdateMode
+                            ? 'Chỉnh sửa thông tin dự án'
+                            : 'Điền thông tin để tạo dự án mới',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: closeFormScreen,
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                _buildAnimatedSection(
+                  icon: Icons.info_outline,
+                  iconColor: const Color(0xFF6366F1),
+                  title: 'Thông tin chung',
+                  child: Column(
+                    children: [
+                      _buildModernTextField(
+                        controller: _createNameController,
+                        label: 'Tên dự án',
+                        hint: 'Nhập tên dự án...',
+                        prefixIcon: Icons.folder_outlined,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _buildInfoCard(
+                              label: 'Phòng ban',
+                              value: _currentDepartmentName ?? 'Chưa gán phòng ban',
+                              icon: Icons.business_outlined,
+                              color: const Color(0xFF6366F1),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 2,
+                            child: _buildInfoCard(
+                              label: 'Quản lý',
+                              value:
+                                  _currentUserName.isNotEmpty
+                                      ? _currentUserName
+                                      : 'Đang tải...',
+                              icon: Icons.person_outlined,
+                              color: const Color(0xFF10B981),
+                              avatarText:
+                                  _currentUserName.isNotEmpty
+                                      ? _currentUserName[0].toUpperCase()
+                                      : '?',
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(flex: 2, child: _buildModernDropdown()),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildModernTextField(
+                        controller: _createDescriptionController,
+                        label: 'Mô tả dự án',
+                        hint: 'Mô tả ngắn gọn về mục tiêu và phạm vi dự án...',
+                        prefixIcon: Icons.description_outlined,
+                        maxLines: 4,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildAnimatedSection(
+                  icon: Icons.person_outline,
+                  iconColor: const Color(0xFF8B5CF6),
+                  title: 'Trưởng nhóm',
+                  subtitle: 'Chọn trưởng nhóm dự án',
+                  child:
+                      _isLoadingEmployees
+                          ? _buildLoadingShimmer()
+                          : _buildLeaderSelector(),
+                ),
+                const SizedBox(height: 20),
+                _buildAnimatedSection(
+                  icon: Icons.people_outline,
+                  iconColor: const Color(0xFF10B981),
+                  title: 'Thành viên nhóm',
+                  subtitle: 'Chọn thành viên tham gia dự án',
+                  child: _buildMembersSection(),
+                ),
+                const SizedBox(height: 32),
+                _buildActionButtons(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // Modern TextField với animation
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData prefixIcon,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+            prefixIcon: Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(prefixIcon, color: const Color(0xFF6366F1), size: 20),
+            ),
+            filled: true,
+            fillColor: const Color(0xFFFAFAFA),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Info Card hiển thị thông tin
+  Widget _buildInfoCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+    String? avatarText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              if (avatarText != null)
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: color,
+                  child: Text(
+                    avatarText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: color.withOpacity(0.9),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 24),
+      ],
+    );
+  }
 
-        const SizedBox(height: 24),
-        _buildSectionCard(
-          icon: Icons.person_outline,
-          iconColor: const Color(0xFF8B5CF6),
-          title: 'Trưởng nhóm',
-          subtitle: 'Chọn trưởng nhóm dự án.',
-          child:
-              _selectedTeamLead != null
-                  ? _buildSelectedPersonCard(
-                    _selectedTeamLead!,
-                    () => _showTeamLeadPicker(),
-                  )
-                  : _buildSelectButton(
-                    'Chọn trưởng nhóm',
-                    () => _showTeamLeadPicker(),
-                  ),
+  // Modern Dropdown
+  Widget _buildModernDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Trạng thái',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
         ),
-        const SizedBox(height: 24),
-        _buildSectionCard(
-          icon: Icons.school_outlined,
-          iconColor: const Color(0xFFF97316),
-          title: 'Người hướng dẫn',
-          subtitle: 'Chọn người hướng dẫn cho dự án này.',
-          child:
-              _selectedMentor != null
-                  ? _buildSelectedPersonCard(
-                    _selectedMentor!,
-                    () => _showMentorPicker(),
-                  )
-                  : _buildSelectButton(
-                    'Chọn người hướng dẫn',
-                    () => _showMentorPicker(),
-                  ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAFAFA),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: _createStatus,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _getStatusColor(_createStatus).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _getStatusIcon(_createStatus),
+                  color: _getStatusColor(_createStatus),
+                  size: 18,
+                ),
+              ),
+            ),
+            items: [
+              _buildStatusItem('INACTIVE', 'Không hoạt động', Colors.grey),
+              _buildStatusItem('ACTIVE', 'Hoạt động', Colors.blue),
+              _buildStatusItem('COMPLETED', 'Hoàn thành', Colors.green),
+            ],
+            onChanged: (v) => setCreateStatus(v!),
+          ),
         ),
-        const SizedBox(height: 24),
-        _buildSectionCard(
-          icon: Icons.people_outline,
-          iconColor: const Color(0xFF10B981),
-          title: 'Thành viên nhóm',
-          subtitle: 'Chọn thành viên cho dự án này.',
-          child: Column(
+      ],
+    );
+  }
+
+  DropdownMenuItem<String> _buildStatusItem(
+    String value,
+    String label,
+    Color color,
+  ) {
+    return DropdownMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(label),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'ACTIVE':
+        return Colors.blue;
+      case 'COMPLETED':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'ACTIVE':
+        return Icons.play_circle_outline;
+      case 'COMPLETED':
+        return Icons.check_circle_outline;
+      default:
+        return Icons.pause_circle_outline;
+    }
+  }
+
+  // Animated Section Card
+  Widget _buildAnimatedSection({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    String? subtitle,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.08),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
+      ),
+    );
+  }
+
+  // Loading shimmer
+  Widget _buildLoadingShimmer() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(24),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_selectedMembers.isNotEmpty) ...[
+              Container(
+                width: 120,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 80,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Leader Selector
+  Widget _buildLeaderSelector() {
+    return InkWell(
+      onTap: _showLeaderPicker,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [const Color(0xFFFAF5FF), const Color(0xFFF3E8FF)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color:
+                _selectedLeaderId != null
+                    ? const Color(0xFF8B5CF6)
+                    : const Color(0xFFE5E7EB),
+            width: _selectedLeaderId != null ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child:
+                  _selectedLeaderId != null
+                      ? CircleAvatar(
+                        key: const ValueKey('selected'),
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        radius: 20,
+                        child: Text(
+                          _getLeaderName(_selectedLeaderId!).isNotEmpty
+                              ? _getLeaderName(
+                                _selectedLeaderId!,
+                              )[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                      : Container(
+                        key: const ValueKey('empty'),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3E8FF),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.person_add_outlined,
+                          color: Color(0xFF8B5CF6),
+                        ),
+                      ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _selectedLeaderId != null
+                        ? _getLeaderName(_selectedLeaderId!)
+                        : 'Chọn trưởng nhóm',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          _selectedLeaderId != null
+                              ? const Color(0xFF1F2937)
+                              : Colors.grey[400],
+                    ),
+                  ),
+                  if (_selectedLeaderId == null)
+                    Text(
+                      'Nhấn để chọn người quản lý',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.arrow_forward_ios,
+                color: Color(0xFF8B5CF6),
+                size: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Members Section
+  Widget _buildMembersSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_selectedMembers.isNotEmpty) ...[
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF10B981).withOpacity(0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.group,
+                        color: Color(0xFF10B981),
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_selectedMembers.length} thành viên đã chọn',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF065F46),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children:
                       _selectedMembers
-                          .map(
-                            (member) => Chip(
-                              avatar: CircleAvatar(
-                                backgroundColor: const Color(0xFF10B981),
-                                child: Text(
-                                  (member['name'] as String?)?.isNotEmpty ==
-                                          true
-                                      ? member['name']![0].toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              label: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    member['name'] ?? '',
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                  if ((member['email'] as String?)?.isNotEmpty == true)
-                                    Text(
-                                      member['email'] ?? '',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              deleteIcon: const Icon(Icons.close, size: 16),
-                              onDeleted:
-                                  () => setState(
-                                    () => _selectedMembers.remove(member),
-                                  ),
-                            ),
-                          )
+                          .map((member) => _buildMemberChip(member))
                           .toList(),
                 ),
-                const SizedBox(height: 16),
               ],
-              _buildSelectButton('Thêm thành viên', () => _showMembersPicker()),
-            ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        _buildAddMemberButton(),
+      ],
+    );
+  }
+
+  Widget _buildMemberChip(Map<String, dynamic> member) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: const Color(0xFF10B981),
+            child: Text(
+              (member['name'] as String?)?.isNotEmpty == true
+                  ? member['name']![0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                fontSize: 10,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            member['name'] ?? '',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: () => setState(() => _selectedMembers.remove(member)),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.close, size: 14, color: Colors.grey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddMemberButton() {
+    return InkWell(
+      onTap: () => _showMembersPicker(),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF10B981),
+            style: BorderStyle.solid,
           ),
         ),
-        const SizedBox(height: 32),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextButton(
-              onPressed: closeFormScreen,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Color(0xFF64748B)),
+              child: const Icon(
+                Icons.person_add_outlined,
+                color: Color(0xFF10B981),
+                size: 20,
               ),
             ),
             const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed:
-                  _isSubmitting
-                      ? null
-                      : (_isUpdateMode
-                          ? submitUpdateProject
-                          : submitCreateProject),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF137FEC),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+            const Text(
+              'Thêm thành viên',
+              style: TextStyle(
+                color: Color(0xFF10B981),
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
-              child: Text(_isUpdateMode ? 'Cập nhật dự án' : 'Tạo dự án mới'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Action Buttons
+  Widget _buildActionButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          child: TextButton(
+            onPressed: closeFormScreen,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              'Hủy bỏ',
+              style: TextStyle(
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF137FEC).withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed:
+                _isSubmitting
+                    ? null
+                    : (_isUpdateMode
+                        ? submitUpdateProject
+                        : submitCreateProject),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF137FEC),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            child:
+                _isSubmitting
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                    : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isUpdateMode ? Icons.save : Icons.add_circle_outline,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isUpdateMode ? 'Cập nhật' : 'Tạo dự án',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+          ),
+        ),
       ],
-    ),
-  );
+    );
+  }
 
   Widget _buildSectionCard({
     required IconData icon,
@@ -1223,139 +1764,13 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     );
   }
 
-  void _showTeamLeadPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Chọn trưởng nhóm (USER)',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                if (_isLoadingEmployees)
-                  const Center(child: CircularProgressIndicator())
-                else if (_leadOptions.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('Không có user phù hợp'),
-                    ),
-                  )
-                else
-                  ..._leadOptions.map((employee) {
-                    final firstName = employee['firstName'] ?? '';
-                    final lastName = employee['lastName'] ?? '';
-                    final fullName = '$firstName $lastName'.trim();
-                    final email = employee['email'] ?? '';
-                    final id = employee['id'];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF8B5CF6),
-                        child: Text(
-                          firstName.isNotEmpty
-                              ? firstName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      title: Text(fullName),
-                      subtitle: Text(email),
-                      onTap: () {
-                        setState(
-                          () =>
-                              _selectedTeamLead = {
-                                'id': id,
-                                'name': fullName,
-                                'email': email,
-                              },
-                        );
-                        Navigator.pop(ctx);
-                      },
-                    );
-                  }),
-              ],
-            ),
-          ),
-    );
-  }
-
-  void _showMentorPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (ctx) => Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Chọn người hướng dẫn (MENTOR)',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                if (_mentorOptions.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('Không có user phù hợp'),
-                    ),
-                  )
-                else
-                  ..._mentorOptions.map((m) {
-                    final firstName = m['firstName'] ?? '';
-                    final lastName = m['lastName'] ?? '';
-                    final fullName = '$firstName $lastName'.trim();
-                    final email = m['email'] ?? '';
-                    final id = m['id'];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFF97316),
-                        child: Text(
-                          firstName.isNotEmpty
-                              ? firstName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      title: Text(fullName),
-                      subtitle: Text(email),
-                      onTap: () {
-                        setState(
-                          () =>
-                              _selectedMentor = {
-                                'id': id,
-                                'name': fullName,
-                                'email': email,
-                              },
-                        );
-                        Navigator.pop(ctx);
-                      },
-                    );
-                  }),
-              ],
-            ),
-          ),
-    );
-  }
-
-  void _showMembersPicker() {
-    final availableToSelect =
-        _memberOptions
-            .where((e) => !_selectedMembers.any((s) => s['id'] == e['id']))
-            .toList();
+  void _showLeaderPicker() {
+    if (_currentDepartmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn phòng ban trước')),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1363,80 +1778,76 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder:
-          (ctx) => DraggableScrollableSheet(
-            initialChildSize: 0.5,
-            minChildSize: 0.3,
-            maxChildSize: 0.8,
-            expand: false,
-            builder:
-                (_, controller) => Container(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Chọn thành viên',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child:
-                            availableToSelect.isEmpty
-                                ? const Center(
-                                  child: Text('Không có thành viên khả dụng'),
-                                )
-                                : ListView.builder(
-                                  controller: controller,
-                                  itemCount: availableToSelect.length,
-                                  itemBuilder: (_, i) {
-                                    final member = availableToSelect[i];
-                                    final firstName = member['firstName'] ?? '';
-                                    final lastName = member['lastName'] ?? '';
-                                    final fullName =
-                                        '$firstName $lastName'.trim();
-                                    final email = member['email'] ?? '';
-                                    final id = member['id'];
-                                    return ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: const Color(
-                                          0xFF10B981,
-                                        ),
-                                        child: Text(
-                                          firstName.isNotEmpty
-                                              ? firstName[0].toUpperCase()
-                                              : '?',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                      title: Text(fullName),
-                                      subtitle: Text(email),
-                                      trailing: IconButton(
-                                        icon: const Icon(
-                                          Icons.add_circle_outline,
-                                          color: Color(0xFF10B981),
-                                        ),
-                                        onPressed: () {
-                                          setState(
-                                            () => _selectedMembers.add({
-                                              'id': id,
-                                              'name': fullName,
-                                              'email': email,
-                                            }),
-                                          );
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                      ),
-                    ],
-                  ),
-                ),
+          (ctx) => _LeaderPickerSheetContent(
+            departmentId: _currentDepartmentId!,
+            pageSize: 10,
+            onSelectLeader: (user) {
+              final id = user['id'];
+              final idInt = id is int ? id : int.tryParse(id.toString());
+              if (idInt == null) return;
+              final firstName = user['firstName'] ?? '';
+              final lastName = user['lastName'] ?? '';
+              final fullName = '$firstName $lastName'.trim();
+              setState(() {
+                _selectedLeaderId = idInt;
+                _selectedLeaderName = fullName;
+              });
+            },
+          ),
+    );
+  }
+
+  String _getLeaderName(int id) {
+    if (_selectedLeaderName != null && _selectedLeaderId == id) {
+      return _selectedLeaderName!;
+    }
+    final pm = _leadOptions.where((e) => e['id'] == id).firstOrNull;
+    if (pm != null) {
+      final firstName = pm['firstName'] ?? '';
+      final lastName = pm['lastName'] ?? '';
+      return '$firstName $lastName'.trim();
+    }
+    return 'User $id';
+  }
+
+  void _showMembersPicker() {
+    if (_currentDepartmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn phòng ban trước')),
+      );
+      return;
+    }
+    final excludeIds = <int>[
+      if (_selectedLeaderId != null) _selectedLeaderId!,
+      ..._selectedMembers
+          .map((e) => int.tryParse(e['id']?.toString() ?? '') ?? 0)
+          .where((id) => id > 0),
+    ];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder:
+          (ctx) => _MemberPickerSheetContent(
+            departmentId: _currentDepartmentId!,
+            excludeUserIds: excludeIds,
+            pageSize: 10,
+            onSelectMember: (user) {
+              final id = user['id'];
+              final firstName = user['firstName'] ?? '';
+              final lastName = user['lastName'] ?? '';
+              final fullName = '$firstName $lastName'.trim();
+              final email = user['email'] ?? '';
+              setState(
+                () => _selectedMembers.add({
+                  'id': id,
+                  'name': fullName,
+                  'email': email,
+                }),
+              );
+            },
           ),
     );
   }
@@ -1444,68 +1855,157 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   Widget buildTableSection() => Container(
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
     ),
     child: Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
+        // Search and Filter Header
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [const Color(0xFFFAFBFC), Colors.white],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
           child: Row(
             children: [
               Expanded(
-                child: TextField(
-                  onChanged: setNameQuery,
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: TextField(
+                    onChanged: setNameQuery,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm kiếm dự án...',
+                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      prefixIcon: Container(
+                        margin: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.search,
+                          color: const Color(0xFF6366F1),
+                          size: 18,
+                        ),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 16),
-              DropdownButton<String>(
-                value: _statusFilter,
-                items: const [
-                  DropdownMenuItem(value: 'Tất cả', child: Text('Tất cả')),
-                  DropdownMenuItem(value: 'DRAFT', child: Text('Nháp')),
-                  DropdownMenuItem(
-                    value: 'IN_PROGRESS',
-                    child: Text('Đang thực hiện'),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _statusFilter,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    borderRadius: BorderRadius.circular(12),
+                    items: [
+                      _buildFilterItem(
+                        'Tất cả',
+                        Icons.dashboard_outlined,
+                        Colors.grey,
+                      ),
+                      _buildFilterItem(
+                        'Không hoạt động',
+                        Icons.pause_circle_outline,
+                        Colors.grey,
+                      ),
+                      _buildFilterItem(
+                        'Hoạt động',
+                        Icons.play_circle_outline,
+                        Colors.blue,
+                      ),
+                      _buildFilterItem(
+                        'Hoàn thành',
+                        Icons.check_circle_outline,
+                        Colors.green,
+                      ),
+                    ],
+                    onChanged: (v) => setStatusFilter(v!),
                   ),
-                  DropdownMenuItem(
-                    value: 'COMPLETED',
-                    child: Text('Hoàn thành'),
-                  ),
-                  DropdownMenuItem(value: 'CANCELLED', child: Text('Đã hủy')),
-                ],
-                onChanged: (v) => setStatusFilter(v!),
+                ),
               ),
             ],
           ),
         ),
+        // Content
         if (_isLoadingProjects)
-          const Padding(
-            padding: EdgeInsets.all(32),
-            child: CircularProgressIndicator(),
-          )
-        else if (_projects.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(32),
+          Padding(
+            padding: const EdgeInsets.all(48),
             child: Column(
               children: [
-                Icon(Icons.folder_open, size: 64, color: Color(0xFFE5E7EB)),
-                SizedBox(height: 16),
-                Text(
-                  'Chưa có dự án nào',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    const Color(0xFF6366F1),
+                  ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 16),
+                Text(
+                  'Đang tải dữ liệu...',
+                  style: TextStyle(color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          )
+        else if (_projects.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(48),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F3FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.folder_open,
+                    size: 48,
+                    color: const Color(0xFF8B5CF6),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Chưa có dự án nào',
+                  style: TextStyle(
+                    color: Color(0xFF1F2937),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Text(
                   'Nhấn "Tạo dự án" để thêm dự án mới',
-                  style: TextStyle(color: Color(0xFF94A3B8)),
+                  style: TextStyle(color: Colors.grey[500], fontSize: 14),
                 ),
               ],
             ),
@@ -1516,14 +2016,43 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     ),
   );
 
+  DropdownMenuItem<String> _buildFilterItem(
+    String label,
+    IconData icon,
+    Color color,
+  ) {
+    return DropdownMenuItem(
+      value: label,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(label),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProjectsList() {
+    // Chuyển đổi filter status sang enum name để so sánh
+    String? filterStatusEnum;
+    if (_statusFilter != 'Tất cả') {
+      if (_statusFilter == 'Không hoạt động') {
+        filterStatusEnum = 'INACTIVE';
+      } else if (_statusFilter == 'Hoạt động') {
+        filterStatusEnum = 'ACTIVE';
+      } else if (_statusFilter == 'Hoàn thành') {
+        filterStatusEnum = 'COMPLETED';
+      }
+    }
+
     final filteredProjects =
         _projects.where((p) {
           final matchesName =
               _nameQuery.isEmpty ||
               p.title.toLowerCase().contains(_nameQuery.toLowerCase());
           final matchesStatus =
-              _statusFilter == 'Tất cả' || p.status.name == _statusFilter;
+              filterStatusEnum == null || p.status.name == filterStatusEnum;
           return matchesName && matchesStatus;
         }).toList();
 
@@ -1531,9 +2060,24 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: filteredProjects.length,
+      padding: const EdgeInsets.only(bottom: 16),
       itemBuilder: (context, index) {
         final project = filteredProjects[index];
-        return _buildProjectCard(project);
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: Duration(milliseconds: 200 + (index * 50)),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 20 * (1 - value)),
+                child: child,
+              ),
+            );
+          },
+          child: _buildProjectCard(project),
+        );
       },
     );
   }
@@ -1541,80 +2085,198 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   Widget _buildProjectCard(ProjectModel project) {
     Color statusColor;
     String statusLabel;
+    IconData statusIcon;
 
     switch (project.status) {
-      case ProjectStatus.DRAFT:
+      case ProjectStatus.INACTIVE:
         statusColor = Colors.grey;
-        statusLabel = 'Nháp';
+        statusLabel = 'Không hoạt động';
+        statusIcon = Icons.pause_circle_outline;
         break;
-      case ProjectStatus.IN_PROGRESS:
+      case ProjectStatus.ACTIVE:
         statusColor = Colors.blue;
-        statusLabel = 'Đang thực hiện';
+        statusLabel = 'Hoạt động';
+        statusIcon = Icons.play_circle_outline;
         break;
       case ProjectStatus.COMPLETED:
         statusColor = Colors.green;
         statusLabel = 'Hoàn thành';
-        break;
-      case ProjectStatus.CANCELLED:
-        statusColor = Colors.red;
-        statusLabel = 'Đã hủy';
+        statusIcon = Icons.check_circle_outline;
         break;
     }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
-        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        title: Text(
-          project.title,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Text(
-              project.description?.isNotEmpty ?? false
-                  ? project.description!
-                  : 'Không có mô tả',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                statusLabel,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _showProjectView(project),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Project Icon
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        statusColor.withOpacity(0.1),
+                        statusColor.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.folder_outlined,
+                    color: statusColor,
+                    size: 28,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 16),
+                // Project Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        project.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        project.description?.isNotEmpty ?? false
+                            ? project.description!
+                            : 'Không có mô tả',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(statusIcon, size: 14, color: statusColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  statusLabel,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (project.memberIds != null &&
+                              project.memberIds!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3E8FF),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.people,
+                                    size: 14,
+                                    color: Color(0xFF8B5CF6),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${project.memberIds!.length} thành viên',
+                                    style: const TextStyle(
+                                      color: Color(0xFF8B5CF6),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Actions
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.edit_outlined,
+                      color: const Color(0xFF6366F1),
+                      onTap: () => openEditProjectScreen(project),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildActionButton(
+                      icon: Icons.delete_outline,
+                      color: Colors.red,
+                      onTap: () => handleDeleteProject(project),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Color(0xFF137FEC)),
-              onPressed: () => openEditProjectScreen(project),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => handleDeleteProject(project),
-            ),
-          ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, color: color, size: 20),
         ),
       ),
     );
@@ -1663,6 +2325,1073 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               );
             }
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Sheet chọn Trưởng nhóm với search + phân trang (API /users/for-project)
+class _LeaderPickerSheetContent extends StatefulWidget {
+  final int departmentId;
+  final int pageSize;
+  final void Function(Map<String, dynamic> user) onSelectLeader;
+
+  const _LeaderPickerSheetContent({
+    required this.departmentId,
+    required this.pageSize,
+    required this.onSelectLeader,
+  });
+
+  @override
+  State<_LeaderPickerSheetContent> createState() =>
+      _LeaderPickerSheetContentState();
+}
+
+class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+
+  List<Map<String, dynamic>> _users = [];
+  int _page = 0;
+  int _totalPages = 0;
+  int _totalElements = 0;
+  bool _isLoading = false;
+  String _keyword = '';
+  String? _selectedRole; // Filter by role
+
+  static const List<Map<String, String?>> _roleOptions = [
+    {'label': 'Tất cả', 'value': null},
+    {'label': 'Mentor', 'value': 'MENTOR'},
+    {'label': 'Nhân viên', 'value': 'USER'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPage();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPage() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final result = await ProjectMemberService.getUsersForProjectPaginated(
+        departmentId: widget.departmentId,
+        keyword: _keyword.isEmpty ? null : _keyword,
+        excludeUserIds: null,
+        role: _selectedRole,
+        page: _page,
+        size: widget.pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _users = result['users'] as List<Map<String, dynamic>>;
+        _totalPages = result['totalPages'] as int;
+        _totalElements = result['totalElements'] as int;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải danh sách: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onSearch(String value) {
+    setState(() {
+      _keyword = value.trim();
+      _page = 0;
+    });
+    _loadPage();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _onSearch(value);
+    });
+  }
+
+  static String _roleDisplayName(String? role) {
+    if (role == null) return '';
+    switch (role.toUpperCase()) {
+      case 'ADMIN':
+        return 'Quản trị';
+      case 'PROJECT_MANAGER':
+        return 'Quản lý dự án';
+      case 'MENTOR':
+        return 'Hướng dẫn';
+      default:
+        return 'Nhân viên';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryPurple = Color(0xFF8B5CF6);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder:
+          (_, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryPurple.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.engineering,
+                          color: primaryPurple,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Chọn Trưởng nhóm',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close, color: Colors.grey[600]),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey[100],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Search
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    onSubmitted: _onSearch,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo tên hoặc email...',
+                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: primaryPurple,
+                        size: 20,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: primaryPurple,
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Role filter chips
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        _roleOptions.map((opt) {
+                          final selected = _selectedRole == opt['value'];
+                          return FilterChip(
+                            label: Text(opt['label']!),
+                            selected: selected,
+                            onSelected: (value) {
+                              setState(() {
+                                _selectedRole = opt['value'];
+                                _page = 0;
+                              });
+                              _loadPage();
+                            },
+                            selectedColor: primaryPurple.withOpacity(0.15),
+                            checkmarkColor: primaryPurple,
+                            labelStyle: TextStyle(
+                              color:
+                                  selected ? primaryPurple : Colors.grey[700],
+                              fontWeight:
+                                  selected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                              fontSize: 13,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            visualDensity: VisualDensity.compact,
+                          );
+                        }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // List
+                Expanded(
+                  child:
+                      _isLoading
+                          ? const Center(
+                            child: CircularProgressIndicator(
+                              color: primaryPurple,
+                            ),
+                          )
+                          : _users.isEmpty
+                          ? Padding(
+                            padding: const EdgeInsets.all(40),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.search_off,
+                                  size: 56,
+                                  color: Colors.grey[300],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _keyword.isEmpty
+                                      ? 'Không có user phù hợp'
+                                      : 'Không tìm thấy kết quả',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _users.length,
+                            itemBuilder: (_, i) {
+                              final u = _users[i];
+                              final firstName = u['firstName'] ?? '';
+                              final lastName = u['lastName'] ?? '';
+                              final fullName = '$firstName $lastName'.trim();
+                              final email = u['email'] ?? '';
+                              final role = u['role']?.toString();
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.grey.shade100,
+                                  ),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () {
+                                      widget.onSelectLeader(u);
+                                      Navigator.pop(context);
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            backgroundColor: primaryPurple,
+                                            radius: 24,
+                                            child: Text(
+                                              firstName.isNotEmpty
+                                                  ? firstName[0].toUpperCase()
+                                                  : '?',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  fullName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    if (role != null &&
+                                                        role.isNotEmpty) ...[
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 2,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: primaryPurple
+                                                              .withOpacity(0.1),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          _roleDisplayName(
+                                                            role,
+                                                          ),
+                                                          style: const TextStyle(
+                                                            color:
+                                                                primaryPurple,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                    ],
+                                                    if (email.isNotEmpty)
+                                                      Flexible(
+                                                        child: Text(
+                                                          email,
+                                                          style: TextStyle(
+                                                            color:
+                                                                Colors
+                                                                    .grey[500],
+                                                            fontSize: 12,
+                                                          ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: primaryPurple.withOpacity(
+                                                0.1,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.add,
+                                              color: primaryPurple,
+                                              size: 18,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                ),
+                // Pagination
+                if (_totalElements > 0 && _totalPages > 0)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(24),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '$_totalElements kết quả',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            _buildPaginationButton(
+                              icon: Icons.chevron_left,
+                              onPressed:
+                                  _page > 0
+                                      ? () {
+                                        setState(() => _page--);
+                                        _loadPage();
+                                      }
+                                      : null,
+                              primaryColor: primaryPurple,
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
+                              margin: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: primaryPurple.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${_page + 1} / $_totalPages',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryPurple,
+                                ),
+                              ),
+                            ),
+                            _buildPaginationButton(
+                              icon: Icons.chevron_right,
+                              onPressed:
+                                  _page < _totalPages - 1
+                                      ? () {
+                                        setState(() => _page++);
+                                        _loadPage();
+                                      }
+                                      : null,
+                              primaryColor: primaryPurple,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildPaginationButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required Color primaryColor,
+  }) {
+    return Material(
+      color: onPressed != null ? Colors.white : Colors.grey[100],
+      borderRadius: BorderRadius.circular(8),
+      elevation: onPressed != null ? 2 : 0,
+      shadowColor: onPressed != null ? Colors.black12 : Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            size: 20,
+            color: onPressed != null ? primaryColor : Colors.grey[300],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sheet chọn thành viên với search + phân trang (API /users/for-project)
+class _MemberPickerSheetContent extends StatefulWidget {
+  final int departmentId;
+  final List<int> excludeUserIds;
+  final int pageSize;
+  final void Function(Map<String, dynamic> user) onSelectMember;
+
+  const _MemberPickerSheetContent({
+    required this.departmentId,
+    required this.excludeUserIds,
+    required this.pageSize,
+    required this.onSelectMember,
+  });
+
+  @override
+  State<_MemberPickerSheetContent> createState() =>
+      _MemberPickerSheetContentState();
+}
+
+class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
+
+  List<Map<String, dynamic>> _users = [];
+
+  static String roleDisplayName(String role) {
+    switch (role.toUpperCase()) {
+      case 'ADMIN':
+        return 'Quản trị';
+      case 'PROJECT_MANAGER':
+        return 'Quản lý dự án';
+      case 'MENTOR':
+        return 'Hướng dẫn';
+      default:
+        return 'Nhân viên';
+    }
+  }
+
+  int _page = 0;
+  int _totalPages = 0;
+  int _totalElements = 0;
+  bool _isLoading = false;
+  String _keyword = '';
+  String? _selectedRole; // Filter by role
+  List<int> _excludeIds = [];
+
+  static const List<Map<String, String?>> _roleOptions = [
+    {'label': 'Tất cả', 'value': null},
+    {'label': 'Mentor', 'value': 'MENTOR'},
+    {'label': 'Nhân viên', 'value': 'USER'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _excludeIds = List.from(widget.excludeUserIds);
+    _loadPage();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPage() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final result = await ProjectMemberService.getUsersForProjectPaginated(
+        departmentId: widget.departmentId,
+        keyword: _keyword.isEmpty ? null : _keyword,
+        excludeUserIds: _excludeIds.isEmpty ? null : _excludeIds,
+        role: _selectedRole,
+        page: _page,
+        size: widget.pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _users = result['users'] as List<Map<String, dynamic>>;
+        _totalPages = result['totalPages'] as int;
+        _totalElements = result['totalElements'] as int;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải danh sách: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onSearch(String value) {
+    setState(() {
+      _keyword = value.trim();
+      _page = 0;
+    });
+    _loadPage();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _onSearch(value);
+    });
+  }
+
+  void _onSelect(Map<String, dynamic> user) {
+    final id = user['id'];
+    if (id == null) return;
+    final idInt = id is int ? id : int.tryParse(id.toString());
+    if (idInt == null) return;
+    setState(() => _excludeIds.add(idInt));
+    _users.removeWhere((e) {
+      final eid = e['id'];
+      final eidInt = eid is int ? eid : int.tryParse(e['id']?.toString() ?? '');
+      return eidInt == idInt;
+    });
+    widget.onSelectMember(user);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryGreen = Color(0xFF10B981);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder:
+          (_, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: primaryGreen.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.group,
+                          color: primaryGreen,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Chọn thành viên',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close, color: Colors.grey[600]),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey[100],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Search
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    onSubmitted: _onSearch,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm theo tên hoặc email...',
+                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: primaryGreen,
+                        size: 20,
+                      ),
+                      suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _searchController,
+                        builder:
+                            (_, value, __) =>
+                                value.text.isNotEmpty
+                                    ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _onSearch('');
+                                      },
+                                    )
+                                    : const SizedBox.shrink(),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: primaryGreen,
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Role filter chips
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        _roleOptions.map((opt) {
+                          final selected = _selectedRole == opt['value'];
+                          return FilterChip(
+                            label: Text(opt['label']!),
+                            selected: selected,
+                            onSelected: (value) {
+                              setState(() {
+                                _selectedRole = opt['value'];
+                                _page = 0;
+                              });
+                              _loadPage();
+                            },
+                            selectedColor: primaryGreen.withOpacity(0.15),
+                            checkmarkColor: primaryGreen,
+                            labelStyle: TextStyle(
+                              color: selected ? primaryGreen : Colors.grey[700],
+                              fontWeight:
+                                  selected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                              fontSize: 13,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            visualDensity: VisualDensity.compact,
+                          );
+                        }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // List
+                Expanded(
+                  child:
+                      _isLoading
+                          ? const Center(
+                            child: CircularProgressIndicator(
+                              color: primaryGreen,
+                            ),
+                          )
+                          : _users.isEmpty
+                          ? Padding(
+                            padding: const EdgeInsets.all(40),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.search_off,
+                                  size: 56,
+                                  color: Colors.grey[300],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _keyword.isEmpty
+                                      ? 'Không có thành viên khả dụng'
+                                      : 'Không tìm thấy kết quả',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _users.length,
+                            itemBuilder: (_, i) {
+                              final member = _users[i];
+                              final firstName = member['firstName'] ?? '';
+                              final lastName = member['lastName'] ?? '';
+                              final fullName = '$firstName $lastName'.trim();
+                              final email = member['email'] ?? '';
+                              final role = member['role']?.toString();
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.grey.shade100,
+                                  ),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () => _onSelect(member),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            backgroundColor: primaryGreen,
+                                            radius: 24,
+                                            child: Text(
+                                              firstName.isNotEmpty
+                                                  ? firstName[0].toUpperCase()
+                                                  : '?',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  fullName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    if (role != null &&
+                                                        role.isNotEmpty) ...[
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 2,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: primaryGreen
+                                                              .withOpacity(0.1),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          roleDisplayName(role),
+                                                          style: const TextStyle(
+                                                            color: primaryGreen,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                    ],
+                                                    if (email.isNotEmpty)
+                                                      Flexible(
+                                                        child: Text(
+                                                          email,
+                                                          style: TextStyle(
+                                                            color:
+                                                                Colors
+                                                                    .grey[500],
+                                                            fontSize: 12,
+                                                          ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: primaryGreen.withOpacity(
+                                                0.1,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.add,
+                                              color: primaryGreen,
+                                              size: 18,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                ),
+                // Pagination
+                if (_totalElements > 0 && _totalPages > 0)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(24),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '$_totalElements kết quả',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            _buildPaginationButton(
+                              icon: Icons.chevron_left,
+                              onPressed:
+                                  _page > 0
+                                      ? () {
+                                        setState(() => _page--);
+                                        _loadPage();
+                                      }
+                                      : null,
+                              primaryColor: primaryGreen,
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
+                              margin: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: primaryGreen.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${_page + 1} / $_totalPages',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryGreen,
+                                ),
+                              ),
+                            ),
+                            _buildPaginationButton(
+                              icon: Icons.chevron_right,
+                              onPressed:
+                                  _page < _totalPages - 1
+                                      ? () {
+                                        setState(() => _page++);
+                                        _loadPage();
+                                      }
+                                      : null,
+                              primaryColor: primaryGreen,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildPaginationButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required Color primaryColor,
+  }) {
+    return Material(
+      color: onPressed != null ? Colors.white : Colors.grey[100],
+      borderRadius: BorderRadius.circular(8),
+      elevation: onPressed != null ? 2 : 0,
+      shadowColor: onPressed != null ? Colors.black12 : Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            size: 20,
+            color: onPressed != null ? primaryColor : Colors.grey[300],
+          ),
         ),
       ),
     );

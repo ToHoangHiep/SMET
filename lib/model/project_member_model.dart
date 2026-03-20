@@ -1,16 +1,15 @@
 enum ProjectMemberRole {
   PROJECT_LEAD,
-  MEMBER,
-  MENTOR;
+  PROJECT_MEMBER;
 
   static ProjectMemberRole fromString(String? value) {
     switch (value?.toUpperCase()) {
       case 'PROJECT_LEAD':
         return ProjectMemberRole.PROJECT_LEAD;
-      case 'MENTOR':
-        return ProjectMemberRole.MENTOR;
+      case 'PROJECT_MEMBER':
+        return ProjectMemberRole.PROJECT_MEMBER;
       default:
-        return ProjectMemberRole.MEMBER;
+        return ProjectMemberRole.PROJECT_MEMBER;
     }
   }
 
@@ -18,10 +17,8 @@ enum ProjectMemberRole {
     switch (this) {
       case ProjectMemberRole.PROJECT_LEAD:
         return 'Trưởng nhóm';
-      case ProjectMemberRole.MEMBER:
+      case ProjectMemberRole.PROJECT_MEMBER:
         return 'Thành viên';
-      case ProjectMemberRole.MENTOR:
-        return 'Người hướng dẫn';
     }
   }
 }
@@ -44,13 +41,15 @@ class ProjectMemberModel {
   });
 
   factory ProjectMemberModel.fromJson(Map<String, dynamic> json) {
+    // Xử lý nested user object từ backend
+    final user = json['user'];
     return ProjectMemberModel(
       id: json['id'] ?? 0,
-      projectId: json['projectId'] ?? 0,
-      userId: json['userId'] ?? 0,
+      projectId: json['project']?['id'] ?? json['projectId'] ?? 0,
+      userId: user?['id'] ?? json['userId'] ?? 0,
       role: ProjectMemberRole.fromString(json['role']),
-      userName: json['userName'],
-      userEmail: json['userEmail'],
+      userName: user?['fullName']?.toString() ?? json['userName'],
+      userEmail: user?['email']?.toString() ?? json['userEmail'],
     );
   }
 
