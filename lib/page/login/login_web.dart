@@ -7,154 +7,309 @@ class LoginWeb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        color: const Color(0xFFF3F6FD),
-        child: Column(
-          children: [
-            Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+    return Scaffold(
+      body: Row(
+        children: [
+          // Left Side - Background Image
+          Expanded(
+            flex: 5,
+            child: Container(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/loginImageleft.jpg'),
+                  fit: BoxFit.cover,
+                ),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.school,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.35),
+                      Colors.black.withOpacity(0.15),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'SMETS',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'About',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'Contact Support',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 28,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 500),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 30,
-                        vertical: 28,
+                ),
+                child: Stack(
+                  children: [
+                    // Decorative circles
+                    Positioned(
+                      top: -50,
+                      left: -50,
+                      child: Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x22000000),
-                            blurRadius: 20,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
+                    ),
+                    Positioned(
+                      bottom: -30,
+                      right: -30,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 50,
-                              height: 50,
+                    ),
+                    Positioned(
+                      top: 100,
+                      right: 50,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.08),
+                        ),
+                      ),
+                    ),
+                    // Content
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(48),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: const Color.fromRGBO(229, 240, 255, 1),
-                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(24),
                               ),
                               child: const Icon(
                                 Icons.school,
-                                color: Color(0xFF2563EB),
-                                size: 42,
+                                size: 64,
+                                color: Colors.white,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 18),
-                          const Center(
-                            child: Text(
-                              'Welcome back',
+                            const SizedBox(height: 32),
+                            // Title với hiệu ứng text shadow
+                            Text(
+                              'SMETS',
                               style: TextStyle(
-                                fontSize: 42,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.6,
-                                color: Color(0xFF111827),
+                                fontSize: 52,
+                                fontWeight: FontWeight.w300,
+                                color: Colors.white,
+                                letterSpacing: 8,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    offset: const Offset(2, 2),
+                                    blurRadius: 8,
+                                  ),
+                                  Shadow(
+                                    color: Colors.white.withOpacity(0.2),
+                                    offset: const Offset(-1, -1),
+                                    blurRadius: 4,
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Center(
-                            child: Text(
-                              'Sign in to access your training dashboard',
+                            const SizedBox(height: 20),
+                            // Subtitle với font nhẹ hơn
+                            Text(
+                              'Hệ thống Quản lý\nGiáo dục Thông minh',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Color(0xFF6B7280),
-                                fontSize: 15,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w300,
+                                color: Colors.white.withOpacity(0.85),
+                                height: 1.6,
+                                letterSpacing: 1,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          formContent,
-                          const SizedBox(height: 24),
-                        ],
+                            const SizedBox(height: 48),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildFeatureChip(
+                                  Icons.dashboard_outlined,
+                                  'Dashboard',
+                                ),
+                                const SizedBox(width: 12),
+                                _buildFeatureChip(
+                                  Icons.people_outline,
+                                  'Quản lý',
+                                ),
+                                const SizedBox(width: 12),
+                                _buildFeatureChip(
+                                  Icons.analytics_outlined,
+                                  'Thống kê',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
-            Container(
-              height: 58,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Text(
-                    '© 2026 SMETS Platform. All rights reserved.',
-                    style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+          ),
+          // Right Side - Form
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: const Color(0xFFFAFBFC),
+              child: Column(
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 24,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.school,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'SMETS',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Form
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 48),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 400),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox(height: 40),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF2FF),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.waving_hand,
+                                  color: Color(0xFF6366F1),
+                                  size: 32,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              const Text(
+                                'Xin chào',
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1F2937),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Đăng nhập để truy cập vào hệ thống quản lý',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              formContent,
+                              const SizedBox(height: 32),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '© 2026 SMETS Platform. All rights reserved.',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: Colors.white.withOpacity(0.9),
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w400,
+              fontSize: 14,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
