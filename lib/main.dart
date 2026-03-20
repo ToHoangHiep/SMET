@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:smet/firebase_options.dart';
 import 'package:smet/router/app_router.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+
   if (kIsWeb) {
     usePathUrlStrategy();
   }
