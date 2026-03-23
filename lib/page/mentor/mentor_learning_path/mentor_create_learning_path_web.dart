@@ -151,7 +151,9 @@ class _MentorCreateLearningPathWebState
             backgroundColor: Colors.green,
           ),
         );
-        context.go('/mentor/learning-paths');
+        context.go(
+          '/mentor/learning-paths?refresh=${DateTime.now().millisecondsSinceEpoch}',
+        );
       }
     } catch (e) {
       setState(() => _isSaving = false);

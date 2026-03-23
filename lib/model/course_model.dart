@@ -6,11 +6,7 @@
 // ENUMS
 // ============================================
 
-enum CourseStatus {
-  DRAFT,
-  PUBLISHED,
-  ARCHIVED,
-}
+enum CourseStatus { DRAFT, PUBLISHED, ARCHIVED }
 
 extension CourseStatusExtension on CourseStatus {
   String get label {
@@ -44,10 +40,7 @@ extension CourseStatusExtension on CourseStatus {
   }
 }
 
-enum DeadlineType {
-  FIXED,
-  RELATIVE,
-}
+enum DeadlineType { FIXED, RELATIVE }
 
 extension DeadlineTypeExtension on DeadlineType {
   String get label {
@@ -97,10 +90,18 @@ class CreateLessonRequest {
   final int orderIndex;
   final Long moduleId;
 
+  // 🔥 thêm mới
+  final String contentType; // TEXT | VIDEO | LINK
+  final String? content;
+  final String? videoUrl;
+
   CreateLessonRequest({
     required this.title,
     required this.orderIndex,
     required this.moduleId,
+    required this.contentType,
+    this.content,
+    this.videoUrl,
   });
 
   Map<String, dynamic> toJson() {
@@ -108,6 +109,9 @@ class CreateLessonRequest {
       'title': title,
       'orderIndex': orderIndex,
       'moduleId': moduleId.value,
+      'contentType': contentType,
+      'content': content,
+      'videoUrl': videoUrl,
     };
   }
 }
@@ -130,13 +134,11 @@ class CreateCourseRequest {
   });
 
   Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{
-      'title': title,
-      'description': description,
-    };
+    final map = <String, dynamic>{'title': title, 'description': description};
     if (departmentId != null) map['departmentId'] = departmentId!.value;
     if (deadlineType != null) map['deadlineType'] = deadlineType;
-    if (defaultDeadlineDays != null) map['defaultDeadlineDays'] = defaultDeadlineDays;
+    if (defaultDeadlineDays != null)
+      map['defaultDeadlineDays'] = defaultDeadlineDays;
     if (fixedDeadline != null) map['fixedDeadline'] = fixedDeadline;
     return map;
   }
@@ -160,12 +162,10 @@ class UpdateCourseRequest {
   });
 
   Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{
-      'title': title,
-      'description': description,
-    };
+    final map = <String, dynamic>{'title': title, 'description': description};
     if (status != null) map['status'] = status;
-    if (defaultDeadlineDays != null) map['defaultDeadlineDays'] = defaultDeadlineDays;
+    if (defaultDeadlineDays != null)
+      map['defaultDeadlineDays'] = defaultDeadlineDays;
     if (deadlineType != null) map['deadlineType'] = deadlineType;
     if (fixedDeadline != null) map['fixedDeadline'] = fixedDeadline;
     return map;
@@ -220,8 +220,14 @@ class CourseResponse {
       status: CourseStatusExtension.fromString(json['status']),
       moduleCount: _parseInt(json['moduleCount']),
       lessonCount: _parseInt(json['lessonCount']),
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
-      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt']) : null,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.tryParse(json['createdAt'])
+              : null,
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.tryParse(json['updatedAt'])
+              : null,
     );
   }
 }
@@ -278,17 +284,25 @@ class CourseDetailResponse {
       mentorName: json['mentorName'] ?? json['mentor']?['name'] ?? 'Mentor',
       published: json['published'] ?? false,
       status: CourseStatusExtension.fromString(json['status']),
-      modules: (json['modules'] as List<dynamic>?)
+      modules:
+          (json['modules'] as List<dynamic>?)
               ?.map((e) => ModuleResponse.fromJson(e))
               .toList() ??
           [],
       defaultDeadlineDays: _parseIntNullable(json['defaultDeadlineDays']),
       deadlineType: DeadlineTypeExtension.fromString(json['deadlineType']),
-      fixedDeadline: json['fixedDeadline'] != null
-          ? DateTime.tryParse(json['fixedDeadline'])
-          : null,
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
-      updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt']) : null,
+      fixedDeadline:
+          json['fixedDeadline'] != null
+              ? DateTime.tryParse(json['fixedDeadline'])
+              : null,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.tryParse(json['createdAt'])
+              : null,
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.tryParse(json['updatedAt'])
+              : null,
     );
   }
 }
@@ -319,11 +333,15 @@ class ModuleResponse {
       title: json['title'] ?? '',
       description: json['description'],
       orderIndex: json['orderIndex'] ?? 0,
-      lessons: (json['lessons'] as List<dynamic>?)
+      lessons:
+          (json['lessons'] as List<dynamic>?)
               ?.map((e) => LessonResponse.fromJson(e))
               .toList() ??
           [],
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.tryParse(json['createdAt'])
+              : null,
     );
   }
 }
@@ -334,6 +352,8 @@ class LessonResponse {
   final String title;
   final String? description;
   final String? videoUrl;
+  final String? contentType; // TEXT | VIDEO | LINK
+  final String? content;
   final int? durationMinutes;
   final int orderIndex;
   final DateTime? createdAt;
@@ -343,6 +363,8 @@ class LessonResponse {
     required this.title,
     this.description,
     this.videoUrl,
+    this.contentType,
+    this.content,
     this.durationMinutes,
     required this.orderIndex,
     this.createdAt,
@@ -354,9 +376,14 @@ class LessonResponse {
       title: json['title'] ?? '',
       description: json['description'],
       videoUrl: json['videoUrl'],
+      contentType: json['contentType'],
+      content: json['content'],
       durationMinutes: _parseIntNullable(json['durationMinutes']),
       orderIndex: json['orderIndex'] ?? 0,
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.tryParse(json['createdAt'])
+              : null,
     );
   }
 }
@@ -366,7 +393,7 @@ class PageResponse<T> {
   final List<T> content;
   final int totalElements;
   final int totalPages;
-  final int number;        // current page (0-indexed)
+  final int number; // current page (0-indexed)
   final int size;
   final bool first;
   final bool last;
@@ -390,9 +417,12 @@ class PageResponse<T> {
     T Function(Map<String, dynamic>) fromJsonT,
   ) {
     // Backend uses "data" but some endpoints use "content"
-    final List<dynamic>? rawList = (json['data'] ?? json['content']) as List<dynamic>?;
+    final List<dynamic>? rawList =
+        (json['data'] ?? json['content']) as List<dynamic>?;
     return PageResponse(
-      content: rawList?.map((e) => fromJsonT(e as Map<String, dynamic>)).toList() ?? [],
+      content:
+          rawList?.map((e) => fromJsonT(e as Map<String, dynamic>)).toList() ??
+          [],
       totalElements: _parseInt(json['totalElements'] ?? json['total']),
       totalPages: _parseInt(json['totalPages']),
       number: _parseInt(json['number'] ?? json['page']),

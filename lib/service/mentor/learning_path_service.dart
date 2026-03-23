@@ -21,7 +21,12 @@ class LearningPathService {
     };
   }
 
-  void _logRequest(String title, String url, {dynamic body, Map<String, String>? headers}) {
+  void _logRequest(
+    String title,
+    String url, {
+    dynamic body,
+    Map<String, String>? headers,
+  }) {
     log("==========================================");
     log(">>> [$title] REQUEST");
     log("    URL    : $url");
@@ -42,9 +47,10 @@ class LearningPathService {
     log("<<< RESPONSE");
     log("    STATUS : ${res.statusCode}");
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final preview = res.body.length > 500
-          ? '${res.body.substring(0, 500)}... [truncated]'
-          : res.body;
+      final preview =
+          res.body.length > 500
+              ? '${res.body.substring(0, 500)}... [truncated]'
+              : res.body;
       log("    BODY   : $preview");
     } else {
       log("    ERROR  : ${res.body}");
@@ -69,7 +75,9 @@ class LearningPathService {
     int page = 0,
     int size = 10,
   }) async {
-    log("[LearningPathService] getAllLearningPaths() called - page=$page, size=$size, keyword=$keyword");
+    log(
+      "[LearningPathService] getAllLearningPaths() called - page=$page, size=$size, keyword=$keyword",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -84,7 +92,9 @@ class LearningPathService {
         'size': size.toString(),
       };
       if (keyword != null && keyword.isNotEmpty) params['keyword'] = keyword;
-      final uri = Uri.parse("$baseUrl/lms/learning-paths").replace(queryParameters: params);
+      final uri = Uri.parse(
+        "$baseUrl/lms/learning-paths",
+      ).replace(queryParameters: params);
       final url = uri.toString();
       _logResult("URL", url);
 
@@ -103,14 +113,22 @@ class LearningPathService {
           }
           final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
           final result = LearningPathPageResponse.fromJson(data);
-          _logResult("Learning paths loaded", "${result.content.length} / ${result.totalElements} total");
+          _logResult(
+            "Learning paths loaded",
+            "${result.content.length} / ${result.totalElements} total",
+          );
           for (int i = 0; i < result.content.length; i++) {
-            _logResult("  Path[$i]", "id=${result.content[i].id.value}, title=${result.content[i].title}");
+            _logResult(
+              "  Path[$i]",
+              "id=${result.content[i].id.value}, title=${result.content[i].title}",
+            );
           }
           return result;
         } on FormatException catch (e) {
           log("  [ERROR] JSON parse failed: $e");
-          throw Exception("Server returned invalid JSON. Is the backend running?");
+          throw Exception(
+            "Server returned invalid JSON. Is the backend running?",
+          );
         }
       }
 
@@ -127,7 +145,9 @@ class LearningPathService {
   // Returns: LearningPathResponse (with courses list)
   // ============================================
   Future<LearningPathDetailResponse> getLearningPathDetail(Long pathId) async {
-    log("[LearningPathService] getLearningPathDetail() called - pathId=${pathId.value}");
+    log(
+      "[LearningPathService] getLearningPathDetail() called - pathId=${pathId.value}",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -136,7 +156,7 @@ class LearningPathService {
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId";
+      final url = "$baseUrl/lms/learning-paths/${pathId.value}";
       _logResult("URL", url);
 
       _logStep("Sending GET request...");
@@ -151,19 +171,29 @@ class LearningPathService {
           if (decoded == null) throw Exception("Empty response from server");
           final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
           final result = LearningPathDetailResponse.fromJson(data);
-          _logResult("Learning path loaded", "id=${result.id.value}, title=${result.title}");
+          _logResult(
+            "Learning path loaded",
+            "id=${result.id.value}, title=${result.title}",
+          );
           _logResult("Courses count", result.courses.length);
           for (int i = 0; i < result.courses.length; i++) {
-            _logResult("  Course[$i]", "courseId=${result.courses[i].courseId.value}, title=${result.courses[i].title}, order=${result.courses[i].orderIndex}");
+            _logResult(
+              "  Course[$i]",
+              "courseId=${result.courses[i].courseId.value}, title=${result.courses[i].title}, order=${result.courses[i].orderIndex}",
+            );
           }
           return result;
         } on FormatException catch (e) {
           log("  [ERROR] JSON parse failed: $e");
-          throw Exception("Server returned invalid JSON. Is the backend running?");
+          throw Exception(
+            "Server returned invalid JSON. Is the backend running?",
+          );
         }
       }
 
-      throw Exception("Get learning path detail failed: HTTP ${res.statusCode}");
+      throw Exception(
+        "Get learning path detail failed: HTTP ${res.statusCode}",
+      );
     } catch (e) {
       log("[LearningPathService] getLearningPathDetail() FAILED: $e");
       rethrow;
@@ -175,7 +205,10 @@ class LearningPathService {
   // Backend: POST /api/lms/learning-paths?title=&description=
   // Backend uses @RequestParam (query params), NOT JSON body
   // ============================================
-  Future<Map<String, dynamic>> createLearningPath(String title, String description) async {
+  Future<Map<String, dynamic>> createLearningPath(
+    String title,
+    String description,
+  ) async {
     log("[LearningPathService] createLearningPath() called - title=$title");
 
     try {
@@ -185,10 +218,9 @@ class LearningPathService {
         throw Exception("No auth token found. Please login again.");
       }
 
-      final uri = Uri.parse("$baseUrl/lms/learning-paths").replace(queryParameters: {
-        'title': title,
-        'description': description,
-      });
+      final uri = Uri.parse(
+        "$baseUrl/lms/learning-paths",
+      ).replace(queryParameters: {'title': title, 'description': description});
       final url = uri.toString();
       _logResult("URL", url);
 
@@ -218,8 +250,14 @@ class LearningPathService {
   // ADD COURSE TO LEARNING PATH
   // Backend: POST /api/lms/learning-paths/{pathId}/courses/{courseId}?orderIndex=
   // ============================================
-  Future<void> addCourseToLearningPath(Long pathId, Long courseId, int orderIndex) async {
-    log("[LearningPathService] addCourseToLearningPath() called - pathId=${pathId.value}, courseId=${courseId.value}, orderIndex=$orderIndex");
+  Future<void> addCourseToLearningPath(
+    Long pathId,
+    Long courseId,
+    int orderIndex,
+  ) async {
+    log(
+      "[LearningPathService] addCourseToLearningPath() called - pathId=${pathId.value}, courseId=${courseId.value}, orderIndex=$orderIndex",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -228,7 +266,8 @@ class LearningPathService {
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId/courses/$courseId?orderIndex=$orderIndex";
+      final url =
+          "$baseUrl/lms/learning-paths/${pathId.value}/courses/$courseId?orderIndex=$orderIndex";
       _logResult("URL", url);
 
       _logStep("Sending POST request...");
@@ -237,11 +276,16 @@ class LearningPathService {
       _logResponse(res);
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _logResult("Course added", "pathId=${pathId.value}, courseId=${courseId.value}, orderIndex=$orderIndex");
+        _logResult(
+          "Course added",
+          "pathId=${pathId.value}, courseId=${courseId.value}, orderIndex=$orderIndex",
+        );
         return;
       }
 
-      throw Exception("Add course to learning path failed: HTTP ${res.statusCode}");
+      throw Exception(
+        "Add course to learning path failed: HTTP ${res.statusCode}",
+      );
     } catch (e) {
       log("[LearningPathService] addCourseToLearningPath() FAILED: $e");
       rethrow;
@@ -253,45 +297,54 @@ class LearningPathService {
   // Backend: DELETE /api/lms/learning-paths/{pathId}/courses/{relationId}
   // Backend uses relationId (learning_path_course PK), NOT courseId
   // ============================================
-  Future<void> removeCourseFromLearningPath(Long pathId, Long relationId) async {
-  final token = await _getToken();
+  Future<void> removeCourseFromLearningPath(
+    Long pathId,
+    Long relationId,
+  ) async {
+    final token = await _getToken();
 
-  final url =
-      "$baseUrl/lms/learning-paths/${pathId.value}/courses/${relationId.value}";
+    final url =
+        "$baseUrl/lms/learning-paths/${pathId.value}/courses/${relationId.value}";
 
-  final res = await http.delete(
-    Uri.parse(url),
-    headers: _headers(token!),
-  );
+    final res = await http.delete(Uri.parse(url), headers: _headers(token!));
 
-  if (res.statusCode != 200 && res.statusCode != 204) {
-    throw Exception("Remove course failed: ${res.body}");
+    if (res.statusCode != 200 && res.statusCode != 204) {
+      throw Exception("Remove course failed: ${res.body}");
+    }
   }
-}
-Future<void> reorderCourses(
-    Long pathId, List<Map<String, dynamic>> orders) async {
-  final token = await _getToken();
 
-  final url = "$baseUrl/lms/learning-paths/${pathId.value}/reorder";
+  Future<void> reorderCourses(
+    Long pathId,
+    List<Map<String, dynamic>> orders,
+  ) async {
+    final token = await _getToken();
 
-  final res = await http.put(
-    Uri.parse(url),
-    headers: _headers(token!),
-    body: jsonEncode(orders),
-  );
+    final url = "$baseUrl/lms/learning-paths/${pathId.value}/reorder";
 
-  if (res.statusCode != 200) {
-    throw Exception("Reorder failed: ${res.body}");
+    final res = await http.put(
+      Uri.parse(url),
+      headers: _headers(token!),
+      body: jsonEncode(orders),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception("Reorder failed: ${res.body}");
+    }
   }
-}
 
   // ============================================
   // UPDATE LEARNING PATH (title, description)
   // Backend: PUT /api/lms/learning-paths/{pathId}?title=&description=
   // Backend uses @RequestParam (query params), NOT JSON body
   // ============================================
-  Future<void> updateLearningPath(Long pathId, String title, String description) async {
-    log("[LearningPathService] updateLearningPath() called - pathId=${pathId.value}, title=$title");
+  Future<void> updateLearningPath(
+    Long pathId,
+    String title,
+    String description,
+  ) async {
+    log(
+      "[LearningPathService] updateLearningPath() called - pathId=${pathId.value}, title=$title",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -300,10 +353,9 @@ Future<void> reorderCourses(
         throw Exception("No auth token found. Please login again.");
       }
 
-      final uri = Uri.parse("$baseUrl/lms/learning-paths/$pathId").replace(queryParameters: {
-        'title': title,
-        'description': description,
-      });
+      final uri = Uri.parse(
+        "$baseUrl/lms/learning-paths/${pathId.value}",
+      ).replace(queryParameters: {'title': title, 'description': description});
       final url = uri.toString();
       _logResult("URL", url);
 
@@ -329,7 +381,9 @@ Future<void> reorderCourses(
   // Backend: DELETE /api/lms/learning-paths/{pathId}
   // ============================================
   Future<void> deleteLearningPath(Long pathId) async {
-    log("[LearningPathService] deleteLearningPath() called - pathId=${pathId.value}");
+    log(
+      "[LearningPathService] deleteLearningPath() called - pathId=${pathId.value}",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -338,7 +392,7 @@ Future<void> reorderCourses(
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId";
+      final url = "$baseUrl/lms/learning-paths/${pathId.value}";
       _logResult("URL", url);
 
       _logStep("Sending DELETE request...");
@@ -394,10 +448,15 @@ Future<void> reorderCourses(
             final data = Map<String, dynamic>.from(decoded);
             final content = data['data'] as List<dynamic>?;
             if (content != null) {
-              allCourses.addAll(content.map((e) => Map<String, dynamic>.from(e)));
+              allCourses.addAll(
+                content.map((e) => Map<String, dynamic>.from(e)),
+              );
             }
             totalPages = _parseInt(data['totalPages'] ?? 1);
-            _logResult("Page $page loaded", "${content?.length ?? 0} courses (total: $totalPages pages)");
+            _logResult(
+              "Page $page loaded",
+              "${content?.length ?? 0} courses (total: $totalPages pages)",
+            );
           }
         } else {
           throw Exception("Get courses failed: HTTP ${res.statusCode}");
@@ -407,7 +466,10 @@ Future<void> reorderCourses(
 
       _logResult("Mentor courses loaded", "${allCourses.length} total courses");
       for (int i = 0; i < allCourses.length && i < 10; i++) {
-        _logResult("  Course[$i]", "id=${allCourses[i]['id']}, title=${allCourses[i]['title']}");
+        _logResult(
+          "  Course[$i]",
+          "id=${allCourses[i]['id']}, title=${allCourses[i]['title']}",
+        );
       }
       return allCourses;
     } catch (e) {
@@ -420,8 +482,14 @@ Future<void> reorderCourses(
   // REORDER COURSE IN LEARNING PATH
   // Backend: PUT /api/lms/learning-paths/{pathId}/courses/reorder?relationId=&newOrderIndex=
   // ============================================
-  Future<void> reorderCourse(Long pathId, Long relationId, int newOrderIndex) async {
-    log("[LearningPathService] reorderCourse() called - pathId=${pathId.value}, relationId=${relationId.value}, newOrderIndex=$newOrderIndex");
+  Future<void> reorderCourse(
+    Long pathId,
+    Long relationId,
+    int newOrderIndex,
+  ) async {
+    log(
+      "[LearningPathService] reorderCourse() called - pathId=${pathId.value}, relationId=${relationId.value}, newOrderIndex=$newOrderIndex",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -430,16 +498,24 @@ Future<void> reorderCourses(
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId/courses/reorder?relationId=$relationId&newOrderIndex=$newOrderIndex";
+      final url =
+          "$baseUrl/lms/learning-paths/$pathId/courses/reorder?relationId=$relationId&newOrderIndex=$newOrderIndex";
       _logResult("URL", url);
 
       _logStep("Sending PUT request...");
-      _logRequest("REORDER COURSE IN LEARNING PATH", url, headers: _headers(token));
+      _logRequest(
+        "REORDER COURSE IN LEARNING PATH",
+        url,
+        headers: _headers(token),
+      );
       final res = await http.put(Uri.parse(url), headers: _headers(token));
       _logResponse(res);
 
       if (res.statusCode == 200) {
-        _logResult("Course reordered", "pathId=${pathId.value}, relationId=${relationId.value}, newOrderIndex=$newOrderIndex");
+        _logResult(
+          "Course reordered",
+          "pathId=${pathId.value}, relationId=${relationId.value}, newOrderIndex=$newOrderIndex",
+        );
         return;
       }
 
@@ -456,7 +532,9 @@ Future<void> reorderCourses(
   // Role: ADMIN, PROJECT_LEAD
   // ============================================
   Future<void> assignToDepartment(Long pathId, Long departmentId) async {
-    log("[LearningPathService] assignToDepartment() called - pathId=${pathId.value}, departmentId=${departmentId.value}");
+    log(
+      "[LearningPathService] assignToDepartment() called - pathId=${pathId.value}, departmentId=${departmentId.value}",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -465,7 +543,8 @@ Future<void> reorderCourses(
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId/assign/department/$departmentId";
+      final url =
+          "$baseUrl/lms/learning-paths/$pathId/assign/department/$departmentId";
       _logResult("URL", url);
 
       _logStep("Sending POST request...");
@@ -474,7 +553,10 @@ Future<void> reorderCourses(
       _logResponse(res);
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _logResult("Assigned to department", "pathId=${pathId.value}, departmentId=${departmentId.value}");
+        _logResult(
+          "Assigned to department",
+          "pathId=${pathId.value}, departmentId=${departmentId.value}",
+        );
         return;
       }
 
@@ -491,7 +573,9 @@ Future<void> reorderCourses(
   // Role: ADMIN, PROJECT_LEAD
   // ============================================
   Future<void> assignToProject(Long pathId, Long projectId) async {
-    log("[LearningPathService] assignToProject() called - pathId=${pathId.value}, projectId=${projectId.value}");
+    log(
+      "[LearningPathService] assignToProject() called - pathId=${pathId.value}, projectId=${projectId.value}",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -500,7 +584,8 @@ Future<void> reorderCourses(
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId/assign/project/$projectId";
+      final url =
+          "$baseUrl/lms/learning-paths/$pathId/assign/project/$projectId";
       _logResult("URL", url);
 
       _logStep("Sending POST request...");
@@ -509,7 +594,10 @@ Future<void> reorderCourses(
       _logResponse(res);
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _logResult("Assigned to project", "pathId=${pathId.value}, projectId=${projectId.value}");
+        _logResult(
+          "Assigned to project",
+          "pathId=${pathId.value}, projectId=${projectId.value}",
+        );
         return;
       }
 
@@ -526,7 +614,9 @@ Future<void> reorderCourses(
   // Role: ADMIN, PROJECT_LEAD
   // ============================================
   Future<void> assignToUser(Long pathId, Long userId) async {
-    log("[LearningPathService] assignToUser() called - pathId=${pathId.value}, userId=${userId.value}");
+    log(
+      "[LearningPathService] assignToUser() called - pathId=${pathId.value}, userId=${userId.value}",
+    );
 
     try {
       _logStep("Getting auth token...");
@@ -535,7 +625,8 @@ Future<void> reorderCourses(
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/learning-paths/$pathId/assign/user/$userId";
+      final url =
+          "$baseUrl/lms/learning-paths/${pathId.value}/assign/user/${userId.value}";
       _logResult("URL", url);
 
       _logStep("Sending POST request...");
@@ -544,7 +635,10 @@ Future<void> reorderCourses(
       _logResponse(res);
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _logResult("Assigned to user", "pathId=${pathId.value}, userId=${userId.value}");
+        _logResult(
+          "Assigned to user",
+          "pathId=${pathId.value}, userId=${userId.value}",
+        );
         return;
       }
 

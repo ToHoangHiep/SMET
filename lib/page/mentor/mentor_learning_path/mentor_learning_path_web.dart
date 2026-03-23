@@ -13,7 +13,7 @@ class MentorLearningPathWeb extends StatefulWidget {
 
 class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
   final LearningPathService _service = LearningPathService();
-
+  String? _lastRefresh;
   List<LearningPathResponse> _paths = [];
   bool _isLoading = true;
   String? _error;
@@ -27,6 +27,18 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
   void initState() {
     super.initState();
     _loadLearningPaths();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final refresh = GoRouterState.of(context).uri.queryParameters['refresh'];
+
+    if (refresh != null && refresh != _lastRefresh) {
+      _lastRefresh = refresh;
+      _loadLearningPaths(page: 0);
+    }
   }
 
   Future<void> _loadLearningPaths({int page = 0}) async {
@@ -69,21 +81,24 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
   Future<void> _deletePath(Long pathId) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Xoa lo trinh"),
-        content: const Text("Ban co chac chan muon xoa lo trinh hoc tap nay khong?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Huy"),
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Xoa lo trinh"),
+            content: const Text(
+              "Ban co chac chan muon xoa lo trinh hoc tap nay khong?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Huy"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Xoa"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Xoa"),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true) {
@@ -97,9 +112,9 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Xoa that bai: $e")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Xoa that bai: $e")));
         }
       }
     }
@@ -121,16 +136,13 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
               children: [
                 Text(
                   "Quan ly lo trinh hoc tap",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: Color(0xff1a90ff),
                   child: Icon(Icons.person, color: Colors.white, size: 18),
-                )
+                ),
               ],
             ),
           ),
@@ -145,20 +157,21 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
                   /// TITLE
                   const Text(
                     "Lo trinh hoc tap",
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
 
                   /// CREATE BUTTON
                   ElevatedButton.icon(
-                    onPressed: () => context.go('/mentor/learning-paths/create'),
+                    onPressed:
+                        () => context.go('/mentor/learning-paths/create'),
                     icon: const Icon(Icons.add),
                     label: const Text("Tao lo trinh moi"),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -186,13 +199,11 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
                   const SizedBox(height: 20),
 
                   /// TABLE / LIST
-                  Expanded(
-                    child: _buildContent(),
-                  ),
+                  Expanded(child: _buildContent()),
                 ],
               ),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -280,31 +291,47 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
               ),
-              border: Border(
-                bottom: BorderSide(color: Colors.grey.shade200),
-              ),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Row(
               children: [
                 const Expanded(
                   flex: 3,
-                  child: Text("Lo trinh", style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    "Lo trinh",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 const Expanded(
                   flex: 2,
-                  child: Text("Mo ta", style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    "Mo ta",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 const Expanded(
                   flex: 1,
-                  child: Text("Khoa hoc", style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  child: Text(
+                    "Khoa hoc",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const Expanded(
                   flex: 1,
-                  child: Text("Bai hoc", style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  child: Text(
+                    "Bai hoc",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const Expanded(
                   flex: 2,
-                  child: Text("Hanh dong", style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  child: Text(
+                    "Hanh dong",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ],
             ),
@@ -314,7 +341,8 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
           Expanded(
             child: ListView.separated(
               itemCount: _paths.length,
-              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+              separatorBuilder:
+                  (_, __) => Divider(height: 1, color: Colors.grey.shade200),
               itemBuilder: (context, index) {
                 final path = _paths[index];
                 return _buildRow(path);
@@ -339,7 +367,10 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
               children: [
                 Text(
                   path.title,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -347,14 +378,20 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xffeef3ff),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         "${path.courseCount} khoa",
-                        style: const TextStyle(fontSize: 11, color: Color(0xff1a90ff)),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xff1a90ff),
+                        ),
                       ),
                     ),
                   ],
@@ -403,7 +440,10 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  onPressed: () => context.go('/mentor/learning-paths/create?edit=${path.id.value}'),
+                  onPressed:
+                      () => context.go(
+                        '/mentor/learning-paths/create?edit=${path.id.value}',
+                      ),
                   icon: const Icon(Icons.edit_outlined, size: 20),
                   tooltip: "Chinh sua",
                   color: Colors.grey[700],
@@ -429,7 +469,8 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          onPressed: _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
+          onPressed:
+              _currentPage > 0 ? () => _goToPage(_currentPage - 1) : null,
           icon: const Icon(Icons.chevron_left),
         ),
         ...List.generate(_totalPages, (index) {
@@ -441,18 +482,28 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: index == _currentPage ? const Color(0xff1a90ff) : Colors.white,
+                  color:
+                      index == _currentPage
+                          ? const Color(0xff1a90ff)
+                          : Colors.white,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: index == _currentPage ? const Color(0xff1a90ff) : Colors.grey.shade300,
+                    color:
+                        index == _currentPage
+                            ? const Color(0xff1a90ff)
+                            : Colors.grey.shade300,
                   ),
                 ),
                 child: Center(
                   child: Text(
                     "${index + 1}",
                     style: TextStyle(
-                      color: index == _currentPage ? Colors.white : Colors.black,
-                      fontWeight: index == _currentPage ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          index == _currentPage ? Colors.white : Colors.black,
+                      fontWeight:
+                          index == _currentPage
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -461,7 +512,10 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
           );
         }),
         IconButton(
-          onPressed: _currentPage < _totalPages - 1 ? () => _goToPage(_currentPage + 1) : null,
+          onPressed:
+              _currentPage < _totalPages - 1
+                  ? () => _goToPage(_currentPage + 1)
+                  : null,
           icon: const Icon(Icons.chevron_right),
         ),
         const SizedBox(width: 16),

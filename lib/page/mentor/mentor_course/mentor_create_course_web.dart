@@ -158,7 +158,7 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Tạo khóa học thành công!"), backgroundColor: Colors.green),
         );
-        context.go('/mentor/courses/${created.id.value}?title=${Uri.encodeComponent(created.title)}');
+        context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
       }
     } catch (e) {
       setState(() => _isSaving = false);

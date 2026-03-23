@@ -33,6 +33,16 @@ class _MentorCourseWebState extends State<MentorCourseWeb> {
     super.initState();
     _loadCourses();
   }
+  @override
+void didChangeDependencies() {
+  super.didChangeDependencies();
+
+  final uri = GoRouterState.of(context).uri;
+
+  if (uri.queryParameters.containsKey('refresh')) {
+    _loadCourses(page: _currentPage);
+  }
+}
 
   @override
   void dispose() {

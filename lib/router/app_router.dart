@@ -24,6 +24,7 @@ import 'package:smet/page/project_manager/dashboard/screen/pm_dashboard_base.dar
 import 'package:smet/page/project_manager/project/screen/project_management_base.dart';
 import 'package:smet/page/project_manager/project_member/screen/project_member_base.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_base.dart';
+import 'package:smet/page/mentor/mentor_quiz/mentor_create_quiz_web.dart';
 
 final bool isWebPlatform = kIsWeb;
 
@@ -114,10 +115,26 @@ class AppPages {
               ),
             ],
           ),
+
+          GoRoute(
+            path: '/mentor/quizzes/create',
+            builder: (context, state) {
+              final moduleId = state.uri.queryParameters['moduleId'];
+              final courseId = state.uri.queryParameters['courseId'];
+              final isFinalQuiz = state.uri.queryParameters['final'] == 'true';
+
+              return MentorCreateQuizWeb(
+                moduleId: moduleId,
+                courseId: courseId,
+                isFinalQuiz: isFinalQuiz,
+              );
+            },
+          ),
         ],
       ),
+
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      
+
       GoRoute(
         path: '/user_management',
         builder: (context, state) => const UserManagementPage(),
@@ -143,7 +160,7 @@ class AppPages {
         path: '/pm/projects',
         builder: (context, state) => const ProjectManagementPage(),
       ),
-     
+
       // Employee Routes
       GoRoute(
         path: '/employee/dashboard',
