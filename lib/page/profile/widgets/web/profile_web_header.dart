@@ -4,12 +4,16 @@ import 'package:smet/model/user_model.dart';
 
 class ProfileWebHeader extends StatelessWidget {
   final UserModel? currentUser;
-  const ProfileWebHeader({super.key, required this.currentUser});
+
+  const ProfileWebHeader({
+    super.key,
+    required this.currentUser,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 68,
+      height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 32),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -25,11 +29,11 @@ class ProfileWebHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.school, color: Color(0xFF137FEC)),
-              SizedBox(width: 8),
-              Text(
+              Icon(Icons.school, color: const Color(0xFF137FEC)),
+              const SizedBox(width: 8),
+              const Text(
                 'SMETS',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
@@ -42,26 +46,17 @@ class ProfileWebHeader extends StatelessWidget {
           IconButton(
             onPressed: () {
               final role = currentUser?.role;
-
               switch (role) {
                 case UserRole.ADMIN:
                   context.go('/user_management');
                   break;
-
                 case UserRole.PROJECT_MANAGER:
                   context.go('/pm/dashboard');
                   break;
-
                 case UserRole.MENTOR:
-                  context.go('/');
-                  break;
-
                 case UserRole.USER:
-                  context.go('/');
-                  break;
-
                 default:
-                  context.go('/');
+                  context.go('/employee/dashboard');
               }
             },
             icon: const Icon(Icons.close, size: 28, color: Colors.grey),

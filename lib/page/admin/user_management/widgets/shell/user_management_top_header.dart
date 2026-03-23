@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class UserManagementTopHeader extends StatefulWidget {
-  const UserManagementTopHeader({super.key});
+  final List<BreadcrumbItem>? breadcrumbs;
+
+  const UserManagementTopHeader({super.key, this.breadcrumbs});
 
   @override
   State<UserManagementTopHeader> createState() =>
@@ -38,9 +41,7 @@ class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Container(
-        height: 72,
-        margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
@@ -53,35 +54,50 @@ class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            if (widget.breadcrumbs != null &&
+                widget.breadcrumbs!.isNotEmpty) ...[
+              SharedBreadcrumb(
+                items: widget.breadcrumbs!,
+                primaryColor: const Color(0xFF137FEC),
+                fontSize: 12,
+                padding: const EdgeInsets.only(bottom: 4),
+              ),
+            ],
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.dashboard_outlined,
-                    color: Color(0xFF4F46E5),
-                    size: 18,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.dashboard_outlined,
+                        color: const Color(0xFF4F46E5),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Bảng điều khiển quản trị',
+                      style: TextStyle(
+                        color: Color(0xFF374151),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Bảng điều khiển quản trị',
-                  style: TextStyle(
-                    color: Color(0xFF374151),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                const Spacer(),
+                _NotificationButton(),
               ],
             ),
-            const Spacer(),
-            _NotificationButton(),
           ],
         ),
       ),

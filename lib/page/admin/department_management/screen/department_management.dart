@@ -5,6 +5,7 @@ import 'package:smet/model/user_model.dart' as user_model;
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/service/common/user_selection_service.dart';
 import 'package:smet/page/admin/widgets/admin_sidebar.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/department_management_form_card.dart';
 import '../widgets/shell/department_management_page_header.dart';
 import '../widgets/shell/department_management_top_header.dart';
@@ -238,7 +239,12 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
             Expanded(
               child: Column(
                 children: [
-                  DepartmentManagementTopHeader(primaryColor: _primaryColor),
+                  DepartmentManagementTopHeader(
+                    primaryColor: _primaryColor,
+                    breadcrumbs: const [
+                      BreadcrumbItem(label: 'Quản lý phòng ban'),
+                    ],
+                  ),
                   Expanded(
                     child:
                         _isLoading
@@ -333,7 +339,9 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                         onEdit: _openUpdateDepartmentScreen,
                                         onDelete: _handleDeleteDepartment,
                                         onShowDetail:
-                                            _showDepartmentDetailDialog,
+                                            (dept) => context.push(
+                                              '/department_management/${dept.id}',
+                                            ),
                                         onPrevPage:
                                             _currentPage > 1
                                                 ? () {

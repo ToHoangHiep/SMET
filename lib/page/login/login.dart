@@ -86,9 +86,10 @@ class _LoginPageState extends State<LoginPage>
 
       // Normal login success - get user and navigate
       final userJson = await AuthService.getMe();
+      log("USER JSON FROM /auth/me: $userJson");
       final user = UserModel.fromJson(userJson);
 
-      log("USER ROLE AFTER PARSE: ${user.role}");
+      log("USER ROLE AFTER PARSE: ${user.role}, rolePath: ${user.rolePath}");
 
       if (mounted) {
         // Check if password change is required

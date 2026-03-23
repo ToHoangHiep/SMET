@@ -7,6 +7,7 @@ class ProfileContactSection extends StatelessWidget {
   final TextEditingController lastNameController;
   final TextEditingController emailController;
   final TextEditingController phoneController;
+  final TextEditingController departmentController;
   final bool isSaving;
   final Color primaryColor;
   final VoidCallback onCancel;
@@ -18,6 +19,7 @@ class ProfileContactSection extends StatelessWidget {
     required this.lastNameController,
     required this.emailController,
     required this.phoneController,
+    required this.departmentController,
     required this.isSaving,
     required this.primaryColor,
     required this.onCancel,
@@ -74,6 +76,13 @@ class ProfileContactSection extends StatelessWidget {
             primaryColor: primaryColor,
           ),
           const SizedBox(height: 16),
+          ProfileTextField(
+            label: "Phòng ban",
+            controller: departmentController,
+            icon: Icons.business,
+            readOnly: true,
+            primaryColor: primaryColor,
+          ),
           const SizedBox(height: 24),
           Align(
             alignment: Alignment.centerRight,

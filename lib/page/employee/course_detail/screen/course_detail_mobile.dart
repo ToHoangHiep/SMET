@@ -23,7 +23,7 @@ class CourseDetailMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: const Color(0xFFF3F6FC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

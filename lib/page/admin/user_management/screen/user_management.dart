@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
 import 'package:smet/page/admin/widgets/admin_sidebar.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_top_header.dart';
@@ -338,7 +339,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
             Expanded(
               child: Column(
                 children: [
-                  const UserManagementTopHeader(),
+                  const UserManagementTopHeader(
+                    breadcrumbs: [BreadcrumbItem(label: 'Quản lý nhân viên')],
+                  ),
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),

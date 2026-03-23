@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+You are an AI coding assistant. Always respond in Vietnamese only. Never use Chinese or any other language in your responses. Always use Vietnamese in all code comments and documentation you create.

@@ -20,7 +20,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
 
   const DepartmentManagementFormCard({
     super.key,
-    this.primaryColor = const Color(0xFF6366F1), // Indigo như login
+    this.primaryColor = const Color(0xFF137FEC), // Indigo như login
     required this.formKey,
     required this.isUpdateMode,
     required this.nameController,
@@ -146,7 +146,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -195,7 +195,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -244,7 +244,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -325,7 +325,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -393,7 +393,7 @@ class _DepartmentManagementFormCardState
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF6366F1),
+                color: Color(0xFF137FEC),
               ),
             ),
             const SizedBox(width: 8),
@@ -446,7 +446,7 @@ class _DepartmentManagementFormCardState
     return Chip(
       label: RichText(
         text: TextSpan(
-          style: const TextStyle(fontSize: 12, color: Color(0xFF6366F1)),
+          style: const TextStyle(fontSize: 12, color: Color(0xFF137FEC)),
           children: [
             TextSpan(text: employee.fullName),
             TextSpan(text: ' (${employee.role.displayName})'),
@@ -455,7 +455,7 @@ class _DepartmentManagementFormCardState
                   employee.department != null
                       ? ' - ${employee.department}'
                       : ' - Chưa có',
-              style: const TextStyle(color: Color(0xFF6366F1)),
+              style: const TextStyle(color: Color(0xFF137FEC)),
             ),
           ],
         ),

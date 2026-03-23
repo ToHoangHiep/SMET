@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class NotificationTopHeader extends StatelessWidget {
   final Color primaryColor;
   final List<Map<String, String>> filterOptions;
   final String selectedFilter;
+  final int unreadCount;
   final ValueChanged<String> onFilterChanged;
   final VoidCallback onMarkAllRead;
+  final VoidCallback? onRefresh;
+  final List<BreadcrumbItem>? breadcrumbs;
 
   const NotificationTopHeader({
     super.key,
     required this.primaryColor,
     required this.filterOptions,
     required this.selectedFilter,
+    required this.unreadCount,
     required this.onFilterChanged,
     required this.onMarkAllRead,
+    this.onRefresh,
+    this.breadcrumbs,
   });
 
   @override
@@ -29,15 +36,30 @@ class NotificationTopHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            'Thông báo',
-            style: TextStyle(
-              color: Colors.grey[700],
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (breadcrumbs != null && breadcrumbs!.isNotEmpty) ...[
+                  SharedBreadcrumb(
+                    items: breadcrumbs!,
+                    primaryColor: primaryColor,
+                    fontSize: 12,
+                    padding: const EdgeInsets.only(bottom: 4),
+                  ),
+                ],
+                Text(
+                  'Thông báo${unreadCount > 0 ? ' ($unreadCount)' : ''}',
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
@@ -48,15 +70,19 @@ class NotificationTopHeader extends StatelessWidget {
               child: DropdownButton<String>(
                 value: selectedFilter,
                 icon: Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
-                items: filterOptions.map((option) {
-                  return DropdownMenuItem<String>(
-                    value: option['value'],
-                    child: Text(
-                      option['label']!,
-                      style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                    ),
-                  );
-                }).toList(),
+                items:
+                    filterOptions.map((option) {
+                      return DropdownMenuItem<String>(
+                        value: option['value'],
+                        child: Text(
+                          option['label']!,
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (value) {
                   if (value != null) onFilterChanged(value);
                 },
