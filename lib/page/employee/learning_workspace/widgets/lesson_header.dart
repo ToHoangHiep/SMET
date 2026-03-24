@@ -4,14 +4,18 @@ class LessonHeader extends StatelessWidget {
   final String title;
   final int durationMinutes;
   final String level;
+  final String lessonId;
   final VoidCallback onMarkComplete;
+  final VoidCallback onTakeQuiz;
 
   const LessonHeader({
     super.key,
     required this.title,
     required this.durationMinutes,
     required this.level,
+    required this.lessonId,
     required this.onMarkComplete,
+    required this.onTakeQuiz,
   });
 
   @override
@@ -39,29 +43,56 @@ class LessonHeader extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
-        // Mark Complete Button
-        SizedBox(
-          width: 200,
-          child: ElevatedButton.icon(
-            onPressed: onMarkComplete,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF137FEC),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+        // Action Buttons
+        Row(
+          children: [
+            SizedBox(
+              width: 200,
+              child: ElevatedButton.icon(
+                onPressed: onMarkComplete,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF137FEC),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.check_circle, size: 20),
+                label: const Text(
+                  'Hoàn thành',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              elevation: 0,
             ),
-            icon: const Icon(Icons.check_circle, size: 20),
-            label: const Text(
-              'Hoàn thành',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 150,
+              child: OutlinedButton.icon(
+                onPressed: onTakeQuiz,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF22C55E),
+                  side: const BorderSide(color: Color(0xFF22C55E), width: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                icon: const Icon(Icons.quiz, size: 20),
+                label: const Text(
+                  'Làm Quiz',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ],
     );

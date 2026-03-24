@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 enum UserRole { ADMIN, PROJECT_MANAGER, MENTOR, USER }
 
 extension UserRoleDisplay on UserRole {
@@ -58,6 +60,8 @@ class UserModel {
   static UserRole _parseRole(dynamic role) {
     final value = role?.toString().toLowerCase();
 
+    log("ROLE PARSE DEBUG: raw role='$role', lowercased='$value'");
+
     switch (value) {
       case 'admin':
         return UserRole.ADMIN;
@@ -74,6 +78,7 @@ class UserModel {
         return UserRole.USER;
 
       default:
+        log("ROLE PARSE WARNING: unknown role='$value', defaulting to USER");
         return UserRole.USER;
     }
   }

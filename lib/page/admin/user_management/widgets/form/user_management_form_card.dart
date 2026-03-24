@@ -206,7 +206,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF137FEC),
                 ),
               ),
             ],
@@ -285,7 +285,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF137FEC),
                 ),
               ),
             ],
@@ -355,7 +355,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF137FEC),
                 ),
               ),
             ],

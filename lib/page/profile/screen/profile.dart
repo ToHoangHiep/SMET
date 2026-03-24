@@ -30,6 +30,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _departmentController = TextEditingController();
 
   // Controllers for password form
   final _oldPassController = TextEditingController();
@@ -54,6 +55,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _lastNameController.text = user.lastName ?? '';
           _emailController.text = user.email;
           _phoneController.text = user.phone;
+          _departmentController.text = user.department ?? '';
         });
       }
     } catch (e) {
@@ -75,6 +77,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _departmentController.dispose();
     _oldPassController.dispose();
     _newPassController.dispose();
     _confirmPassController.dispose();
@@ -133,6 +136,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _lastNameController.text = _currentUser!.lastName ?? '';
       _emailController.text = _currentUser!.email;
       _phoneController.text = _currentUser!.phone;
+      _departmentController.text = _currentUser!.department ?? '';
     }
     ScaffoldMessenger.of(
       context,
@@ -300,6 +304,7 @@ class _ProfilePageState extends State<ProfilePage> {
           lastNameController: _lastNameController,
           emailController: _emailController,
           phoneController: _phoneController,
+          departmentController: _departmentController,
           isSaving: _isSaving,
           primaryColor: _primaryColor,
           onCancel: _handleCancel,

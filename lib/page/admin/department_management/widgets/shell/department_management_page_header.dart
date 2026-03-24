@@ -6,7 +6,7 @@ class DepartmentManagementPageHeader extends StatefulWidget {
 
   const DepartmentManagementPageHeader({
     super.key,
-    this.primaryColor = const Color(0xFF6366F1), // Indigo như login
+    this.primaryColor = const Color(0xFF137FEC), // Indigo như login
     required this.onCreateDepartment,
   });
 

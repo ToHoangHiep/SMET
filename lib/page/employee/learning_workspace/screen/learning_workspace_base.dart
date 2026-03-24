@@ -1,14 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/learning_model.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_mobile.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_web.dart';
+import 'package:smet/page/employee/learning_workspace/widgets/course_outline_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_content.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_header.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_tabs.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/resources_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart';
-import 'package:smet/service/employee/learning_service.dart';
+import 'package:smet/service/employee/lms_service.dart';
+import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class LearningWorkspacePage extends StatefulWidget {
   final String courseId;
@@ -45,8 +49,11 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
     try {
       // Load course progress
-      final course = await LearningService.getCourseProgress(widget.courseId, 'user_1');
-      
+      final course = await LmsService.getCourseProgress(
+        widget.courseId,
+        'user_1',
+      );
+
       // Load lesson content - use provided lessonId or first current lesson
       String targetLessonId = widget.lessonId ?? '';
       if (targetLessonId.isEmpty) {
@@ -61,12 +68,16 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           if (targetLessonId.isNotEmpty) break;
         }
         // If no current lesson, use first lesson
-        if (targetLessonId.isEmpty && course.modules.isNotEmpty && course.modules.first.lessons.isNotEmpty) {
+        if (targetLessonId.isEmpty &&
+            course.modules.isNotEmpty &&
+            course.modules.first.lessons.isNotEmpty) {
           targetLessonId = course.modules.first.lessons.first.id;
         }
       }
-      
-      final lessonContent = await LearningService.getLessonDetail(targetLessonId);
+
+      final lessonContent = await LmsService.getLessonDetail(
+        targetLessonId,
+      );
 
       setState(() {
         _course = course;
@@ -90,9 +101,9 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
   Future<void> _onMarkComplete() async {
     if (_lessonContent == null) return;
-    
+
     try {
-      await LearningService.markLessonComplete('lesson_1_1', 'user_1');
+      await CourseService.completeLesson(_lessonContent!.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -137,8 +148,15 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       title: _lessonContent!.title,
       durationMinutes: _lessonContent!.videoDurationSeconds ~/ 60,
       level: _lessonContent!.level,
+      lessonId: _lessonContent!.id,
       onMarkComplete: _onMarkComplete,
+      onTakeQuiz: _onTakeQuiz,
     );
+  }
+
+  void _onTakeQuiz() {
+    if (_lessonContent == null) return;
+    context.go('/employee/quiz/${_lessonContent!.id}');
   }
 
   // Build tabs widget
@@ -161,9 +179,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           keyTakeaways: _lessonContent!.keyTakeaways,
         );
       case LessonTab.resources:
-        return ResourcesTab(
-          resources: _lessonContent!.resources,
-        );
+        return ResourcesTab(resources: _lessonContent!.resources);
       case LessonTab.discussion:
         return DiscussionTab(
           discussions: _lessonContent!.discussions,
@@ -172,9 +188,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           },
         );
       case LessonTab.transcripts:
-        return TranscriptTab(
-          transcript: _lessonContent!.transcript,
-        );
+        return TranscriptTab(transcript: _lessonContent!.transcript);
     }
   }
 
@@ -189,12 +203,13 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     );
   }
 
-  // Build sidebar navigation widget
+  // Build sidebar navigation widget (danh sách module / bài học — UI mock)
   Widget buildSidebarNavigation() {
     if (_course == null) return const SizedBox.shrink();
 
-    return _SidebarNavigation(
+    return CourseOutlineSidebar(
       course: _course!,
+      currentLessonId: _lessonContent?.id,
       onLessonTap: _onJumpToLesson,
     );
   }
@@ -204,9 +219,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     if (_isLoading) {
       return const Scaffold(
         body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF137FEC),
-          ),
+          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
         ),
       );
     }
@@ -225,10 +238,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
               const SizedBox(height: 16),
               Text(
                 _error!,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF64748B),
-                ),
+                style: const TextStyle(fontSize: 16, color: Color(0xFF64748B)),
               ),
               const SizedBox(height: 16),
               ElevatedButton(
@@ -256,6 +266,22 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                 resourcesSidebar: buildResourcesSidebar(),
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,
+                breadcrumbs: [
+                  const BreadcrumbItem(
+                    label: 'Trang chủ',
+                    route: '/employee/dashboard',
+                  ),
+                  const BreadcrumbItem(
+                    label: 'Danh mục khóa học',
+                    route: '/employee/courses',
+                  ),
+                  if (_course != null)
+                    BreadcrumbItem(
+                      label: _course!.title,
+                      route: '/employee/course/${_course!.id}',
+                    ),
+                  BreadcrumbItem(label: _lessonContent?.title ?? 'Bài học'),
+                ],
               );
             } else {
               return LearningWorkspaceMobile(
@@ -264,241 +290,13 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                 selectedTab: _selectedTab,
                 onTabChanged: _onTabChanged,
                 onMarkComplete: _onMarkComplete,
+                onTakeQuiz: _onTakeQuiz,
                 onLessonTap: _onJumpToLesson,
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,
               );
             }
           },
-        ),
-      ),
-    );
-  }
-}
-
-// Sidebar Navigation Component
-class _SidebarNavigation extends StatelessWidget {
-  final LearningCourse course;
-  final Function(Lesson) onLessonTap;
-
-  const _SidebarNavigation({
-    required this.course,
-    required this.onLessonTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          right: BorderSide(
-            color: Color(0xFFE5E7EB),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Course Header
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Color(0xFFE5E7EB),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Progress label
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      course.title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Text(
-                      '${course.progressPercent}%',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF137FEC),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Progress bar
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: course.progressPercent / 100,
-                    backgroundColor: const Color(0xFFE2E8F0),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF137FEC)),
-                    minHeight: 6,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Modules List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: course.modules.length,
-              itemBuilder: (context, moduleIndex) {
-                final module = course.modules[moduleIndex];
-                return _ModuleItem(
-                  module: module,
-                  onLessonTap: onLessonTap,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModuleItem extends StatefulWidget {
-  final LearningModule module;
-  final Function(Lesson) onLessonTap;
-
-  const _ModuleItem({
-    required this.module,
-    required this.onLessonTap,
-  });
-
-  @override
-  State<_ModuleItem> createState() => _ModuleItemState();
-}
-
-class _ModuleItemState extends State<_ModuleItem> {
-  bool _isExpanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _isExpanded = widget.module.isExpanded;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Module Header
-        InkWell(
-          onTap: () {
-            setState(() {
-              _isExpanded = !_isExpanded;
-            });
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(
-                  _isExpanded ? Icons.folder_open : (widget.module.isLocked ? Icons.lock : Icons.folder),
-                  size: 20,
-                  color: widget.module.isLocked ? const Color(0xFF94A3B8) : const Color(0xFF137FEC),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.module.title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: widget.module.isLocked ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
-                    ),
-                  ),
-                ),
-                if (!widget.module.isLocked)
-                  Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    size: 20,
-                    color: const Color(0xFF94A3B8),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        // Lessons
-        if (_isExpanded && !widget.module.isLocked)
-          Padding(
-            padding: const EdgeInsets.only(left: 20),
-            child: Column(
-              children: widget.module.lessons.map((lesson) {
-                return _LessonItem(
-                  lesson: lesson,
-                  onTap: () => widget.onLessonTap(lesson),
-                );
-              }).toList(),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _LessonItem extends StatelessWidget {
-  final Lesson lesson;
-  final VoidCallback onTap;
-
-  const _LessonItem({
-    required this.lesson,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        margin: const EdgeInsets.only(bottom: 4),
-        decoration: BoxDecoration(
-          color: lesson.isCurrent
-              ? const Color(0xFF137FEC).withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              lesson.isCompleted
-                  ? Icons.check_circle
-                  : (lesson.isCurrent ? Icons.play_circle : Icons.circle_outlined),
-              size: 18,
-              color: lesson.isCompleted
-                  ? const Color(0xFF22C55E)
-                  : (lesson.isCurrent ? const Color(0xFF137FEC) : const Color(0xFF94A3B8)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                lesson.title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: lesson.isCurrent ? FontWeight.w600 : FontWeight.normal,
-                  color: lesson.isCurrent ? const Color(0xFF137FEC) : const Color(0xFF475569),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

@@ -407,6 +407,80 @@ class DepartmentService {
     );
   }
 
+  /// ================= GET DEPARTMENT COURSES =================
+  /// GET /api/lms/courses?departmentId={id}
+  Future<List<Map<String, dynamic>>> getDepartmentCourses(int departmentId) async {
+    try {
+      final uri = Uri.parse("$baseUrl/lms/courses").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      _logRequest("GET DEPARTMENT COURSES", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final content = data['content'] as List<dynamic>? ??
+            data['data'] as List<dynamic>? ??
+            data as List<dynamic>;
+        return List<Map<String, dynamic>>.from(content);
+      }
+
+      return [];
+    } catch (e) {
+      log("GET DEPARTMENT COURSES ERROR: $e");
+      return [];
+    }
+  }
+
+  /// ================= GET DEPARTMENT LEARNING PATHS =================
+  /// GET /api/lms/learning-paths?departmentId={id}
+  Future<List<Map<String, dynamic>>> getDepartmentLearningPaths(int departmentId) async {
+    try {
+      final uri = Uri.parse("$baseUrl/lms/learning-paths").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      _logRequest("GET DEPARTMENT LEARNING PATHS", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final content = data['content'] as List<dynamic>? ??
+            data['data'] as List<dynamic>? ??
+            data as List<dynamic>;
+        return List<Map<String, dynamic>>.from(content);
+      }
+
+      return [];
+    } catch (e) {
+      log("GET DEPARTMENT LEARNING PATHS ERROR: $e");
+      return [];
+    }
+  }
+
   /// ================= ADD USERS TO DEPARTMENT (Legacy) =================
   Future<bool> addUsersToDepartment({
     required int departmentId,

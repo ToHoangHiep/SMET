@@ -221,6 +221,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   void handleLogout() => context.go('/login');
 
+  void handleProfileTap() => context.go('/profile');
+
   void setNameQuery(String v) => setState(() {
     _nameQuery = v;
     _loadProjects(resetPage: true);
@@ -2313,6 +2315,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 showForm: _isCreateMode || _isUpdateMode,
                 userName: _currentUserName,
                 onLogout: handleLogout,
+                onProfileTap: handleProfileTap,
               );
             } else {
               return ProjectManagementMobile(

@@ -12,6 +12,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
   final LessonTab selectedTab;
   final ValueChanged<LessonTab> onTabChanged;
   final VoidCallback onMarkComplete;
+  final VoidCallback onTakeQuiz;
   final Function(Lesson) onLessonTap;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
@@ -23,6 +24,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
     required this.selectedTab,
     required this.onTabChanged,
     required this.onMarkComplete,
+    required this.onTakeQuiz,
     required this.onLessonTap,
     required this.onNavigate,
     required this.onLogout,
@@ -31,7 +33,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: const Color(0xFFF3F6FC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -94,7 +96,9 @@ class LearningWorkspaceMobile extends StatelessWidget {
                     title: lessonContent.title,
                     durationMinutes: lessonContent.videoDurationSeconds ~/ 60,
                     level: lessonContent.level,
+                    lessonId: lessonContent.id,
                     onMarkComplete: onMarkComplete,
+                    onTakeQuiz: onTakeQuiz,
                   ),
                   const SizedBox(height: 20),
                   // Tabs

@@ -521,7 +521,7 @@ class _UserListTile extends StatelessWidget {
                     user.email,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF6366F1),
+                      color: Color(0xFF137FEC),
                       fontSize: 12,
                     ),
                   ),
@@ -532,7 +532,7 @@ class _UserListTile extends StatelessWidget {
                         const Icon(
                           Icons.apartment,
                           size: 12,
-                          color: Color(0xFF6366F1),
+                          color: Color(0xFF137FEC),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -540,7 +540,7 @@ class _UserListTile extends StatelessWidget {
                             user.department!,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF6366F1),
+                              color: Color(0xFF137FEC),
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
@@ -555,7 +555,7 @@ class _UserListTile extends StatelessWidget {
                         const Icon(
                           Icons.apartment_outlined,
                           size: 12,
-                          color: Color(0xFF6366F1),
+                          color: Color(0xFF137FEC),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -563,7 +563,7 @@ class _UserListTile extends StatelessWidget {
                             'Chưa có',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF6366F1),
+                              color: Color(0xFF137FEC),
                               fontSize: 11,
                               fontStyle: FontStyle.italic,
                             ),
@@ -578,7 +578,7 @@ class _UserListTile extends StatelessWidget {
                       '@${user.userName}',
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF6366F1),
+                        color: Color(0xFF137FEC),
                         fontSize: 11,
                       ),
                     ),

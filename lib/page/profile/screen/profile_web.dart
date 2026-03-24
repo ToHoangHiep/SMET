@@ -27,8 +27,9 @@ class ProfilePageWeb extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // 1. Top Navigation Bar
-            ProfileWebHeader(currentUser: currentUser),
+            ProfileWebHeader(
+              currentUser: currentUser,
+            ),
 
             // 2. Main Content Area
             Expanded(

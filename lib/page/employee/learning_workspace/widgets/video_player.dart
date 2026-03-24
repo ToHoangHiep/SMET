@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/service/employee/learning_service.dart';
+import 'package:smet/service/employee/lms_service.dart';
 
 class VideoPlayer extends StatefulWidget {
   final String? thumbnailUrl;
@@ -23,10 +23,38 @@ class _VideoPlayerState extends State<VideoPlayer> {
   bool _isPlaying = false;
   late double _progress;
 
+  /// Tránh NaN/Infinity khi duration = 0 hoặc dữ liệu API chưa có.
+  static double _safeProgressFromSeconds(int current, int total) {
+    if (total <= 0) return 0.0;
+    final p = current / total;
+    if (p.isNaN || p.isInfinite) return 0.0;
+    return p.clamp(0.0, 1.0);
+  }
+
+  static double _sanitizeProgress(double p) {
+    if (p.isNaN || p.isInfinite) return 0.0;
+    return p.clamp(0.0, 1.0);
+  }
+
   @override
   void initState() {
     super.initState();
-    _progress = widget.currentPositionSeconds / widget.videoDurationSeconds;
+    _progress = _safeProgressFromSeconds(
+      widget.currentPositionSeconds,
+      widget.videoDurationSeconds,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant VideoPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoDurationSeconds != widget.videoDurationSeconds ||
+        oldWidget.currentPositionSeconds != widget.currentPositionSeconds) {
+      _progress = _safeProgressFromSeconds(
+        widget.currentPositionSeconds,
+        widget.videoDurationSeconds,
+      );
+    }
   }
 
   void _togglePlay() {
@@ -38,8 +66,11 @@ class _VideoPlayerState extends State<VideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final currentTime = (_progress * widget.videoDurationSeconds).round();
-    final totalTime = widget.videoDurationSeconds;
+    final safeP = _sanitizeProgress(_progress);
+    final total = widget.videoDurationSeconds;
+    final currentTime =
+        total > 0 ? (safeP * total).round().clamp(0, total) : 0;
+    final totalTime = total;
 
     return Container(
       decoration: BoxDecoration(
@@ -165,10 +196,10 @@ class _VideoPlayerState extends State<VideoPlayer> {
         overlayColor: const Color(0xFF137FEC).withValues(alpha: 0.2),
       ),
       child: Slider(
-        value: _progress.clamp(0.0, 1.0),
+        value: _sanitizeProgress(_progress),
         onChanged: (value) {
           setState(() {
-            _progress = value;
+            _progress = _sanitizeProgress(value);
           });
         },
       ),
@@ -193,7 +224,7 @@ class _VideoPlayerState extends State<VideoPlayer> {
             ),
             const SizedBox(width: 16),
             Text(
-              '${LearningService.formatDuration(currentTime)} / ${LearningService.formatDuration(totalTime)}',
+              '${LmsService.formatDuration(currentTime)} / ${LmsService.formatDuration(totalTime)}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,

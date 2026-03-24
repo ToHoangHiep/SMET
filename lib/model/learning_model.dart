@@ -61,6 +61,7 @@ class Lesson {
 }
 
 class LessonContent {
+  final String id;
   final String title;
   final String? videoUrl;
   final String? thumbnailUrl;
@@ -75,6 +76,7 @@ class LessonContent {
   final Lesson? nextLesson;
 
   const LessonContent({
+    required this.id,
     required this.title,
     this.videoUrl,
     this.thumbnailUrl,

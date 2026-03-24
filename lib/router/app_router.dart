@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
+import 'package:smet/page/admin/department_management/screen/department_detail_base.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
 import 'package:smet/page/first_login_password/first_login_password_page.dart';
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_base.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_base.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_base.dart';
+import 'package:smet/page/employee/quiz/screen/quiz_page.dart';
+import 'package:smet/page/employee/quiz/screen/quiz_history_page.dart';
+import 'package:smet/page/employee/learning_path/screen/learning_path_page.dart';
+import 'package:smet/page/employee/my_courses/screen/my_courses_base.dart';
+import 'package:smet/page/employee/certificate/screen/certificate_page.dart';
+import 'package:smet/page/employee/live_session/screen/live_session_page.dart';
+import 'package:smet/page/employee/search/screen/search_page.dart';
 import 'package:smet/page/home/home.dart';
 import 'package:smet/page/login/login.dart';
 import 'package:smet/page/notification/screen/notification_page.dart';
@@ -39,13 +47,20 @@ class AppPages {
         builder: (context, state) => const DepartmentManagementPage(),
       ),
       GoRoute(
+        path: '/department_management/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return DepartmentDetailPage(departmentId: int.tryParse(id) ?? 0);
+        },
+      ),
+      GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfilePage(),
       ),
-      // GoRoute(
-      //   path: '/notifications',
-      //   builder: (context, state) => const NotificationPage(),
-      // ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationPage(),
+      ),
       // Project Manager Routes
       GoRoute(
         path: '/pm/dashboard',
@@ -55,18 +70,18 @@ class AppPages {
         path: '/pm/projects',
         builder: (context, state) => const ProjectManagementPage(),
       ),
-      // GoRoute(
-      //   path: '/pm/project_members',
-      //   builder: (context, state) => const ProjectMemberPage(),
-      // ),
-      // GoRoute(
-      //   path: '/pm/project_progress',
-      //   builder: (context, state) => const ProjectProgressPage(),
-      // ),
-      // GoRoute(
-      //   path: '/pm/learning_path',
-      //   builder: (context, state) => const LearningPathPage(),
-      // ),
+      GoRoute(
+        path: '/pm/project_members',
+        builder: (context, state) => const ProjectMemberPage(),
+      ),
+      GoRoute(
+        path: '/pm/project_progress',
+        builder: (context, state) => const ProjectProgressPage(),
+      ),
+      GoRoute(
+        path: '/pm/learning_path',
+        builder: (context, state) => const LearningPathPage(),
+      ),
 
       // GoRoute(
       //   path: '/employee/dashboard',
@@ -105,6 +120,10 @@ class AppPages {
         builder: (context, state) => const EmployeeDashboardPage(),
       ),
       GoRoute(
+        path: '/employee/my-courses',
+        builder: (context, state) => const MyCoursesPage(),
+      ),
+      GoRoute(
         path: '/employee/courses',
         builder: (context, state) => const CourseCatalogPage(),
       ),
@@ -130,6 +149,44 @@ class AppPages {
           final lessonId = state.pathParameters['lessonId'] ?? '';
           return LearningWorkspacePage(courseId: courseId, lessonId: lessonId);
         },
+      ),
+      // Quiz Route
+      GoRoute(
+        path: '/employee/quiz/:lessonId',
+        builder: (context, state) {
+          final lessonId = state.pathParameters['lessonId'] ?? '';
+          return QuizPage(lessonId: lessonId);
+        },
+      ),
+      GoRoute(
+        path: '/employee/quiz-history/:quizId',
+        builder: (context, state) {
+          final quizId = state.pathParameters['quizId'] ?? '';
+          final quizTitle = state.uri.queryParameters['title'] ?? 'Bài kiểm tra';
+          return QuizHistoryPage(quizId: quizId, quizTitle: quizTitle);
+        },
+      ),
+      GoRoute(
+        path: '/employee/my-learning-paths',
+        builder: (context, state) => const EmployeeLearningPathPage(),
+      ),
+      GoRoute(
+        path: '/employee/certificates',
+        builder: (context, state) {
+          final courseId = state.uri.queryParameters['courseId'];
+          return CertificatePage(courseId: courseId);
+        },
+      ),
+      GoRoute(
+        path: '/employee/live-sessions',
+        builder: (context, state) {
+          final courseId = state.uri.queryParameters['courseId'];
+          return LiveSessionPage(courseId: courseId);
+        },
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const SearchPage(),
       ),
     ],
   );

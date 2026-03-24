@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_web.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_mobile.dart';
+import 'package:smet/page/sidebar/sidebar_menu_item.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class EmployeeDashboardPage extends StatefulWidget {
   const EmployeeDashboardPage({super.key});
@@ -45,15 +47,12 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     setState(() => _isLoading = true);
     try {
       // TODO: Gọi API lấy dữ liệu dashboard
-      // Ví dụ:
       // final data = await DashboardService.getEmployeeDashboard();
       // setState(() {
       //   _userName = data['userName'];
       //   _completedCourses = data['completedCourses'];
       //   ...
       // });
-
-      // Tạm thời không set dữ liệu - để trống chờ API
     } catch (e) {
       debugPrint('Error loading dashboard data: $e');
     } finally {
@@ -77,6 +76,42 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     context.go('/login');
   }
 
+  // Menu items for SharedSidebar
+  List<SidebarMenuItem> _getMenuItems() {
+    return const [
+      SidebarMenuItem(
+        icon: Icons.dashboard,
+        title: 'Trang chủ',
+        route: '/employee/dashboard',
+        tooltip: 'Trang chủ',
+      ),
+      SidebarMenuItem(
+        icon: Icons.library_books,
+        title: 'Khóa học của tôi',
+        route: '/employee/my-courses',
+        tooltip: 'Khóa học của tôi',
+      ),
+      SidebarMenuItem(
+        icon: Icons.explore,
+        title: 'Danh mục',
+        route: '/employee/courses',
+        tooltip: 'Danh mục khóa học',
+      ),
+      SidebarMenuItem(
+        icon: Icons.work,
+        title: 'Dự án của tôi',
+        route: '/employee/projects',
+        tooltip: 'Dự án của tôi',
+      ),
+      SidebarMenuItem(
+        icon: Icons.workspace_premium,
+        title: 'Chứng chỉ',
+        route: '/employee/certificates',
+        tooltip: 'Chứng chỉ của tôi',
+      ),
+    ];
+  }
+
   // Welcome section widget
   Widget buildWelcomeSection() {
     final displayName = _userName.isNotEmpty ? _userName : 'Employee';
@@ -94,10 +129,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
         const SizedBox(height: 4),
         const Text(
           'Bạn có khóa học cần hoàn thành và deadline sắp tới.',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF64748B),
-          ),
+          style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
         ),
       ],
     );
@@ -146,7 +178,12 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -306,20 +343,22 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                 topLeft: Radius.circular(12),
                 bottomLeft: Radius.circular(12),
               ),
-              image: imageUrl != null
-                  ? DecorationImage(
-                      image: NetworkImage(imageUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
+              image:
+                  imageUrl != null
+                      ? DecorationImage(
+                        image: NetworkImage(imageUrl),
+                        fit: BoxFit.cover,
+                      )
+                      : null,
             ),
-            child: imageUrl == null
-                ? const Icon(
-                    Icons.laptop_mac,
-                    size: 40,
-                    color: Color(0xFFCBD5E1),
-                  )
-                : null,
+            child:
+                imageUrl == null
+                    ? const Icon(
+                      Icons.laptop_mac,
+                      size: 40,
+                      color: Color(0xFFCBD5E1),
+                    )
+                    : null,
           ),
           // Course info
           Expanded(
@@ -439,11 +478,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
         children: [
           const Row(
             children: [
-              Icon(
-                Icons.event_busy,
-                color: Color(0xFFEF4444),
-                size: 20,
-              ),
+              Icon(Icons.event_busy, color: Color(0xFFEF4444), size: 20),
               SizedBox(width: 8),
               Text(
                 'Deadline sắp tới',
@@ -494,14 +529,10 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isUrgent
-            ? const Color(0xFFFEF2F2)
-            : Colors.transparent,
+        color: isUrgent ? const Color(0xFFFEF2F2) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isUrgent
-              ? const Color(0xFFFEE2E2)
-              : const Color(0xFFE5E7EB),
+          color: isUrgent ? const Color(0xFFFEE2E2) : const Color(0xFFE5E7EB),
         ),
       ),
       child: Row(
@@ -553,9 +584,10 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                   isMandatory ? '$time • Bắt buộc' : time,
                   style: TextStyle(
                     fontSize: 12,
-                    color: isUrgent
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFF64748B),
+                    color:
+                        isUrgent
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFF64748B),
                   ),
                 ),
               ],
@@ -587,11 +619,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
         children: [
           const Row(
             children: [
-              Icon(
-                Icons.videocam,
-                color: Color(0xFF137FEC),
-                size: 20,
-              ),
+              Icon(Icons.videocam, color: Color(0xFF137FEC), size: 20),
               SizedBox(width: 8),
               Text(
                 'Phiên học trực tiếp',
@@ -640,12 +668,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     return Container(
       padding: const EdgeInsets.only(left: 12),
       decoration: const BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: Color(0xFF137FEC),
-            width: 3,
-          ),
-        ),
+        border: Border(left: BorderSide(color: Color(0xFF137FEC), width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,9 +678,10 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isLive
-                      ? const Color(0xFFEF4444)
-                      : const Color(0xFF64748B),
+                  color:
+                      isLive
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF64748B),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -684,10 +708,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
             const SizedBox(height: 4),
             Text(
               'Người hướng dẫn: $hostName',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-              ),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
             ),
           ],
           if (isLive) ...[
@@ -770,7 +791,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: const Color(0xFFF3F6FC),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -783,8 +804,10 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                 liveSessions: buildLiveSessions(),
                 userName: _userName.isNotEmpty ? _userName : 'Employee',
                 userRole: _userRole,
+                menuItems: _getMenuItems(),
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,
+                breadcrumbs: const [BreadcrumbItem(label: 'Trang chủ')],
               );
             } else {
               return EmployeeDashboardMobile(

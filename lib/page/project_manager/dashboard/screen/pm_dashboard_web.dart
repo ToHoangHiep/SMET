@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_sidebar.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_top_header.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class PmDashboardWeb extends StatelessWidget {
   final Widget welcomeSection;
@@ -9,6 +10,8 @@ class PmDashboardWeb extends StatelessWidget {
   final Widget recentProjects;
   final String userName;
   final VoidCallback onLogout;
+  final VoidCallback? onProfileTap;
+  final List<BreadcrumbItem>? breadcrumbs;
 
   const PmDashboardWeb({
     super.key,
@@ -18,6 +21,8 @@ class PmDashboardWeb extends StatelessWidget {
     required this.recentProjects,
     required this.userName,
     required this.onLogout,
+    this.onProfileTap,
+    this.breadcrumbs,
   });
 
   @override
@@ -27,11 +32,17 @@ class PmDashboardWeb extends StatelessWidget {
         PmSidebar(
           userDisplayName: userName,
           onLogout: onLogout,
+          onProfileTap: onProfileTap,
         ),
         Expanded(
           child: Column(
             children: [
-              const PmTopHeader(currentPage: 'Bảng điều khiển'),
+              PmTopHeader(
+                currentPage: 'Bảng điều khiển',
+                breadcrumbs:
+                    breadcrumbs ??
+                    const [BreadcrumbItem(label: 'Trang chủ', route: '/home')],
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
