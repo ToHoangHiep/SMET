@@ -354,6 +354,7 @@ class LessonResponse {
   final String? videoUrl;
   final String? contentType; // TEXT | VIDEO | LINK
   final String? content;
+  final Long? contentId;
   final int? durationMinutes;
   final int orderIndex;
   final DateTime? createdAt;
@@ -365,27 +366,37 @@ class LessonResponse {
     this.videoUrl,
     this.contentType,
     this.content,
+    this.contentId,
     this.durationMinutes,
     required this.orderIndex,
     this.createdAt,
   });
 
-  factory LessonResponse.fromJson(Map<String, dynamic> json) {
-    return LessonResponse(
-      id: _parseLong(json['id']),
-      title: json['title'] ?? '',
-      description: json['description'],
-      videoUrl: json['videoUrl'],
-      contentType: json['contentType'],
-      content: json['content'],
-      durationMinutes: _parseIntNullable(json['durationMinutes']),
-      orderIndex: json['orderIndex'] ?? 0,
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.tryParse(json['createdAt'])
-              : null,
-    );
-  }
+ factory LessonResponse.fromJson(Map<String, dynamic> json) {
+  final contents = (json['contents'] as List?) ?? [];
+  final firstContent =
+      contents.isNotEmpty ? Map<String, dynamic>.from(contents.first) : null;
+
+  final type = firstContent?['type']?.toString();
+  final rawContent = firstContent?['content']?.toString();
+  final rawContentId = firstContent?['id'];
+
+  return LessonResponse(
+    id: _parseLong(json['id']),
+    title: json['title'] ?? '',
+    description: json['description'],
+    contentId: rawContentId != null ? _parseLong(rawContentId) : null,
+    videoUrl: type == 'VIDEO' ? rawContent : null,
+    contentType: type,
+    content: type == 'TEXT' || type == 'LINK' ? rawContent : null,
+    durationMinutes: _parseIntNullable(json['durationMinutes']),
+    orderIndex: json['orderIndex'] ?? 0,
+    createdAt:
+        json['createdAt'] != null
+            ? DateTime.tryParse(json['createdAt'])
+            : null,
+  );
+}
 }
 
 /// Paginated response wrapper

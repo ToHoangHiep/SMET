@@ -32,6 +32,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   String? _error;
   bool _isEditMode = false;
 
+  bool _isLessonDialogOpen = false;
   // Form controllers
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
@@ -385,7 +386,10 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                             value: 'VIDEO',
                             child: Text("Video"),
                           ),
-                          DropdownMenuItem(value: 'LINK', child: Text("Link")),
+                          DropdownMenuItem(
+                            value: 'LINK',
+                            child: Text("Tài liệu"),
+                          ),
                         ],
                         onChanged: (v) {
                           setStateDialog(() {
@@ -521,6 +525,11 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                           labelText: "Tên bài học",
                           border: OutlineInputBorder(),
                         ),
+                        validator:
+                            (v) =>
+                                (v == null || v.trim().isEmpty)
+                                    ? "Vui lòng nhập tên bài học"
+                                    : null,
                       ),
 
                       const SizedBox(height: 12),
@@ -534,7 +543,10 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                             value: 'VIDEO',
                             child: Text("Video"),
                           ),
-                          DropdownMenuItem(value: 'LINK', child: Text("Link")),
+                          DropdownMenuItem(
+                            value: 'LINK',
+                            child: Text("Tài liệu"),
+                          ),
                         ],
                         onChanged: (v) {
                           setStateDialog(() {
@@ -547,10 +559,76 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
                       /// CONTENT
                       if (lessonType == 'TEXT' || lessonType == 'LINK')
-                        TextField(controller: contentController, maxLines: 3),
+                        TextFormField(
+                          controller: contentController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            labelText:
+                                lessonType == 'LINK'
+                                    ? "Link tài liệu"
+                                    : "Nội dung",
+                            hintText:
+                                lessonType == 'LINK'
+                                    ? "https://example.com/file.pdf"
+                                    : null,
+                            border: const OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+
+                            if (lessonType == 'TEXT') {
+                              if (value.isEmpty) {
+                                return "Vui lòng nhập nội dung";
+                              }
+                            }
+
+                            if (lessonType == 'LINK') {
+                              if (value.isEmpty) {
+                                return "Vui lòng nhập link tài liệu";
+                              }
+
+                              final lower = value.toLowerCase();
+                              final isValid =
+                                  lower.endsWith('.pdf') ||
+                                  lower.endsWith('.doc') ||
+                                  lower.endsWith('.docx');
+
+                              if (!isValid) {
+                                return "Chỉ chấp nhận link .pdf, .doc, .docx";
+                              }
+                            }
+
+                            return null;
+                          },
+                        ),
 
                       if (lessonType == 'VIDEO')
-                        TextField(controller: videoController),
+                        TextFormField(
+                          controller: videoController,
+                          decoration: const InputDecoration(
+                            labelText: "YouTube URL",
+                            hintText: "https://www.youtube.com/watch?v=xxx",
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+
+                            if (value.isEmpty) {
+                              return "Vui lòng nhập link YouTube";
+                            }
+
+                            final lower = value.toLowerCase();
+                            final isYoutube =
+                                lower.contains('youtube.com') ||
+                                lower.contains('youtu.be');
+
+                            if (!isYoutube) {
+                              return "Chỉ chấp nhận link YouTube";
+                            }
+
+                            return null;
+                          },
+                        ),
                     ],
                   ),
                 ),
@@ -560,7 +638,11 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                     child: const Text("Hủy"),
                   ),
                   ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: () {
+                      if (formKey.currentState!.validate()) {
+                        Navigator.pop(context, true);
+                      }
+                    },
                     child: const Text("Lưu"),
                   ),
                 ],
@@ -576,20 +658,50 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           orderIndex: lesson.orderIndex,
           moduleId: module.id,
           contentType: lessonType,
-          content: lessonType != 'VIDEO' ? contentController.text : null,
-          videoUrl: lessonType == 'VIDEO' ? videoController.text : null,
+          content: lessonType != 'VIDEO' ? contentController.text.trim() : null,
+          videoUrl: lessonType == 'VIDEO' ? videoController.text.trim() : null,
         );
 
         await _lessonService.updateLesson(lesson.id, request);
+
+        String contentValue = '';
+        if (lessonType == 'VIDEO') {
+          contentValue = videoController.text.trim();
+        } else {
+          contentValue = contentController.text.trim();
+        }
+
+        if (contentValue.isNotEmpty) {
+          if (lesson.contentId != null) {
+            await _lessonContentService
+                .updateContent(lesson.id.value, lesson.contentId!.value, {
+                  "lessonId": lesson.id.value,
+                  "type": lessonType,
+                  "content": contentValue,
+                  "orderIndex": 0,
+                });
+          } else {
+            await _lessonContentService.createContent(lesson.id.value, {
+              "type": lessonType,
+              "content": contentValue,
+              "orderIndex": 0,
+            });
+          }
+        }
+
         await _loadCourse();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Cập nhật bài học thành công")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Cập nhật bài học thành công")),
+          );
+        }
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+        }
       }
     }
   }
@@ -1131,7 +1243,19 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => _showAddLessonDialog(module),
+                  onPressed: () async {
+                    setState(() {
+                      _isLessonDialogOpen = true;
+                    });
+
+                    await Future.delayed(const Duration(milliseconds: 50));
+                    await _showAddLessonDialog(module);
+
+                    if (!mounted) return;
+                    setState(() {
+                      _isLessonDialogOpen = false;
+                    });
+                  },
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text("Thêm bài học"),
                   style: TextButton.styleFrom(
@@ -1185,7 +1309,19 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                     IconButton(
                       icon: const Icon(Icons.edit, size: 18),
                       tooltip: "Sửa bài học",
-                      onPressed: () => _showEditLessonDialog(module, lesson),
+                      onPressed: () async {
+                        setState(() {
+                          _isLessonDialogOpen = true;
+                        });
+
+                        await Future.delayed(const Duration(milliseconds: 50));
+                        await _showEditLessonDialog(module, lesson);
+
+                        if (!mounted) return;
+                        setState(() {
+                          _isLessonDialogOpen = false;
+                        });
+                      },
                     ),
                     IconButton(
                       icon: const Icon(
@@ -1223,15 +1359,25 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     log("TYPE: ${lesson.contentType}");
     log("VIDEO URL: ${lesson.videoUrl}");
 
+    if (_isLessonDialogOpen) {
+      return Container(
+        margin: const EdgeInsets.only(top: 8),
+        height: 60,
+        alignment: Alignment.centerLeft,
+        child: const Text(
+          "Đang chỉnh sửa bài học...",
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      );
+    }
+
     switch (lesson.contentType) {
       case 'VIDEO':
         return _buildVideoIframe(lesson.videoUrl);
 
       case 'LINK':
         return InkWell(
-          onTap: () {
-            // mở link (tạm)
-          },
+          onTap: () {},
           child: Text(
             lesson.content ?? '',
             style: const TextStyle(
@@ -1248,37 +1394,75 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   }
 
   Widget _buildVideoIframe(String? url) {
-    if (url == null || url.isEmpty) {
+    if (url == null || url.trim().isEmpty) {
       return const Text("Không có video");
     }
 
-    final viewId = 'video-${DateTime.now().millisecondsSinceEpoch}';
+    final embedUrl = _convertYoutubeUrl(url);
+    log("RAW VIDEO URL: $url");
+    log("EMBED VIDEO URL: $embedUrl");
+
+    final viewId =
+        'video-${embedUrl.hashCode}-${DateTime.now().millisecondsSinceEpoch}';
 
     // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(viewId, (int viewId) {
+    ui.platformViewRegistry.registerViewFactory(viewId, (int _) {
       final iframe =
           html.IFrameElement()
-            ..src = _convertYoutubeUrl(url)
+            ..src = embedUrl
             ..style.border = 'none'
-            ..allow = 'autoplay; fullscreen'
-            ..width = '100%'
-            ..height = '250';
+            ..style.width = '100%'
+            ..style.height = '250px'
+            ..allow =
+                'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+            ..allowFullscreen = true;
 
       return iframe;
     });
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
-      height: 250,
-      child: HtmlElementView(viewType: viewId),
+      child: SizedBox(
+        width: double.infinity,
+        height: 250,
+        child: HtmlElementView(viewType: viewId),
+      ),
     );
   }
 
   String _convertYoutubeUrl(String url) {
-    if (url.contains("watch?v=")) {
-      final id = url.split("watch?v=").last;
-      return "https://www.youtube.com/embed/$id";
+    final value = url.trim();
+    if (value.isEmpty) return '';
+
+    // raw video id
+    final rawIdReg = RegExp(r'^[a-zA-Z0-9_-]{11}$');
+    if (rawIdReg.hasMatch(value)) {
+      return 'https://www.youtube.com/embed/$value';
     }
-    return url;
+
+    final uri = Uri.tryParse(value);
+    if (uri == null) return value;
+
+    // youtube watch url
+    if (uri.host.contains('youtube.com')) {
+      final videoId = uri.queryParameters['v'];
+      if (videoId != null && videoId.isNotEmpty) {
+        return 'https://www.youtube.com/embed/$videoId';
+      }
+
+      // already embed url
+      if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'embed') {
+        return value;
+      }
+    }
+
+    // youtu.be short url
+    if (uri.host.contains('youtu.be')) {
+      if (uri.pathSegments.isNotEmpty) {
+        return 'https://www.youtube.com/embed/${uri.pathSegments.first}';
+      }
+    }
+
+    return value;
   }
 }
