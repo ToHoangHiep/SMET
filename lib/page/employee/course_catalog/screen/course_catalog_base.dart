@@ -7,6 +7,8 @@ import 'package:smet/page/employee/course_catalog/widgets/course_card.dart';
 import 'package:smet/page/employee/course_catalog/widgets/search_filters.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/service/employee/lms_service.dart';
 
 class CourseCatalogPage extends StatefulWidget {
   const CourseCatalogPage({super.key});
@@ -18,9 +20,11 @@ class CourseCatalogPage extends StatefulWidget {
 class _CourseCatalogPageState extends State<CourseCatalogPage> {
   String _selectedCategory = 'all';
   String _searchQuery = '';
+  bool _isLoading = true;
+  String? _error;
 
-  // Courses data - sẽ được load từ API sau
-  List<Map<String, dynamic>> _courses = [];
+  // Courses data - load từ API
+  List<CatalogCourse> _courses = [];
 
   @override
   void initState() {
@@ -28,22 +32,26 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     _loadCourses();
   }
 
-  // Placeholder methods - sẽ gọi API thật sau
   Future<void> _loadCourses() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
-      // TODO: Gọi API lấy danh sách khóa học
-      // final data = await CourseService.getCourses(
-      //   category: _selectedCategory,
-      //   search: _searchQuery,
-      // );
-      // setState(() {
-      //   _courses = data;
-      // });
+      final data = await CourseService.getCourses(
+        keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
       setState(() {
-        _courses = [];
+        _courses = data;
+        _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading courses: $e');
+      setState(() {
+        _error = 'Không thể tải danh sách khóa học';
+        _isLoading = false;
+      });
     }
   }
 
@@ -119,6 +127,37 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
 
   // Course grid widget
   Widget buildCourseGrid() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(48),
+          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Color(0xFFEF4444)),
+              const SizedBox(height: 16),
+              Text(_error!, style: const TextStyle(fontSize: 16, color: Color(0xFF64748B))),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadCourses,
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF137FEC)),
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_courses.isEmpty) {
       return const Center(
         child: Padding(
@@ -160,27 +199,48 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
       physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
         final course = _courses[index];
-        final courseId = course['id'] ?? '1';
         return CourseCard(
-          title: course['title'] ?? '',
-          imageUrl: course['imageUrl'],
-          category: _parseCategory(course['category']),
-          rating: (course['rating'] ?? 0).toDouble(),
-          duration: course['duration'] ?? '',
-          onJoin: () {},
-          onTap: () => context.go('/employee/course/$courseId'),
+          title: course.title,
+          imageUrl: null,
+          category: _parseCategory(course.departmentName),
+          rating: 4.5,
+          duration: '${course.lessonCount} bài học',
+          mentorName: course.mentorName,
+          onJoin: () => _enrollCourse(course.id),
+          onTap: () => context.go('/employee/course/${course.id}'),
         );
       },
     );
   }
 
-  CourseCategory _parseCategory(String? category) {
-    switch (category) {
+  Future<void> _enrollCourse(String courseId) async {
+    try {
+      final success = await CourseService.enrollCourse(courseId);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng ký khóa học thành công!'),
+            backgroundColor: Color(0xFF22C55E),
+          ),
+        );
+        _loadCourses();
+      }
+    } catch (e) {
+      debugPrint('Error enrolling course: $e');
+    }
+  }
+
+  CourseCategory _parseCategory(String? departmentName) {
+    switch (departmentName?.toLowerCase()) {
       case 'technical':
+      case 'it':
+      case 'technology':
         return CourseCategory.technical;
-      case 'softSkills':
+      case 'soft skills':
+      case 'communication':
         return CourseCategory.softSkills;
       case 'leadership':
+      case 'management':
         return CourseCategory.leadership;
       default:
         return CourseCategory.all;

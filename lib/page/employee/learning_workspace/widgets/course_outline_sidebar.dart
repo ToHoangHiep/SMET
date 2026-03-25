@@ -5,13 +5,17 @@ import 'package:smet/model/learning_model.dart';
 class CourseOutlineSidebar extends StatefulWidget {
   final LearningCourse course;
   final void Function(Lesson lesson) onLessonTap;
+  final void Function(String quizId) onQuizTap;
   final String? currentLessonId;
+  final String? currentQuizId;
 
   const CourseOutlineSidebar({
     super.key,
     required this.course,
     required this.onLessonTap,
+    required this.onQuizTap,
     this.currentLessonId,
+    this.currentQuizId,
   });
 
   @override
@@ -20,6 +24,7 @@ class CourseOutlineSidebar extends StatefulWidget {
 
 class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
   bool _collapsed = false;
+  final ScrollController _scrollController = ScrollController();
 
   static const _primary = Color(0xFF137FEC);
   static const _border = Color(0xFFE2E8F0);
@@ -27,6 +32,12 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
   static const _slate600 = Color(0xFF475569);
   static const _slate900 = Color(0xFF0F172A);
   static const _bgHover = Color(0xFFF8FAFC);
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   String get _courseTitle {
     final t = widget.course.title.trim();
@@ -53,8 +64,10 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
           _buildCourseHeader(),
           Expanded(
             child: Scrollbar(
+              controller: _scrollController,
               thumbVisibility: true,
               child: ListView(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 children: [
                   for (var i = 0; i < widget.course.modules.length; i++)
@@ -63,7 +76,9 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                       child: _ModuleSection(
                         module: widget.course.modules[i],
                         currentLessonId: widget.currentLessonId,
+                        currentQuizId: widget.currentQuizId,
                         onLessonTap: widget.onLessonTap,
+                        onQuizTap: widget.onQuizTap,
                         primary: _primary,
                         border: _border,
                         slate500: _slate500,
@@ -76,6 +91,7 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
               ),
             ),
           ),
+          if (widget.course.finalQuizId != null) _buildFinalQuizSection(),
           _buildCollapseFooter(),
         ],
       ),
@@ -130,6 +146,75 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFinalQuizSection() {
+    final isActive = widget.currentQuizId != null;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _border, width: 1)),
+        color: Color(0xFFF8FAFC),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => widget.onQuizTap(widget.course.finalQuizId!),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: isActive ? _primary.withValues(alpha: 0.1) : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActive ? _primary : const Color(0xFFE2E8F0),
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.workspace_premium_outlined,
+                  size: 22,
+                  color: isActive ? _primary : const Color(0xFF22C55E),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'BÀI KIỂM TRA CUỐI KHÓA',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: _slate500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hoàn thành tất cả module để mở khóa',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _slate600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 22,
+                  color: isActive ? _primary : _slate500,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -212,7 +297,9 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
 class _ModuleSection extends StatefulWidget {
   final LearningModule module;
   final String? currentLessonId;
+  final String? currentQuizId;
   final void Function(Lesson) onLessonTap;
+  final void Function(String quizId) onQuizTap;
   final Color primary;
   final Color border;
   final Color slate500;
@@ -223,7 +310,9 @@ class _ModuleSection extends StatefulWidget {
   const _ModuleSection({
     required this.module,
     required this.currentLessonId,
+    required this.currentQuizId,
     required this.onLessonTap,
+    required this.onQuizTap,
     required this.primary,
     required this.border,
     required this.slate500,
@@ -249,7 +338,7 @@ class _ModuleSectionState extends State<_ModuleSection> {
   }
 
   bool get _isFinalOnly {
-    if (widget.module.isLocked || widget.module.lessons.isNotEmpty) {
+    if (widget.module.lessons.isNotEmpty || widget.module.quizId == null) {
       return false;
     }
     final t = widget.module.title.toLowerCase();
@@ -313,19 +402,32 @@ class _ModuleSectionState extends State<_ModuleSection> {
           Padding(
             padding: const EdgeInsets.only(left: 36, top: 4),
             child: Column(
-              children:
-                  widget.module.lessons.map((lesson) {
-                    final isActive =
-                        lesson.id == widget.currentLessonId || lesson.isCurrent;
-                    return _LessonRow(
-                      lesson: lesson,
-                      isActive: isActive,
-                      onTap: () => widget.onLessonTap(lesson),
-                      primary: widget.primary,
-                      slate600: widget.slate600,
-                      bgHover: widget.bgHover,
-                    );
-                  }).toList(),
+              children: [
+                ...widget.module.lessons.map((lesson) {
+                  final isActive =
+                      lesson.id == widget.currentLessonId || lesson.isCurrent;
+                  return _LessonRow(
+                    lesson: lesson,
+                    isActive: isActive,
+                    onTap: () => widget.onLessonTap(lesson),
+                    primary: widget.primary,
+                    slate600: widget.slate600,
+                    bgHover: widget.bgHover,
+                  );
+                }),
+                if (widget.module.quizId != null)
+                  _ModuleQuizRow(
+                    quizId: widget.module.quizId!,
+                    isCompleted: widget.module.isCompleted,
+                    isActive: widget.currentQuizId == widget.module.quizId,
+                    onTap: widget.onQuizTap,
+                    primary: widget.primary,
+                    border: widget.border,
+                    slate500: widget.slate500,
+                    slate600: widget.slate600,
+                    bgHover: widget.bgHover,
+                  ),
+              ],
             ),
           ),
       ],
@@ -411,6 +513,8 @@ class _LessonRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isQuiz = lesson.lessonType == LessonType.quiz;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
@@ -445,15 +549,115 @@ class _LessonRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Icon(
-                  lesson.isCompleted
-                      ? Icons.check_circle_outline
-                      : Icons.play_circle_outline,
+                  isQuiz
+                      ? (lesson.isCompleted
+                          ? Icons.check_circle
+                          : Icons.quiz_outlined)
+                      : (lesson.isCompleted
+                          ? Icons.check_circle_outline
+                          : Icons.play_circle_outline),
                   size: 20,
                   color:
                       lesson.isCompleted
                           ? const Color(0xFF22C55E)
                           : (isActive ? primary : slate600),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModuleQuizRow extends StatelessWidget {
+  final String quizId;
+  final bool isCompleted;
+  final bool isActive;
+  final void Function(String) onTap;
+  final Color primary;
+  final Color border;
+  final Color slate500;
+  final Color slate600;
+  final Color bgHover;
+
+  const _ModuleQuizRow({
+    required this.quizId,
+    required this.isCompleted,
+    required this.isActive,
+    required this.onTap,
+    required this.primary,
+    required this.border,
+    required this.slate500,
+    required this.slate600,
+    required this.bgHover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLocked = isCompleted;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLocked ? null : () => onTap(quizId),
+          borderRadius: BorderRadius.circular(6),
+          hoverColor: isLocked ? null : bgHover,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? primary.withValues(alpha: 0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: isLocked
+                  ? Border.all(color: border, width: 1)
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isCompleted
+                      ? Icons.check_circle
+                      : (isLocked ? Icons.lock_outline : Icons.quiz_outlined),
+                  size: 20,
+                  color: isCompleted
+                      ? const Color(0xFF22C55E)
+                      : (isLocked ? slate500 : primary),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isCompleted
+                        ? 'Kiểm tra Module'
+                        : (isLocked
+                            ? 'Hoàn thành bài học để mở'
+                            : 'Kiểm tra Module'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isActive ? FontWeight.w600 : FontWeight.w500,
+                      color: isCompleted
+                          ? const Color(0xFF22C55E)
+                          : (isLocked ? slate500 : slate600),
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+                if (isLocked)
+                  Tooltip(
+                    message: 'Hoàn thành tất cả bài học để mở',
+                    child: Icon(
+                      Icons.help_outline,
+                      size: 16,
+                      color: slate500,
+                    ),
+                  ),
               ],
             ),
           ),

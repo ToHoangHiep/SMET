@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/department_management/screen/department_detail_base.dart';
@@ -139,7 +138,16 @@ class AppPages {
         path: '/employee/learn/:courseId',
         builder: (context, state) {
           final courseId = state.pathParameters['courseId'] ?? '';
-          return LearningWorkspacePage(courseId: courseId);
+          final quizId = state.uri.queryParameters['quizId'];
+          return LearningWorkspacePage(courseId: courseId, quizId: quizId);
+        },
+      ),
+      GoRoute(
+        path: '/employee/learn/:courseId/quiz/:quizId',
+        builder: (context, state) {
+          final courseId = state.pathParameters['courseId'] ?? '';
+          final quizId = state.pathParameters['quizId'] ?? '';
+          return LearningWorkspacePage(courseId: courseId, quizId: quizId);
         },
       ),
       GoRoute(
@@ -152,10 +160,10 @@ class AppPages {
       ),
       // Quiz Route
       GoRoute(
-        path: '/employee/quiz/:lessonId',
+        path: '/employee/quiz/:quizId',
         builder: (context, state) {
-          final lessonId = state.pathParameters['lessonId'] ?? '';
-          return QuizPage(lessonId: lessonId);
+          final quizId = state.pathParameters['quizId'] ?? '';
+          return QuizPage(quizId: quizId);
         },
       ),
       GoRoute(

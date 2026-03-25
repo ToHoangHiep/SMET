@@ -29,6 +29,10 @@ class SharedBreadcrumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = primaryColor ?? const Color(0xFF6366F1);
     final activeColor = const Color(0xFF64748B);
+    final visible = [
+      for (final item in items)
+        if (item.label.trim().isNotEmpty) item,
+    ];
 
     return Padding(
       padding: padding,
@@ -37,8 +41,8 @@ class SharedBreadcrumb extends StatelessWidget {
         spacing: 4,
         runSpacing: 4,
         children: [
-          for (int i = 0; i < items.length; i++)
-            _buildItem(context, items[i], i, color, activeColor),
+          for (int i = 0; i < visible.length; i++)
+            _buildItem(context, visible[i], i, color, activeColor, visible.length),
         ],
       ),
     );
@@ -50,8 +54,9 @@ class SharedBreadcrumb extends StatelessWidget {
     int index,
     Color color,
     Color activeColor,
+    int visibleCount,
   ) {
-    final isLast = index == items.length - 1;
+    final isLast = index == visibleCount - 1;
 
     if (isLast) {
       return Text(

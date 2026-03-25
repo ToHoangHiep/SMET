@@ -5,8 +5,10 @@ class LessonHeader extends StatelessWidget {
   final int durationMinutes;
   final String level;
   final String lessonId;
+  final String? quizId;
+  final bool isCompleted;
   final VoidCallback onMarkComplete;
-  final VoidCallback onTakeQuiz;
+  final VoidCallback? onTakeQuiz;
 
   const LessonHeader({
     super.key,
@@ -14,8 +16,10 @@ class LessonHeader extends StatelessWidget {
     required this.durationMinutes,
     required this.level,
     required this.lessonId,
+    this.quizId,
+    this.isCompleted = false,
     required this.onMarkComplete,
-    required this.onTakeQuiz,
+    this.onTakeQuiz,
   });
 
   @override
@@ -49,9 +53,11 @@ class LessonHeader extends StatelessWidget {
             SizedBox(
               width: 200,
               child: ElevatedButton.icon(
-                onPressed: onMarkComplete,
+                onPressed: isCompleted ? null : onMarkComplete,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF137FEC),
+                  backgroundColor: isCompleted
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFF137FEC),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
                   shape: RoundedRectangleBorder(
@@ -59,10 +65,13 @@ class LessonHeader extends StatelessWidget {
                   ),
                   elevation: 0,
                 ),
-                icon: const Icon(Icons.check_circle, size: 20),
-                label: const Text(
-                  'Hoàn thành',
-                  style: TextStyle(
+                icon: Icon(
+                  isCompleted ? Icons.check_circle : Icons.check_circle,
+                  size: 20,
+                ),
+                label: Text(
+                  isCompleted ? 'Đã hoàn thành' : 'Hoàn thành',
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),

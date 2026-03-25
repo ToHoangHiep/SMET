@@ -14,9 +14,9 @@ import 'package:smet/page/employee/quiz/widgets/quiz_result_dialog.dart';
 // ──────────────────────────────────────────────────────────────────────────────
 
 class QuizPage extends StatelessWidget {
-  final String lessonId;
+  final String quizId;
 
-  const QuizPage({super.key, required this.lessonId});
+  const QuizPage({super.key, required this.quizId});
 
   @override
   Widget build(BuildContext context) {
@@ -25,19 +25,19 @@ class QuizPage extends StatelessWidget {
         !Platform.isAndroid && !Platform.isIOS;
 
     return QuizBasePage(
-      lessonId: lessonId,
+      quizId: quizId,
       isWebLayout: isWebOrDesktop,
     );
   }
 }
 
 class QuizBasePage extends StatefulWidget {
-  final String lessonId;
+  final String quizId;
   final bool isWebLayout;
 
   const QuizBasePage({
     super.key,
-    required this.lessonId,
+    required this.quizId,
     this.isWebLayout = false,
   });
 
@@ -51,7 +51,7 @@ class _QuizBasePageState extends State<QuizBasePage> {
   @override
   void initState() {
     super.initState();
-    _controller = QuizInternalController(lessonId: widget.lessonId);
+    _controller = QuizInternalController(quizId: widget.quizId);
   }
 
   @override
@@ -1328,7 +1328,7 @@ class _MobileNavBar extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class QuizInternalController extends ChangeNotifier {
-  final String lessonId;
+  final String quizId;
   String? _attemptId;
   Quiz? _quiz;
   bool _isLoading = true;
@@ -1341,7 +1341,7 @@ class QuizInternalController extends ChangeNotifier {
   bool _showResult = false;
   QuizResult? _quizResult;
 
-  QuizInternalController({required this.lessonId}) {
+  QuizInternalController({required this.quizId}) {
     loadQuiz();
   }
 
@@ -1371,7 +1371,7 @@ class QuizInternalController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      final startResult = await QuizService.startAttempt(lessonId);
+      final startResult = await QuizService.startAttempt(quizId);
       _attemptId = startResult.attemptId;
       _quiz = await QuizService.getAttemptQuestions(_attemptId!, startResult.quizId);
       _startTime = DateTime.now();

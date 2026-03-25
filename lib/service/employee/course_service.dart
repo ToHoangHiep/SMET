@@ -25,6 +25,11 @@ class CourseService {
     return await LmsService.getMyCourses(page: page, size: size);
   }
 
+  /// Lấy danh sách tất cả khóa học cho Catalog
+  static Future<List<CatalogCourse>> getCourses({String? keyword, int page = 0, int size = 10}) async {
+    return await LmsService.getCourses(keyword: keyword, page: page, size: size);
+  }
+
   static Future<bool> completeLesson(String lessonId) async {
     return await LmsService.completeLesson(lessonId);
   }

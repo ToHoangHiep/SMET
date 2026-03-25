@@ -10,6 +10,7 @@ class LearningCourse {
   final String courseId;
   final double progressPercent;
   final List<LearningModule> modules;
+  final String? finalQuizId; // quiz cuối khóa
 
   const LearningCourse({
     required this.id,
@@ -17,6 +18,7 @@ class LearningCourse {
     required this.courseId,
     required this.progressPercent,
     required this.modules,
+    this.finalQuizId,
   });
 }
 
@@ -27,6 +29,7 @@ class LearningModule {
   final bool isCompleted;
   final bool isExpanded;
   final List<Lesson> lessons;
+  final String? quizId; // quiz ở cuối module
   final VoidCallback? onToggle;
 
   const LearningModule({
@@ -36,9 +39,12 @@ class LearningModule {
     required this.isCompleted,
     required this.isExpanded,
     required this.lessons,
+    this.quizId,
     this.onToggle,
   });
 }
+
+enum LessonType { video, quiz }
 
 class Lesson {
   final String id;
@@ -47,6 +53,7 @@ class Lesson {
   final int durationMinutes;
   final bool isCompleted;
   final bool isCurrent;
+  final LessonType lessonType;
   final LessonContent? content;
 
   const Lesson({
@@ -56,6 +63,7 @@ class Lesson {
     required this.durationMinutes,
     required this.isCompleted,
     required this.isCurrent,
+    this.lessonType = LessonType.video,
     this.content,
   });
 }
@@ -63,32 +71,38 @@ class Lesson {
 class LessonContent {
   final String id;
   final String title;
-  final String? videoUrl;
+  final String? youtubeVideoId;
   final String? thumbnailUrl;
   final int videoDurationSeconds;
   final int currentPositionSeconds;
   final String level;
   final String description;
+  final String? content;
+  final String? contentType;
   final List<String> keyTakeaways;
   final List<LessonResource> resources;
   final List<Discussion> discussions;
   final String? transcript;
   final Lesson? nextLesson;
+  final bool isCompleted;
 
   const LessonContent({
     required this.id,
     required this.title,
-    this.videoUrl,
+    this.youtubeVideoId,
     this.thumbnailUrl,
     required this.videoDurationSeconds,
     required this.currentPositionSeconds,
     required this.level,
     required this.description,
+    this.content,
+    this.contentType,
     required this.keyTakeaways,
     required this.resources,
     required this.discussions,
     this.transcript,
     this.nextLesson,
+    this.isCompleted = false,
   });
 }
 

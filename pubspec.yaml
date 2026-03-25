@@ -44,6 +44,14 @@ dependencies:
   fl_chart: ^0.69.0
   firebase_core:
 
+  # Video player
+  video_player: ^2.9.3
+  chewie: ^1.10.0
+  youtube_player_iframe: ^5.2.2
+
+  # Web utilities (for YouTube IFrame on web)
+  web: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

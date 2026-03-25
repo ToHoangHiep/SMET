@@ -9,10 +9,11 @@ import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart'
 class LearningWorkspaceMobile extends StatelessWidget {
   final LearningCourse course;
   final LessonContent lessonContent;
+  final String? quizId;
   final LessonTab selectedTab;
   final ValueChanged<LessonTab> onTabChanged;
   final VoidCallback onMarkComplete;
-  final VoidCallback onTakeQuiz;
+  final VoidCallback? onTakeQuiz;
   final Function(Lesson) onLessonTap;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
@@ -21,10 +22,11 @@ class LearningWorkspaceMobile extends StatelessWidget {
     super.key,
     required this.course,
     required this.lessonContent,
+    this.quizId,
     required this.selectedTab,
     required this.onTabChanged,
     required this.onMarkComplete,
-    required this.onTakeQuiz,
+    this.onTakeQuiz,
     required this.onLessonTap,
     required this.onNavigate,
     required this.onLogout,
@@ -80,7 +82,8 @@ class LearningWorkspaceMobile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Video Player
-            VideoPlayer(
+            VideoPlayerWidget(
+              youtubeVideoId: lessonContent.youtubeVideoId,
               thumbnailUrl: lessonContent.thumbnailUrl,
               videoDurationSeconds: lessonContent.videoDurationSeconds,
               currentPositionSeconds: lessonContent.currentPositionSeconds,
@@ -97,6 +100,8 @@ class LearningWorkspaceMobile extends StatelessWidget {
                     durationMinutes: lessonContent.videoDurationSeconds ~/ 60,
                     level: lessonContent.level,
                     lessonId: lessonContent.id,
+                    quizId: quizId,
+                    isCompleted: lessonContent.isCompleted,
                     onMarkComplete: onMarkComplete,
                     onTakeQuiz: onTakeQuiz,
                   ),
