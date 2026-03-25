@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_mobile.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_web.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/course_outline_sidebar.dart';
@@ -342,15 +342,17 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                   ),
                   if (_course != null)
                     BreadcrumbItem(
-                      label: _course!.title.trim().isEmpty
-                          ? 'Khóa học'
-                          : _course!.title.trim(),
+                      label:
+                          _course!.title.trim().isEmpty
+                              ? 'Khóa học'
+                              : _course!.title.trim(),
                       route: '/employee/course/${_course!.id}',
                     ),
                   BreadcrumbItem(
-                    label: (_lessonContent?.title ?? '').trim().isEmpty
-                        ? 'Bài học'
-                        : _lessonContent!.title.trim(),
+                    label:
+                        (_lessonContent?.title ?? '').trim().isEmpty
+                            ? 'Bài học'
+                            : _lessonContent!.title.trim(),
                   ),
                 ],
               );
@@ -362,7 +364,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                 selectedTab: _selectedTab,
                 onTabChanged: _onTabChanged,
                 onMarkComplete: _onMarkComplete,
-                onTakeQuiz: _currentQuizId != null ? () => _onTakeQuiz(_currentQuizId!) : null,
+                onTakeQuiz:
+                    _currentQuizId != null
+                        ? () => _onTakeQuiz(_currentQuizId!)
+                        : null,
                 onLessonTap: _onJumpToLesson,
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer';
+import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/two_factor_service.dart';
 
@@ -32,10 +33,7 @@ class AuthService {
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "email": email,
-        "password": password,
-      }),
+      body: jsonEncode({"email": email, "password": password}),
     );
 
     log("LOGIN STATUS: ${response.statusCode}");
@@ -114,7 +112,8 @@ class AuthService {
       try {
         final body = jsonDecode(response.body);
         throw RequirePasswordChangeException(
-          message: body["message"] ?? "You must change password before continuing",
+          message:
+              body["message"] ?? "You must change password before continuing",
           requirePasswordChange: body["requirePasswordChange"] ?? true,
         );
       } catch (e) {
@@ -127,6 +126,12 @@ class AuthService {
     } else {
       throw Exception("Cannot get user info");
     }
+  }
+
+  /// GET CURRENT USER (typed UserModel)
+  static Future<UserModel> getCurrentUser() async {
+    final data = await getMe();
+    return UserModel.fromJson(data);
   }
 
   /// SAVE TOKEN

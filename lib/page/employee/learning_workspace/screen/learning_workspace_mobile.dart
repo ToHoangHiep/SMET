@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_content.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_header.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_tabs.dart';
@@ -52,11 +52,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
                 color: const Color(0xFF137FEC),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(
-                Icons.school,
-                color: Colors.white,
-                size: 18,
-              ),
+              child: const Icon(Icons.school, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
             const Text(
@@ -156,9 +152,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
-              color: Color(0xFF137FEC),
-            ),
+            decoration: const BoxDecoration(color: Color(0xFF137FEC)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
@@ -191,7 +185,9 @@ class LearningWorkspaceMobile extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: course.progressPercent / 100,
                     backgroundColor: Colors.white.withValues(alpha: 0.3),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
                     minHeight: 6,
                   ),
                 ),
@@ -220,38 +216,51 @@ class LearningWorkspaceMobile extends StatelessWidget {
     return ExpansionTile(
       leading: Icon(
         module.isLocked ? Icons.lock : Icons.folder,
-        color: module.isLocked ? const Color(0xFF94A3B8) : const Color(0xFF137FEC),
+        color:
+            module.isLocked ? const Color(0xFF94A3B8) : const Color(0xFF137FEC),
       ),
       title: Text(
         module.title,
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: module.isLocked ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
+          color:
+              module.isLocked
+                  ? const Color(0xFF94A3B8)
+                  : const Color(0xFF0F172A),
         ),
       ),
-      children: module.lessons.map((lesson) {
-        return ListTile(
-          contentPadding: const EdgeInsets.only(left: 56, right: 16),
-          leading: Icon(
-            lesson.isCompleted
-                ? Icons.check_circle
-                : (lesson.isCurrent ? Icons.play_circle : Icons.circle_outlined),
-            size: 18,
-            color: lesson.isCompleted
-                ? const Color(0xFF22C55E)
-                : (lesson.isCurrent ? const Color(0xFF137FEC) : const Color(0xFF94A3B8)),
-          ),
-          title: Text(
-            lesson.title,
-            style: TextStyle(
-              fontSize: 13,
-              color: lesson.isCurrent ? const Color(0xFF137FEC) : const Color(0xFF475569),
-            ),
-          ),
-          onTap: () => onLessonTap(lesson),
-        );
-      }).toList(),
+      children:
+          module.lessons.map((lesson) {
+            return ListTile(
+              contentPadding: const EdgeInsets.only(left: 56, right: 16),
+              leading: Icon(
+                lesson.isCompleted
+                    ? Icons.check_circle
+                    : (lesson.isCurrent
+                        ? Icons.play_circle
+                        : Icons.circle_outlined),
+                size: 18,
+                color:
+                    lesson.isCompleted
+                        ? const Color(0xFF22C55E)
+                        : (lesson.isCurrent
+                            ? const Color(0xFF137FEC)
+                            : const Color(0xFF94A3B8)),
+              ),
+              title: Text(
+                lesson.title,
+                style: TextStyle(
+                  fontSize: 13,
+                  color:
+                      lesson.isCurrent
+                          ? const Color(0xFF137FEC)
+                          : const Color(0xFF475569),
+                ),
+              ),
+              onTap: () => onLessonTap(lesson),
+            );
+          }).toList(),
     );
   }
 

@@ -1,5 +1,5 @@
-import 'package:smet/model/course_model.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_course_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/service/employee/lms_service.dart';
 
 class CourseService {

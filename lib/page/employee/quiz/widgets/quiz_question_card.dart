@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/model/quiz_model.dart';
+import 'package:smet/model/Employee_quiz_model.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_option_item.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 
 /// Sidebar danh sách module / bài học — UI theo mock HTML (w-80, Lexend-like).
 class CourseOutlineSidebar extends StatefulWidget {
@@ -609,13 +609,12 @@ class _ModuleQuizRow extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             decoration: BoxDecoration(
-              color: isActive
-                  ? primary.withValues(alpha: 0.1)
-                  : Colors.transparent,
+              color:
+                  isActive
+                      ? primary.withValues(alpha: 0.1)
+                      : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
-              border: isLocked
-                  ? Border.all(color: border, width: 1)
-                  : null,
+              border: isLocked ? Border.all(color: border, width: 1) : null,
             ),
             child: Row(
               children: [
@@ -624,9 +623,10 @@ class _ModuleQuizRow extends StatelessWidget {
                       ? Icons.check_circle
                       : (isLocked ? Icons.lock_outline : Icons.quiz_outlined),
                   size: 20,
-                  color: isCompleted
-                      ? const Color(0xFF22C55E)
-                      : (isLocked ? slate500 : primary),
+                  color:
+                      isCompleted
+                          ? const Color(0xFF22C55E)
+                          : (isLocked ? slate500 : primary),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -640,11 +640,11 @@ class _ModuleQuizRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.w500,
-                      color: isCompleted
-                          ? const Color(0xFF22C55E)
-                          : (isLocked ? slate500 : slate600),
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                      color:
+                          isCompleted
+                              ? const Color(0xFF22C55E)
+                              : (isLocked ? slate500 : slate600),
                       height: 1.35,
                     ),
                   ),
@@ -652,11 +652,7 @@ class _ModuleQuizRow extends StatelessWidget {
                 if (isLocked)
                   Tooltip(
                     message: 'Hoàn thành tất cả bài học để mở',
-                    child: Icon(
-                      Icons.help_outline,
-                      size: 16,
-                      color: slate500,
-                    ),
+                    child: Icon(Icons.help_outline, size: 16, color: slate500),
                   ),
               ],
             ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 
 class ResourcesSidebar extends StatelessWidget {
   final List<LessonResource> resources;
@@ -41,11 +41,7 @@ class ResourcesSidebar extends StatelessWidget {
           // Header
           Row(
             children: [
-              const Icon(
-                Icons.attach_file,
-                size: 20,
-                color: Color(0xFF137FEC),
-              ),
+              const Icon(Icons.attach_file, size: 20, color: Color(0xFF137FEC)),
               const SizedBox(width: 8),
               const Text(
                 'Tài liệu bài học',
@@ -104,15 +100,16 @@ class ResourcesSidebar extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: resource.fileSize != null
-            ? Text(
-                resource.fileSize!,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF64748B),
-                ),
-              )
-            : null,
+        subtitle:
+            resource.fileSize != null
+                ? Text(
+                  resource.fileSize!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                  ),
+                )
+                : null,
         trailing: Icon(
           resource.type == 'link' ? Icons.open_in_new : Icons.download,
           size: 16,
@@ -177,10 +174,7 @@ class ResourcesSidebar extends StatelessWidget {
               ),
               child: const Text(
                 'Chuyển đến bài học',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
           ),

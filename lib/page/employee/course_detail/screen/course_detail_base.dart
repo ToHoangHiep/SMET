@@ -9,7 +9,7 @@ import 'package:smet/page/employee/course_detail/widgets/course_instructor.dart'
 import 'package:smet/page/employee/course_detail/widgets/course_reviews.dart';
 import 'package:smet/page/employee/course_detail/widgets/course_syllabus.dart';
 import 'package:smet/service/employee/course_service.dart';
-import 'package:smet/model/course_model.dart';
+import 'package:smet/model/Employee_course_model.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:smet/model/quiz_model.dart';
+import 'package:smet/model/Employee_quiz_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'dart:developer';
