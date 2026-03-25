@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 
 class LessonOverviewTab extends StatelessWidget {
   final String description;
@@ -161,7 +161,10 @@ class DiscussionTab extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF137FEC),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -195,12 +198,18 @@ class DiscussionTab extends StatelessWidget {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: const Color(0xFFE2E8F0),
-                backgroundImage: discussion.avatarUrl != null
-                    ? NetworkImage(discussion.avatarUrl!)
-                    : null,
-                child: discussion.avatarUrl == null
-                    ? const Icon(Icons.person, size: 16, color: Color(0xFF94A3B8))
-                    : null,
+                backgroundImage:
+                    discussion.avatarUrl != null
+                        ? NetworkImage(discussion.avatarUrl!)
+                        : null,
+                child:
+                    discussion.avatarUrl == null
+                        ? const Icon(
+                          Icons.person,
+                          size: 16,
+                          color: Color(0xFF94A3B8),
+                        )
+                        : null,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -242,11 +251,7 @@ class DiscussionTab extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(
-                  Icons.reply,
-                  size: 16,
-                  color: Color(0xFF64748B),
-                ),
+                const Icon(Icons.reply, size: 16, color: Color(0xFF64748B)),
                 const SizedBox(width: 4),
                 Text(
                   '${discussion.replyCount} trả lời',
@@ -267,10 +272,7 @@ class DiscussionTab extends StatelessWidget {
 class ResourcesTab extends StatelessWidget {
   final List<LessonResource> resources;
 
-  const ResourcesTab({
-    super.key,
-    required this.resources,
-  });
+  const ResourcesTab({super.key, required this.resources});
 
   @override
   Widget build(BuildContext context) {
@@ -330,15 +332,16 @@ class ResourcesTab extends StatelessWidget {
             color: Color(0xFF0F172A),
           ),
         ),
-        subtitle: resource.fileSize != null
-            ? Text(
-                resource.fileSize!,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF64748B),
-                ),
-              )
-            : null,
+        subtitle:
+            resource.fileSize != null
+                ? Text(
+                  resource.fileSize!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
+                )
+                : null,
         trailing: Icon(
           resource.type == 'link' ? Icons.open_in_new : Icons.download,
           color: const Color(0xFF64748B),
@@ -351,10 +354,7 @@ class ResourcesTab extends StatelessWidget {
 class TranscriptTab extends StatelessWidget {
   final String? transcript;
 
-  const TranscriptTab({
-    super.key,
-    this.transcript,
-  });
+  const TranscriptTab({super.key, this.transcript});
 
   @override
   Widget build(BuildContext context) {

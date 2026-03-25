@@ -1,5 +1,152 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="2be7dddb-d937-4ca2-bb89-685b72915825" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.firebase/hosting.YnVpbGRcd2Vi.cache" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.firebaserc" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/android/app/google-services.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assets/assets/loginImage.jfif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assets/assets/loginImageleft.jpg" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/devtools_options.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/firebase.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/firebase_options.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/model/department_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/model/learning_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/model/notification_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/model/project_member_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/model/project_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/department_management/screen/department_management.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/department_management/widgets/dialog/user_selection_dialog.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/department_management/widgets/form/department_management_form_card.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/department_management/widgets/shell/department_management_page_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/department_management/widgets/shell/department_management_top_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/department_management/widgets/table/department_management_table_section.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/user_management/screen/user_management.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/user_management/widgets/form/user_management_form_card.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/user_management/widgets/shell/user_management_page_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/user_management/widgets/shell/user_management_top_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/user_management/widgets/table/user_management_role_badge.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/user_management/widgets/table/user_management_table_card.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/admin/widgets/admin_sidebar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_catalog/screen/course_catalog_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_catalog/screen/course_catalog_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_catalog/screen/course_catalog_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_catalog/widgets/course_card.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_catalog/widgets/search_filters.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/screen/course_detail_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/screen/course_detail_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/screen/course_detail_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/widgets/course_enroll_card.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/widgets/course_hero.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/widgets/course_instructor.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/widgets/course_reviews.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/course_detail/widgets/course_syllabus.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/dashboard/screen/employee_dashboard_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/dashboard/screen/employee_dashboard_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/dashboard/screen/employee_dashboard_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/screen/learning_workspace_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/screen/learning_workspace_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/screen/learning_workspace_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/widgets/lesson_content.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/widgets/lesson_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/widgets/lesson_tabs.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/widgets/resources_sidebar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/employee/learning_workspace/widgets/video_player.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/notification/screen/notification_page.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/notification/widgets/shell/notification_sidebar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/notification/widgets/shell/notification_top_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/screen/profile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/screen/profile_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/screen/profile_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/mobile/profile_mobile_app_bar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_contact_section.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_role_badge.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_section_card.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_security_section.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_small_text_field.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_text_field.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_user_avatar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/profile_user_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/web/profile_web_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/profile/widgets/web/profile_web_sidebar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/dashboard/screen/pm_dashboard_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/dashboard/screen/pm_dashboard_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/dashboard/screen/pm_dashboard_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/learning_path/screen/learning_path_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/learning_path/screen/learning_path_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/learning_path/screen/learning_path_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project/screen/project_management_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project/screen/project_management_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project/screen/project_management_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project_member/screen/project_member_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project_member/screen/project_member_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project_member/screen/project_member_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project_progress/screen/project_progress_base.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project_progress/screen/project_progress_mobile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/project_progress/screen/project_progress_web.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/widgets/shell/pm_sidebar.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/page/project_manager/widgets/shell/pm_top_header.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/admin/department_management/api_department_management.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/admin/user_management/user_management_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/common/auth_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/common/base_url.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/common/notification_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/common/user_selection_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/common/user_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/employee/course_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/employee/learning_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/project/project_member_service.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/service/project/project_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.flutter-plugins-dependencies" beforeDir="false" afterPath="$PROJECT_DIR$/.flutter-plugins-dependencies" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" afterPath="$PROJECT_DIR$/android/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/android/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ios/Runner/GeneratedPluginRegistrant.m" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Runner/GeneratedPluginRegistrant.m" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/model/login_response.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/model/user_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/model/user_model.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/admin_dashboard/user_management/user_management.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/login/login.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/login/login.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/login/login_mobile.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/login/login_mobile.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/login/login_web.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/page/login/login_web.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_detail_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_detail_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_course_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_create_course_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_update_course_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_course/mentor_update_course_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_dashboard_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_shell.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_dashboard/mentor_sidebar.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_learning_path/mentor_create_learning_path_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_learning_path/mentor_create_learning_path_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_learning_path/mentor_learning_path.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_learning_path/mentor_learning_path_mobile.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/page/mentor_learning_path/mentor_learning_path_web.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/router/app_router.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/router/app_router.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/service/user_management/api_user_management.dart" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.yaml" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
   <component name="FileEditorManager">
     <leaf>
       <file leaf-file-name="main.dart" pinned="false" current-in-tab="true">
@@ -13,24 +160,81 @@
       </file>
     </leaf>
   </component>
-  <component name="ToolWindowManager">
-    <editor active="true" />
-    <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
-    </layout>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Dart File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;ToHoangHiep&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/ToHoangHiep/SMET.git&quot;,
+    &quot;accountId&quot;: &quot;1886ebe5-9c21-4e38-85b9-beca22a14bd6&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2
+}</component>
+  <component name="ProjectId" id="3AVk8STN651kWJDPYJC8KtmHw9c" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
   </component>
   <component name="ProjectView">
-    <navigator currentView="ProjectPane" proportions="" version="1">
-    </navigator>
+    <navigator currentView="ProjectPane" proportions="" version="1" />
     <panes>
       <pane id="ProjectPane">
         <option name="show-excluded-files" value="false" />
       </pane>
     </panes>
   </component>
-  <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="dart.analysis.tool.window.force.activate" value="true" />
-    <property name="show.migrate.to.gradle.popup" value="false" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Flutter.main.dart.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;Merging feature-mentor__dashboard&quot;,
+    &quot;io.flutter.project.isFirstOpen&quot;: &quot;true&quot;,
+    &quot;io.flutter.reload.alreadyRun&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/admin/SMET&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;
+  }
+}</component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="2be7dddb-d937-4ca2-bb89-685b72915825" name="Changes" comment="" />
+      <created>1772684966793</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1772684966793</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="ToolWindowManager">
+    <editor active="true" />
+    <layout>
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+    </layout>
   </component>
 </project>

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_mobile.dart';
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_web.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/course_outline_sidebar.dart';
@@ -17,11 +17,13 @@ import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 class LearningWorkspacePage extends StatefulWidget {
   final String courseId;
   final String? lessonId;
+  final String? quizId;
 
   const LearningWorkspacePage({
     super.key,
     required this.courseId,
     this.lessonId,
+    this.quizId,
   });
 
   @override
@@ -31,6 +33,7 @@ class LearningWorkspacePage extends StatefulWidget {
 class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   LearningCourse? _course;
   LessonContent? _lessonContent;
+  String? _currentQuizId;
   LessonTab _selectedTab = LessonTab.overview;
   bool _isLoading = true;
   String? _error;
@@ -41,23 +44,40 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     _loadData();
   }
 
+  @override
+  void didUpdateWidget(LearningWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.courseId != widget.courseId ||
+        oldWidget.lessonId != widget.lessonId ||
+        oldWidget.quizId != widget.quizId) {
+      _loadData();
+    }
+  }
+
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
       _error = null;
+      _currentQuizId = widget.quizId;
     });
 
     try {
-      // Load course progress
       final course = await LmsService.getCourseProgress(
         widget.courseId,
         'user_1',
       );
 
-      // Load lesson content - use provided lessonId or first current lesson
+      if (widget.quizId != null) {
+        setState(() {
+          _course = course;
+          _lessonContent = null;
+          _isLoading = false;
+        });
+        return;
+      }
+
       String targetLessonId = widget.lessonId ?? '';
       if (targetLessonId.isEmpty) {
-        // Find current lesson
         for (var module in course.modules) {
           for (var lesson in module.lessons) {
             if (lesson.isCurrent) {
@@ -67,7 +87,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           }
           if (targetLessonId.isNotEmpty) break;
         }
-        // If no current lesson, use first lesson
         if (targetLessonId.isEmpty &&
             course.modules.isNotEmpty &&
             course.modules.first.lessons.isNotEmpty) {
@@ -75,9 +94,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         }
       }
 
-      final lessonContent = await LmsService.getLessonDetail(
-        targetLessonId,
-      );
+      LessonContent? lessonContent;
+      if (targetLessonId.isNotEmpty) {
+        lessonContent = await LmsService.getLessonDetail(targetLessonId);
+      }
 
       setState(() {
         _course = course;
@@ -112,13 +132,41 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           ),
         );
       }
+      // Reload course to update sidebar progress
+      await _loadCourseOnly();
     } catch (e) {
       debugPrint('Error marking complete: $e');
     }
   }
 
+  Future<void> _loadCourseOnly() async {
+    try {
+      final course = await LmsService.getCourseProgress(
+        widget.courseId,
+        'user_1',
+      );
+      setState(() {
+        _course = course;
+      });
+    } catch (e) {
+      debugPrint('Error reloading course: $e');
+    }
+  }
+
   void _onJumpToLesson(Lesson lesson) {
-    context.go('/employee/learn/${widget.courseId}/${lesson.id}');
+    if (lesson.lessonType == LessonType.quiz) {
+      _onTakeQuiz(lesson.id);
+    } else {
+      context.go('/employee/learn/${widget.courseId}/${lesson.id}');
+    }
+  }
+
+  void _onTakeQuiz(String quizId) {
+    context.go('/employee/quiz/$quizId');
+  }
+
+  void _onQuizTap(String quizId) {
+    context.go('/employee/quiz/$quizId');
   }
 
   void _onNavigateTo(String path) {
@@ -133,10 +181,18 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   Widget buildVideoPlayer() {
     if (_lessonContent == null) return const SizedBox.shrink();
 
-    return VideoPlayer(
+    return VideoPlayerWidget(
+      youtubeVideoId: _lessonContent!.youtubeVideoId,
       thumbnailUrl: _lessonContent!.thumbnailUrl,
       videoDurationSeconds: _lessonContent!.videoDurationSeconds,
       currentPositionSeconds: _lessonContent!.currentPositionSeconds,
+      onPlay: () {
+        debugPrint('Video started playing');
+      },
+      onVideoComplete: () {
+        debugPrint('Video completed');
+        _onMarkComplete();
+      },
     );
   }
 
@@ -144,19 +200,26 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   Widget buildLessonHeader() {
     if (_lessonContent == null) return const SizedBox.shrink();
 
+    String? quizId;
+    if (_course != null) {
+      for (var module in _course!.modules) {
+        if (module.quizId != null && _lessonContent!.id == module.quizId) {
+          quizId = module.quizId;
+          break;
+        }
+      }
+    }
+
     return LessonHeader(
       title: _lessonContent!.title,
       durationMinutes: _lessonContent!.videoDurationSeconds ~/ 60,
       level: _lessonContent!.level,
       lessonId: _lessonContent!.id,
+      quizId: quizId,
+      isCompleted: _lessonContent!.isCompleted,
       onMarkComplete: _onMarkComplete,
-      onTakeQuiz: _onTakeQuiz,
+      onTakeQuiz: quizId != null ? () => _onTakeQuiz(quizId!) : null,
     );
-  }
-
-  void _onTakeQuiz() {
-    if (_lessonContent == null) return;
-    context.go('/employee/quiz/${_lessonContent!.id}');
   }
 
   // Build tabs widget
@@ -210,7 +273,9 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     return CourseOutlineSidebar(
       course: _course!,
       currentLessonId: _lessonContent?.id,
+      currentQuizId: _currentQuizId,
       onLessonTap: _onJumpToLesson,
+      onQuizTap: _onQuizTap,
     );
   }
 
@@ -277,20 +342,32 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                   ),
                   if (_course != null)
                     BreadcrumbItem(
-                      label: _course!.title,
+                      label:
+                          _course!.title.trim().isEmpty
+                              ? 'Khóa học'
+                              : _course!.title.trim(),
                       route: '/employee/course/${_course!.id}',
                     ),
-                  BreadcrumbItem(label: _lessonContent?.title ?? 'Bài học'),
+                  BreadcrumbItem(
+                    label:
+                        (_lessonContent?.title ?? '').trim().isEmpty
+                            ? 'Bài học'
+                            : _lessonContent!.title.trim(),
+                  ),
                 ],
               );
             } else {
               return LearningWorkspaceMobile(
                 course: _course!,
                 lessonContent: _lessonContent!,
+                quizId: _currentQuizId,
                 selectedTab: _selectedTab,
                 onTabChanged: _onTabChanged,
                 onMarkComplete: _onMarkComplete,
-                onTakeQuiz: _onTakeQuiz,
+                onTakeQuiz:
+                    _currentQuizId != null
+                        ? () => _onTakeQuiz(_currentQuizId!)
+                        : null,
                 onLessonTap: _onJumpToLesson,
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,

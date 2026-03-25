@@ -1,5 +1,5 @@
-import 'package:smet/model/course_model.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_course_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/service/employee/lms_service.dart';
 
 class CourseService {
@@ -23,6 +23,11 @@ class CourseService {
 
   static Future<List<EnrolledCourse>> getMyCourses({int page = 0, int size = 10}) async {
     return await LmsService.getMyCourses(page: page, size: size);
+  }
+
+  /// Lấy danh sách tất cả khóa học cho Catalog
+  static Future<List<CatalogCourse>> getCourses({String? keyword, int page = 0, int size = 10}) async {
+    return await LmsService.getCourses(keyword: keyword, page: page, size: size);
   }
 
   static Future<bool> completeLesson(String lessonId) async {

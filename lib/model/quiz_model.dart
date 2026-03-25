@@ -1,177 +1,64 @@
-class Quiz {
-  final String id;
-  final String lessonId;
+import 'package:smet/model/learning_path_model.dart';
+
+class QuizModel {
+  final Long? id;
   final String title;
-  final String? description;
   final int timeLimitMinutes;
   final int passingScore;
-  final List<QuizQuestion> questions;
+  final int? maxAttempts;
+  final int? questionCount;
+  final bool showAnswer;
+  final bool isFinalQuiz;
+  final Long? courseId;
+  final Long? moduleId;
 
-  Quiz({
-    required this.id,
-    required this.lessonId,
+  QuizModel({
+    this.id,
     required this.title,
-    this.description,
     required this.timeLimitMinutes,
     required this.passingScore,
-    required this.questions,
+    this.maxAttempts,
+    this.questionCount,
+    required this.showAnswer,
+    required this.isFinalQuiz,
+    this.courseId,
+    this.moduleId,
   });
 
-  factory Quiz.fromJson(Map<String, dynamic> json) {
-    return Quiz(
-      id: json['id'] ?? '',
-      lessonId: json['lessonId'] ?? '',
+  factory QuizModel.fromJson(Map<String, dynamic> json) {
+    return QuizModel(
+      id: json['id'] != null ? Long(json['id']) : null,
       title: json['title'] ?? '',
-      description: json['description'],
-      timeLimitMinutes: json['timeLimitMinutes'] ?? 10,
-      passingScore: json['passingScore'] ?? 70,
-      questions: (json['questions'] as List<dynamic>?)
-              ?.map((q) => QuizQuestion.fromJson(q))
-              .toList() ??
-          [],
+      timeLimitMinutes:
+          json['time_limit_minutes'] ?? json['timeLimitMinutes'] ?? 0,
+      passingScore: json['passing_score'] ?? json['passingScore'] ?? 0,
+      maxAttempts: json['max_attempts'] ?? json['maxAttempts'],
+      questionCount: json['question_count'] ?? json['questionCount'],
+      showAnswer: json['show_answer'] ?? json['showAnswer'] ?? false,
+      isFinalQuiz: json['is_final_quiz'] ?? json['isFinalQuiz'] ?? false,
+      courseId:
+          json['course_id'] != null
+              ? Long(json['course_id'])
+              : (json['courseId'] != null ? Long(json['courseId']) : null),
+      moduleId:
+          json['module_id'] != null
+              ? Long(json['module_id'])
+              : (json['moduleId'] != null ? Long(json['moduleId']) : null),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'lessonId': lessonId,
+      if (id != null) 'id': id!.value,
       'title': title,
-      'description': description,
       'timeLimitMinutes': timeLimitMinutes,
       'passingScore': passingScore,
-      'questions': questions.map((q) => q.toJson()).toList(),
+      'maxAttempts': maxAttempts,
+      'questionCount': questionCount,
+      'showAnswer': showAnswer,
+      'isFinalQuiz': isFinalQuiz,
+      if (courseId != null) 'courseId': courseId!.value,
+      if (moduleId != null) 'moduleId': moduleId!.value,
     };
   }
-}
-
-enum QuestionType {
-  single,
-  multiple,
-  trueFalse,
-}
-
-class QuizQuestion {
-  final String id;
-  final String content;
-  final QuestionType type;
-  final List<QuizOption> options;
-  final int point;
-
-  QuizQuestion({
-    required this.id,
-    required this.content,
-    required this.type,
-    required this.options,
-    this.point = 1,
-  });
-
-  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
-    return QuizQuestion(
-      id: json['id'] ?? '',
-      content: json['content'] ?? '',
-      type: QuestionType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => QuestionType.single,
-      ),
-      options: (json['options'] as List<dynamic>?)
-              ?.map((o) => QuizOption.fromJson(o))
-              .toList() ??
-          [],
-      point: json['point'] ?? 1,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'content': content,
-      'type': type.name,
-      'options': options.map((o) => o.toJson()).toList(),
-      'point': point,
-    };
-  }
-}
-
-class QuizOption {
-  final String id;
-  final String content;
-  final bool isCorrect;
-
-  QuizOption({
-    required this.id,
-    required this.content,
-    required this.isCorrect,
-  });
-
-  factory QuizOption.fromJson(Map<String, dynamic> json) {
-    return QuizOption(
-      id: json['id'] ?? '',
-      content: json['content'] ?? '',
-      isCorrect: json['isCorrect'] ?? false,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'content': content,
-      'isCorrect': isCorrect,
-    };
-  }
-}
-
-class QuizAnswer {
-  final String questionId;
-  final List<String> selectedOptionIds;
-
-  QuizAnswer({
-    required this.questionId,
-    required this.selectedOptionIds,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'questionId': questionId,
-      'selectedOptionIds': selectedOptionIds,
-    };
-  }
-}
-
-class QuizResult {
-  final String quizId;
-  final int totalScore;
-  final int maxScore;
-  final bool passed;
-  final int correctCount;
-  final int totalQuestions;
-  final Duration timeSpent;
-  final List<QuestionResult> questionResults;
-
-  QuizResult({
-    required this.quizId,
-    required this.totalScore,
-    required this.maxScore,
-    required this.passed,
-    required this.correctCount,
-    required this.totalQuestions,
-    required this.timeSpent,
-    required this.questionResults,
-  });
-
-  double get percentage => maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-}
-
-class QuestionResult {
-  final String questionId;
-  final bool isCorrect;
-  final List<String> selectedOptionIds;
-  final List<String> correctOptionIds;
-
-  QuestionResult({
-    required this.questionId,
-    required this.isCorrect,
-    required this.selectedOptionIds,
-    required this.correctOptionIds,
-  });
 }

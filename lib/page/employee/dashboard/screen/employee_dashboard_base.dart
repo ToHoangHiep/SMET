@@ -268,7 +268,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () => context.go('/employee/my-courses'),
                 child: const Text(
                   'Xem tất cả',
                   style: TextStyle(
@@ -318,6 +318,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
   }
 
   Widget _buildCourseCard(Map<String, dynamic> course) {
+    final id = course['id']?.toString() ?? '';
     final title = course['title'] ?? '';
     final progress = course['progress'] ?? 0;
     final completedLessons = course['completedLessons'] ?? 0;
@@ -426,7 +427,11 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          if (id.isNotEmpty) {
+                            context.go('/employee/learn/$id');
+                          }
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF137FEC),
                           foregroundColor: Colors.white,

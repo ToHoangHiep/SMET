@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/model/learning_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
 
 class LessonTabs extends StatelessWidget {
   final LessonTab selectedTab;
@@ -17,18 +17,14 @@ class LessonTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Color(0xFFE5E7EB),
-            width: 1,
-          ),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
       ),
       child: Row(
-        children: LessonTab.values.map((tab) {
-          final isSelected = tab == selectedTab;
-          return _buildTabItem(tab, isSelected);
-        }).toList(),
+        children:
+            LessonTab.values.map((tab) {
+              final isSelected = tab == selectedTab;
+              return _buildTabItem(tab, isSelected);
+            }).toList(),
       ),
     );
   }
@@ -51,7 +47,10 @@ class LessonTabs extends StatelessWidget {
             Icon(
               _getIconData(tab.icon),
               size: 18,
-              color: isSelected ? const Color(0xFF137FEC) : const Color(0xFF64748B),
+              color:
+                  isSelected
+                      ? const Color(0xFF137FEC)
+                      : const Color(0xFF64748B),
             ),
             const SizedBox(width: 8),
             Text(
@@ -59,7 +58,10 @@ class LessonTabs extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? const Color(0xFF137FEC) : const Color(0xFF64748B),
+                color:
+                    isSelected
+                        ? const Color(0xFF137FEC)
+                        : const Color(0xFF64748B),
               ),
             ),
             if (tab == LessonTab.discussion && discussionCount > 0) ...[

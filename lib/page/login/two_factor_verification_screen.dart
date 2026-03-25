@@ -25,8 +25,10 @@ class TwoFactorVerificationScreen extends StatefulWidget {
 
 class _TwoFactorVerificationScreenState
     extends State<TwoFactorVerificationScreen> {
-  final List<TextEditingController> _controllers =
-      List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
   String? _errorMessage;
@@ -51,8 +53,7 @@ class _TwoFactorVerificationScreenState
     super.dispose();
   }
 
-  String get _fullCode =>
-      _controllers.map((c) => c.text).join();
+  String get _fullCode => _controllers.map((c) => c.text).join();
 
   bool get _isCodeComplete => _fullCode.length == 6;
 
@@ -189,11 +190,7 @@ class _TwoFactorVerificationScreenState
         Text(
           "Nhập mã xác thực 6 chữ số từ ứng dụng\nGoogle Authenticator",
           textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-            height: 1.5,
-          ),
+          style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5),
         ),
         const SizedBox(height: 12),
         Container(
@@ -298,10 +295,7 @@ class _TwoFactorVerificationScreenState
           Expanded(
             child: Text(
               _errorMessage!,
-              style: TextStyle(
-                color: Colors.red[700],
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.red[700], fontSize: 13),
             ),
           ),
         ],
@@ -347,9 +341,7 @@ class _TwoFactorVerificationScreenState
       onPressed: _onBackPressed,
       icon: const Icon(Icons.arrow_back, size: 18),
       label: const Text("Quay lại đăng nhập"),
-      style: TextButton.styleFrom(
-        foregroundColor: const Color(0xFF6366F1),
-      ),
+      style: TextButton.styleFrom(foregroundColor: const Color(0xFF6366F1)),
     );
   }
 }

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
-import 'package:smet/model/learning_model.dart';
-import 'package:smet/model/course_model.dart';
+import 'package:smet/model/Employee_learning_model.dart';
+import 'package:smet/model/Employee_course_model.dart';
 import 'package:smet/page/employee/course_detail/widgets/course_syllabus.dart';
 import 'package:smet/page/employee/course_detail/widgets/course_reviews.dart';
 import 'dart:developer';
@@ -136,6 +136,50 @@ class LmsService {
     );
   }
 
+  /// Extract YouTube video ID from various input formats
+  /// Input: full YouTube URL, short URL, or already-extracted ID
+  /// Output: YouTube video ID or null
+  static String? _extractYouTubeId(Map<String, dynamic>? content) {
+    if (content == null) return null;
+
+    // If backend already set a thumbnailUrl (YouTube hqdefault), use content as ID directly
+    String? contentValue = content['content']?.toString();
+    if (contentValue == null || contentValue.isEmpty) return null;
+
+    // Check if content is already a plain YouTube ID (11 chars)
+    final isPlainId = RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(contentValue);
+    if (isPlainId) {
+      log("YouTube video ID extracted: $contentValue");
+      return contentValue;
+    }
+
+    // Extract from full URL
+    // youtu.be/ID
+    if (contentValue.contains('youtu.be/')) {
+      String id = contentValue.substring(contentValue.lastIndexOf('/') + 1);
+      log("YouTube video ID from youtu.be: $id");
+      return id;
+    }
+
+    // watch?v=ID
+    if (contentValue.contains('v=')) {
+      String id = contentValue.substring(contentValue.indexOf('v=') + 2);
+      int amp = id.indexOf('&');
+      if (amp != -1) id = id.substring(0, amp);
+      log("YouTube video ID from watch?v=: $id");
+      return id;
+    }
+
+    // embed/ID
+    if (contentValue.contains('/embed/')) {
+      String id = contentValue.substring(contentValue.lastIndexOf('/embed/') + 7);
+      log("YouTube video ID from embed: $id");
+      return id;
+    }
+
+    return null;
+  }
+
   // ============================================================
   // LESSON CONTENTS — GET /api/lms/lessons/{lessonId}/contents
   // ============================================================
@@ -166,16 +210,25 @@ class LmsService {
         return LessonContent(
           id: lessonId,
           title: firstContent?['title'] ?? 'Bài học',
-          videoUrl: null,
-          thumbnailUrl: firstContent?['thumbnailUrl']?.toString(),
-          videoDurationSeconds: 0,
-          currentPositionSeconds: 0,
-          level: '',
+          youtubeVideoId: _extractYouTubeId(firstContent),
+          thumbnailUrl: firstContent?['thumbnailUrl']?.toString() ?? firstContent?['thumbnail_url']?.toString(),
+          videoDurationSeconds: firstContent?['videoDurationSeconds'] ?? firstContent?['duration'] ?? 0,
+          currentPositionSeconds: firstContent?['currentPositionSeconds'] ?? 0,
+          level: firstContent?['level'] ?? '',
           description: firstContent?['content'] ?? '',
-          keyTakeaways: [],
-          resources: [],
+          content: firstContent?['content']?.toString(),
+          contentType: firstContent?['type']?.toString(),
+          keyTakeaways: (firstContent?['keyTakeaways'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+          resources: (firstContent?['resources'] as List<dynamic>?)?.map((r) => LessonResource(
+            id: r['id']?.toString() ?? '',
+            title: r['title'] ?? '',
+            type: r['type'] ?? 'link',
+            url: r['url']?.toString(),
+            fileSize: r['fileSize']?.toString(),
+          )).toList() ?? [],
           discussions: [],
-          transcript: null,
+          transcript: firstContent?['transcript']?.toString(),
+          isCompleted: firstContent?['isCompleted'] ?? firstContent?['completed'] ?? false,
         );
       }
 
@@ -447,7 +500,7 @@ class LmsService {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse(
-        "$baseUrl/lms/courses/courses/$courseId/completion",
+        "$baseUrl/lms/courses/$courseId/completion",
       );
 
       log("IS ENROLLED REQUEST: courseId=$courseId, url=$url");
@@ -527,18 +580,26 @@ class LmsService {
   }
 
   // ============================================================
-  // LESSON — Nội dung và hoàn thành bài học
+  // COURSE CATALOG — Lấy tất cả khóa học (public/employee)
   // ============================================================
 
-  /// Hoàn thành bài học — POST /api/lms/enrollments/lessons/{lessonId}/complete
-  static Future<bool> completeLesson(String lessonId) async {
+  /// Lấy danh sách tất cả khóa học — GET /api/lms/courses
+  static Future<List<CatalogCourse>> getCourses({
+    String? keyword,
+    int page = 0,
+    int size = 10,
+  }) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse(
-        "$baseUrl/lms/enrollments/lessons/$lessonId/complete",
-      );
 
-      final response = await http.post(
+      var urlStr = "$baseUrl/lms/courses?page=$page&size=$size";
+      if (keyword != null && keyword.isNotEmpty) {
+        urlStr += "&keyword=${Uri.encodeComponent(keyword)}";
+      }
+
+      final url = Uri.parse(urlStr);
+
+      final response = await http.get(
         url,
         headers: {
           "Authorization": "Bearer $token",
@@ -546,8 +607,91 @@ class LmsService {
         },
       );
 
-      log("COMPLETE LESSON STATUS: ${response.statusCode}");
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<dynamic> content;
+
+        if (data is Map) {
+          content = data['data'] ?? [];
+        } else if (data is List) {
+          content = data;
+        } else {
+          log("GET COURSES PARSE ERROR: unexpected response type");
+          return [];
+        }
+
+        log("GET COURSES SUCCESS: count=${content.length}, keyword=$keyword");
+        return content.map((c) => _parseCatalogCourse(c as Map<String, dynamic>)).toList();
+      }
+      log("GET COURSES FAILED: status=${response.statusCode}, keyword=$keyword, body=${response.body}");
+      return [];
+    } catch (e) {
+      log("LmsService.getCourses: $e");
+      return [];
+    }
+  }
+
+  static CatalogCourse _parseCatalogCourse(Map<String, dynamic> c) {
+    return CatalogCourse(
+      id: c['id']?.toString() ?? '',
+      title: c['title'] ?? 'Khóa học',
+      description: c['description'] ?? '',
+      mentorId: c['mentorId']?.toString(),
+      mentorName: c['mentorName'] ?? '',
+      departmentName: c['departmentName'],
+      moduleCount: c['moduleCount'] ?? 0,
+      lessonCount: c['lessonCount'] ?? 0,
+      status: c['status'] ?? 'PUBLISHED',
+      deadlineType: c['deadlineType'],
+      defaultDeadlineDays: c['defaultDeadlineDays'],
+      fixedDeadline: c['fixedDeadline'],
+    );
+  }
+
+  // ============================================================
+  // LESSON — Nội dung và hoàn thành bài học
+  // ============================================================
+
+  /// Hoàn thành bài học — POST /api/lms/enrollments/lessons/{lessonId}/complete
+  static Future<bool> completeLesson(String lessonId) async {
+    try {
+      final token = await AuthService.getToken();
+
+      // Thử nhiều endpoint và body format
+      final endpoints = [
+        "$baseUrl/lms/enrollments/lessons/$lessonId/complete",
+        "$baseUrl/lms/lessons/$lessonId/complete",
+        "$baseUrl/api/lms/enrollments/lessons/$lessonId/complete",
+      ];
+
+      for (final urlStr in endpoints) {
+        final url = Uri.parse(urlStr);
+        final bodies = [
+          jsonEncode({}),
+          jsonEncode({"lessonId": lessonId}),
+          jsonEncode({"id": lessonId}),
+        ];
+
+        for (final body in bodies) {
+          final response = await http.post(
+            url,
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+            },
+            body: body,
+          );
+
+          log("COMPLETE LESSON url=$urlStr body=$body status=${response.statusCode}");
+
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            return true;
+          }
+        }
+      }
+
+      log("COMPLETE LESSON: tất cả endpoint đều fail");
+      return false;
     } catch (e) {
       log("LmsService.completeLesson failed: $e");
       return false;
@@ -579,16 +723,25 @@ class LmsService {
         return LessonContent(
           id: lessonId,
           title: first['title'] ?? 'Bài học',
-          videoUrl: null,
-          thumbnailUrl: first['thumbnailUrl']?.toString(),
-          videoDurationSeconds: 0,
-          currentPositionSeconds: 0,
-          level: '',
+          youtubeVideoId: _extractYouTubeId(first),
+          thumbnailUrl: first['thumbnailUrl']?.toString() ?? first['thumbnail_url']?.toString(),
+          videoDurationSeconds: first['videoDurationSeconds'] ?? first['duration'] ?? 0,
+          currentPositionSeconds: first['currentPositionSeconds'] ?? 0,
+          level: first['level'] ?? '',
           description: first['content'] ?? '',
-          keyTakeaways: [],
-          resources: [],
+          content: first['content']?.toString(),
+          contentType: first['type']?.toString(),
+          keyTakeaways: (first['keyTakeaways'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+          resources: (first['resources'] as List<dynamic>?)?.map((r) => LessonResource(
+            id: r['id']?.toString() ?? '',
+            title: r['title'] ?? '',
+            type: r['type'] ?? 'link',
+            url: r['url']?.toString(),
+            fileSize: r['fileSize']?.toString(),
+          )).toList() ?? [],
           discussions: [],
-          transcript: null,
+          transcript: first['transcript']?.toString(),
+          isCompleted: first['isCompleted'] ?? first['completed'] ?? false,
         );
       }
       log("GET LESSON CONTENT FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
@@ -1138,5 +1291,35 @@ class LearningPathCourseItem {
     required this.title,
     required this.orderIndex,
     required this.isCompleted,
+  });
+}
+
+class CatalogCourse {
+  final String id;
+  final String title;
+  final String description;
+  final String? mentorId;
+  final String mentorName;
+  final String? departmentName;
+  final int moduleCount;
+  final int lessonCount;
+  final String status;
+  final String? deadlineType;
+  final int? defaultDeadlineDays;
+  final String? fixedDeadline;
+
+  CatalogCourse({
+    required this.id,
+    required this.title,
+    required this.description,
+    this.mentorId,
+    required this.mentorName,
+    this.departmentName,
+    required this.moduleCount,
+    required this.lessonCount,
+    required this.status,
+    this.deadlineType,
+    this.defaultDeadlineDays,
+    this.fixedDeadline,
   });
 }
