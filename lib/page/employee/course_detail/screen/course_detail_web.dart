@@ -1,109 +1,105 @@
 import 'package:flutter/material.dart';
 import 'package:smet/page/employee/widgets/shell/employee_top_header.dart';
-import 'package:smet/page/sidebar/shared_sidebar.dart';
-import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 
 class CourseDetailWeb extends StatelessWidget {
   final Widget hero;
+  final Widget courseStats;
   final Widget syllabus;
   final Widget instructor;
   final Widget reviews;
   final Widget enrollCard;
-  final List<SidebarMenuItem> menuItems;
-  final Function(String) onNavigate;
-  final VoidCallback onLogout;
+  final Widget offeredBy;
+  final Widget courseInfoCard;
   final List<BreadcrumbItem>? breadcrumbs;
 
   const CourseDetailWeb({
     super.key,
     required this.hero,
+    required this.courseStats,
     required this.syllabus,
     required this.instructor,
     required this.reviews,
     required this.enrollCard,
-    required this.menuItems,
-    required this.onNavigate,
-    required this.onLogout,
+    required this.offeredBy,
+    required this.courseInfoCard,
     this.breadcrumbs,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        SharedSidebar(
-          primaryColor: const Color(0xFF137FEC),
-          logoIcon: Icons.school,
-          logoText: 'SMETS',
-          subtitle: 'EMPLOYEE PORTAL',
-          menuItems: menuItems,
-          activeRoute: '/employee/courses',
-          userDisplayName: 'Employee',
-          userRole: 'Nhân viên',
-          onLogout: onLogout,
-          onProfileTap: () => onNavigate('/profile'),
+        EmployeeTopHeader(
+          currentPage: 'Chi tiết khóa học',
+          breadcrumbs: breadcrumbs,
         ),
         Expanded(
-          child: Column(
-            children: [
-              EmployeeTopHeader(
-                currentPage: 'Chi tiết khóa học',
-                breadcrumbs: breadcrumbs,
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      hero,
-                      const SizedBox(height: 32),
-                      Row(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ─── Hero ───
+                hero,
+                const SizedBox(height: 24),
+
+                // ─── Stats row ───
+                courseStats,
+                const SizedBox(height: 32),
+
+                // ─── 2-column layout ───
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ─── Left column (main content) ───
+                    Expanded(
+                      flex: 3,
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              children: [
-                                syllabus,
-                                const SizedBox(height: 32),
-                                instructor,
-                                const SizedBox(height: 32),
-                                reviews,
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 24),
-                          SizedBox(
-                            width: 340,
-                            child: Column(
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.08,
-                                        ),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: enrollCard,
-                                ),
-                                const SizedBox(height: 24),
-                                _buildSupportCard(),
-                              ],
-                            ),
-                          ),
+                          // Offered by
+                          offeredBy,
+                          const SizedBox(height: 32),
+
+                          // Syllabus
+                          syllabus,
+                          const SizedBox(height: 32),
+
+                          // Instructor
+                          instructor,
+                          const SizedBox(height: 32),
+
+                          // Reviews
+                          reviews,
+                          const SizedBox(height: 32),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+
+                    const SizedBox(width: 24),
+
+                    // ─── Right column (sticky sidebar) ───
+                    SizedBox(
+                      width: 360,
+                      child: Column(
+                        children: [
+                          // Enroll card — sticky
+                          _StickyEnrollCard(enrollCard: enrollCard),
+                          const SizedBox(height: 16),
+
+                          // Course info card
+                          courseInfoCard,
+                          const SizedBox(height: 24),
+
+                          // Support card
+                          _buildSupportCard(),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -147,6 +143,30 @@ class CourseDetailWeb extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Wraps the enroll card with a sticky Positioned wrapper
+/// using a MediaQuery-based scroll offset.
+class _StickyEnrollCard extends StatelessWidget {
+  final Widget enrollCard;
+
+  const _StickyEnrollCard({required this.enrollCard});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: enrollCard,
     );
   }
 }

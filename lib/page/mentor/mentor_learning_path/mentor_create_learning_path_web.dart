@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
 
@@ -280,26 +281,18 @@ class _MentorCreateLearningPathWebState
       backgroundColor: const Color(0xfff5f6fa),
       body: Column(
         children: [
-          /// TOPBAR
+          /// PAGE HEADER WITH BREADCRUMB
           Container(
-            height: 70,
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            color: Colors.white,
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: () => context.go('/mentor/learning-paths'),
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _isEditMode ? "Chỉnh sửa lộ trình" : "Tạo lộ trình mới",
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
+            margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+            child: BreadcrumbPageHeader(
+              pageTitle: _isEditMode ? "Chỉnh sửa lộ trình" : "Tạo lộ trình mới",
+              pageIcon: Icons.add_road_rounded,
+              breadcrumbs: [
+                const BreadcrumbItem(label: "Lộ trình", route: "/mentor/learning-paths"),
+                BreadcrumbItem(label: _isEditMode ? "Chỉnh sửa lộ trình" : "Tạo lộ trình mới"),
+              ],
+              primaryColor: const Color(0xFF6366F1),
+              actions: [
                 TextButton(
                   onPressed: () => context.go('/mentor/learning-paths'),
                   child: const Text("Hủy"),
@@ -308,6 +301,8 @@ class _MentorCreateLearningPathWebState
                 ElevatedButton(
                   onPressed: _isSaving ? null : _save,
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 12,
@@ -319,10 +314,10 @@ class _MentorCreateLearningPathWebState
                   child:
                       _isSaving
                           ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : Text(_isEditMode ? "Lưu thay đổi" : "Tạo lộ trình"),
                 ),
               ],

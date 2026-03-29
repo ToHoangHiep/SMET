@@ -2,9 +2,6 @@
 // COURSE MODELS — Dùng chung cho CourseDetail
 // ============================================
 
-import 'package:smet/page/employee/course_detail/widgets/course_syllabus.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_reviews.dart';
-
 class CourseDetail {
   final String id;
   final String title;
@@ -24,6 +21,12 @@ class CourseDetail {
   final List<Module> modules;
   final List<Review> reviews;
 
+  // --- Fields bổ sung theo phong cách Coursera ---
+  final String? departmentName;
+  final String? deadlineType;
+  final int? defaultDeadlineDays;
+  final String? fixedDeadline;
+
   const CourseDetail({
     required this.id,
     required this.title,
@@ -42,6 +45,10 @@ class CourseDetail {
     required this.instructor,
     required this.modules,
     required this.reviews,
+    this.departmentName,
+    this.deadlineType,
+    this.defaultDeadlineDays,
+    this.fixedDeadline,
   });
 }
 
@@ -60,5 +67,35 @@ class Instructor {
     required this.bio,
     this.linkedInUrl,
     this.websiteUrl,
+  });
+}
+
+/// Dùng bởi lms_service để parse API response.
+class Module {
+  final String title;
+  final int lessonCount;
+  final List<String> lessons;
+  final bool isExpanded;
+
+  const Module({
+    required this.title,
+    required this.lessonCount,
+    required this.lessons,
+    this.isExpanded = false,
+  });
+}
+
+/// Dùng bởi lms_service để parse API response.
+class Review {
+  final double rating;
+  final String comment;
+  final String userName;
+  final String? avatarUrl;
+
+  const Review({
+    required this.rating,
+    required this.comment,
+    required this.userName,
+    this.avatarUrl,
   });
 }

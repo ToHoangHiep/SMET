@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 
@@ -156,26 +157,29 @@ void didChangeDependencies() {
       backgroundColor: const Color(0xfff5f6fa),
       body: Column(
         children: [
-          /// TOPBAR
+          /// PAGE HEADER WITH BREADCRUMB
           Container(
-            height: 70,
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text(
-                  "Quản lý khóa học",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+            margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+            child: BreadcrumbPageHeader(
+              pageTitle: "Quản lý khóa học",
+              pageIcon: Icons.menu_book_rounded,
+              breadcrumbs: const [
+                BreadcrumbItem(label: "Mentor", route: "/mentor/dashboard"),
+                BreadcrumbItem(label: "Khóa học"),
+              ],
+              primaryColor: const Color(0xFF6366F1),
+              actions: [
+                ElevatedButton.icon(
+                  onPressed: () => context.go('/mentor/courses/create'),
+                  icon: const Icon(Icons.add),
+                  label: const Text("Tạo khóa học mới"),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Color(0xff1a90ff),
-                  child: Icon(Icons.person, color: Colors.white, size: 18),
-                )
               ],
             ),
           ),
@@ -187,20 +191,6 @@ void didChangeDependencies() {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  /// CREATE BUTTON
-                  ElevatedButton.icon(
-                    onPressed: () => context.go('/mentor/courses/create'),
-                    icon: const Icon(Icons.add),
-                    label: const Text("Tạo khóa học mới"),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
                   /// SEARCH + FILTER
                   Row(
                     children: [

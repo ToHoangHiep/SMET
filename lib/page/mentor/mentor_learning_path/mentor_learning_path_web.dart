@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
 
@@ -126,22 +127,31 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
       backgroundColor: const Color(0xfff5f6fa),
       body: Column(
         children: [
-          /// TOPBAR
+          /// PAGE HEADER WITH BREADCRUMB
           Container(
-            height: 70,
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            color: Colors.white,
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Quan ly lo trinh hoc tap",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Color(0xff1a90ff),
-                  child: Icon(Icons.person, color: Colors.white, size: 18),
+            margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+            child: BreadcrumbPageHeader(
+              pageTitle: "Quản lý lộ trình học tập",
+              pageIcon: Icons.route_rounded,
+              breadcrumbs: const [
+                BreadcrumbItem(label: "Mentor", route: "/mentor/dashboard"),
+                BreadcrumbItem(label: "Lộ trình học tập"),
+              ],
+              primaryColor: const Color(0xFF6366F1),
+              actions: [
+                ElevatedButton.icon(
+                  onPressed: () => context.go('/mentor/learning-paths/create'),
+                  icon: const Icon(Icons.add),
+                  label: const Text("Tạo lộ trình mới"),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -154,38 +164,13 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  /// TITLE
-                  const Text(
-                    "Lo trinh hoc tap",
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-
-                  /// CREATE BUTTON
-                  ElevatedButton.icon(
-                    onPressed:
-                        () => context.go('/mentor/learning-paths/create'),
-                    icon: const Icon(Icons.add),
-                    label: const Text("Tao lo trinh moi"),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 14,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
                   /// SEARCH
                   SizedBox(
                     width: 400,
                     child: TextField(
                       onChanged: _onSearch,
                       decoration: InputDecoration(
-                        hintText: "Tim kiem lo trinh...",
+                        hintText: "Tìm kiếm lộ trình...",
                         prefixIcon: const Icon(Icons.search),
                         filled: true,
                         fillColor: Colors.white,

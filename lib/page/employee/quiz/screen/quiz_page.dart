@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smet/model/Employee_quiz_model.dart';
 import 'package:smet/model/quiz_model.dart';
 import 'package:smet/service/employee/quiz_service.dart';
@@ -1499,7 +1500,16 @@ class QuizInternalController extends ChangeNotifier {
         },
         onClose: () {
           Navigator.pop(ctx);
-          Navigator.pop(context);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            final router = GoRouter.of(context);
+            // Avoid Navigator.pop(page): with go_router + go(), that pops the page off-stack while URL unchanged.
+            if (router.canPop()) {
+              router.pop();
+            } else {
+              router.go('/employee/my-courses');
+            }
+          });
         },
       ),
     );

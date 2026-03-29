@@ -1,4 +1,5 @@
 import 'package:smet/model/learning_path_model.dart';
+import 'package:smet/model/option_model.dart';
 
 class QuestionModel {
   final Long? id;
@@ -6,6 +7,7 @@ class QuestionModel {
   final Long? lessonId;
   final String? type;
   final Long? quizId;
+  final List<OptionModel>? options;
 
   QuestionModel({
     this.id,
@@ -13,6 +15,7 @@ class QuestionModel {
     this.lessonId,
     this.type,
     this.quizId,
+    this.options,
   });
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +29,11 @@ class QuestionModel {
       quizId: json['quizId'] != null
           ? Long(json['quizId'])
           : (json['quiz_id'] != null ? Long(json['quiz_id']) : null),
+      options: json['options'] != null
+          ? (json['options'] as List)
+              .map((o) => OptionModel.fromJson(o))
+              .toList()
+          : null,
     );
   }
 

@@ -28,6 +28,7 @@ class LearningModule {
   final bool isLocked;
   final bool isCompleted;
   final bool isExpanded;
+  final double progress; // 0.0 - 1.0
   final List<Lesson> lessons;
   final String? quizId; // quiz ở cuối module
   final VoidCallback? onToggle;
@@ -38,13 +39,14 @@ class LearningModule {
     required this.isLocked,
     required this.isCompleted,
     required this.isExpanded,
+    this.progress = 0.0,
     required this.lessons,
     this.quizId,
     this.onToggle,
   });
 }
 
-enum LessonType { video, quiz }
+enum LessonType { video, text, link, quiz }
 
 class Lesson {
   final String id;

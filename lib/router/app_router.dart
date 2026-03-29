@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/department_management/screen/department_detail_base.dart';
@@ -16,6 +15,7 @@ import 'package:smet/page/employee/my_courses/screen/my_courses_base.dart';
 import 'package:smet/page/employee/certificate/screen/certificate_page.dart';
 import 'package:smet/page/employee/live_session/screen/live_session_page.dart';
 import 'package:smet/page/employee/search/screen/search_page.dart';
+import 'package:smet/page/employee/widgets/shell/employee_shell.dart';
 import 'package:smet/page/home/home.dart';
 import 'package:smet/page/login/login.dart';
 import 'package:smet/page/mentor/mentor_dashboard/mentor_dashboard.dart';
@@ -36,7 +36,6 @@ import 'package:smet/page/project_manager/project/screen/project_management_base
 import 'package:smet/page/project_manager/project_member/screen/project_member_base.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_base.dart';
 import 'package:smet/page/mentor/mentor_quiz/mentor_create_quiz_web.dart';
-import 'package:smet/page/employee/learning_path/screen/learning_path_page.dart';
 
 final bool isWebPlatform = kIsWeb;
 
@@ -128,14 +127,18 @@ class AppPages {
             ],
           ),
 
+          // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module / final)
           GoRoute(
             path: '/mentor/quizzes/create',
             builder: (context, state) {
+              final quizId = state.uri.queryParameters['quizId'];
               final moduleId = state.uri.queryParameters['moduleId'];
               final courseId = state.uri.queryParameters['courseId'];
               final isFinalQuiz = state.uri.queryParameters['final'] == 'true';
 
+              // quizId != null → edit mode, quizId == null → create mode
               return MentorCreateQuizWeb(
+                quizId: quizId,
                 moduleId: moduleId,
                 courseId: courseId,
                 isFinalQuiz: isFinalQuiz,
@@ -196,87 +199,143 @@ class AppPages {
         builder: (context, state) => const LearningPathPage(),
       ),
 
-      // Employee Routes
-      GoRoute(
-        path: '/employee/dashboard',
-        builder: (context, state) => const EmployeeDashboardPage(),
+      // Employee Routes with ShellRoute (shared sidebar)
+      ShellRoute(
+        builder: (context, state, child) => EmployeeShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/employee/dashboard',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: EmployeeDashboardPage()),
+          ),
+          GoRoute(
+            path: '/employee/my-courses',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MyCoursesPage()),
+          ),
+          GoRoute(
+            path: '/employee/courses',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: CourseCatalogPage()),
+          ),
+          GoRoute(
+            path: '/employee/course/:id',
+            pageBuilder:
+                (context, state) {
+                  final courseId = state.pathParameters['id'] ?? '';
+                  return NoTransitionPage(
+                    child: CourseDetailPage(courseId: courseId),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/learn/:courseId',
+            pageBuilder:
+                (context, state) {
+                  final courseId = state.pathParameters['courseId'] ?? '';
+                  final quizId = state.uri.queryParameters['quizId'];
+                  final learningPathId = state.uri.queryParameters['learningPathId'];
+                  return NoTransitionPage(
+                    child: LearningWorkspacePage(
+                      courseId: courseId,
+                      quizId: quizId,
+                      learningPathId: learningPathId,
+                    ),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/learn/:courseId/quiz/:quizId',
+            pageBuilder:
+                (context, state) {
+                  final courseId = state.pathParameters['courseId'] ?? '';
+                  final quizId = state.pathParameters['quizId'] ?? '';
+                  final learningPathId = state.uri.queryParameters['learningPathId'];
+                  return NoTransitionPage(
+                    child: LearningWorkspacePage(
+                      courseId: courseId,
+                      quizId: quizId,
+                      learningPathId: learningPathId,
+                    ),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/learn/:courseId/:lessonId',
+            pageBuilder:
+                (context, state) {
+                  final courseId = state.pathParameters['courseId'] ?? '';
+                  final lessonId = state.pathParameters['lessonId'] ?? '';
+                  final learningPathId = state.uri.queryParameters['learningPathId'];
+                  return NoTransitionPage(
+                    child: LearningWorkspacePage(
+                      courseId: courseId,
+                      lessonId: lessonId,
+                      learningPathId: learningPathId,
+                    ),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/quiz/:quizId',
+            pageBuilder:
+                (context, state) {
+                  final quizId = state.pathParameters['quizId'] ?? '';
+                  return NoTransitionPage(child: QuizPage(quizId: quizId));
+                },
+          ),
+          GoRoute(
+            path: '/employee/quiz-history/:quizId',
+            pageBuilder:
+                (context, state) {
+                  final quizId = state.pathParameters['quizId'] ?? '';
+                  final quizTitle =
+                      state.uri.queryParameters['title'] ?? 'Bài kiểm tra';
+                  return NoTransitionPage(
+                    child: QuizHistoryPage(
+                      quizId: quizId,
+                      quizTitle: quizTitle,
+                    ),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/my-learning-paths',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: EmployeeLearningPathPage()),
+          ),
+          GoRoute(
+            path: '/employee/certificates',
+            pageBuilder:
+                (context, state) {
+                  final courseId = state.uri.queryParameters['courseId'];
+                  return NoTransitionPage(
+                    child: CertificatePage(courseId: courseId),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/live-sessions',
+            pageBuilder:
+                (context, state) {
+                  final courseId = state.uri.queryParameters['courseId'];
+                  return NoTransitionPage(
+                    child: LiveSessionPage(courseId: courseId),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/search',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: SearchPage()),
+          ),
+        ],
       ),
-      GoRoute(
-        path: '/employee/my-courses',
-        builder: (context, state) => const MyCoursesPage(),
-      ),
-      GoRoute(
-        path: '/employee/courses',
-        builder: (context, state) => const CourseCatalogPage(),
-      ),
-      GoRoute(
-        path: '/employee/course/:id',
-        builder: (context, state) {
-          final courseId = state.pathParameters['id'] ?? '';
-          return CourseDetailPage(courseId: courseId);
-        },
-      ),
-      // Learning Workspace Route
-      GoRoute(
-        path: '/employee/learn/:courseId',
-        builder: (context, state) {
-          final courseId = state.pathParameters['courseId'] ?? '';
-          final quizId = state.uri.queryParameters['quizId'];
-          return LearningWorkspacePage(courseId: courseId, quizId: quizId);
-        },
-      ),
-      GoRoute(
-        path: '/employee/learn/:courseId/quiz/:quizId',
-        builder: (context, state) {
-          final courseId = state.pathParameters['courseId'] ?? '';
-          final quizId = state.pathParameters['quizId'] ?? '';
-          return LearningWorkspacePage(courseId: courseId, quizId: quizId);
-        },
-      ),
-      GoRoute(
-        path: '/employee/learn/:courseId/:lessonId',
-        builder: (context, state) {
-          final courseId = state.pathParameters['courseId'] ?? '';
-          final lessonId = state.pathParameters['lessonId'] ?? '';
-          return LearningWorkspacePage(courseId: courseId, lessonId: lessonId);
-        },
-      ),
-      // Quiz Route
-      GoRoute(
-        path: '/employee/quiz/:quizId',
-        builder: (context, state) {
-          final quizId = state.pathParameters['quizId'] ?? '';
-          return QuizPage(quizId: quizId);
-        },
-      ),
-      GoRoute(
-        path: '/employee/quiz-history/:quizId',
-        builder: (context, state) {
-          final quizId = state.pathParameters['quizId'] ?? '';
-          final quizTitle =
-              state.uri.queryParameters['title'] ?? 'Bài kiểm tra';
-          return QuizHistoryPage(quizId: quizId, quizTitle: quizTitle);
-        },
-      ),
-      GoRoute(
-        path: '/employee/my-learning-paths',
-        builder: (context, state) => const EmployeeLearningPathPage(),
-      ),
-      GoRoute(
-        path: '/employee/certificates',
-        builder: (context, state) {
-          final courseId = state.uri.queryParameters['courseId'];
-          return CertificatePage(courseId: courseId);
-        },
-      ),
-      GoRoute(
-        path: '/employee/live-sessions',
-        builder: (context, state) {
-          final courseId = state.uri.queryParameters['courseId'];
-          return LiveSessionPage(courseId: courseId);
-        },
-      ),
-      GoRoute(path: '/search', builder: (context, state) => const SearchPage()),
     ],
   );
 }

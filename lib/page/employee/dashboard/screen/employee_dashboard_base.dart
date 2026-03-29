@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_web.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_mobile.dart';
-import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class EmployeeDashboardPage extends StatefulWidget {
@@ -14,10 +13,6 @@ class EmployeeDashboardPage extends StatefulWidget {
 }
 
 class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
-  // Current user info - sẽ được load từ API sau
-  String _userName = '';
-  String _userRole = '';
-  String? _avatarUrl; // TODO: Sử dụng cho avatar image sau
 
   // Dashboard data - sẽ được load từ API sau
   int _completedCourses = 0;
@@ -68,58 +63,14 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
   }
 
   // Navigation methods
-  void _onNavigateTo(String path) {
-    context.go(path);
-  }
-
-  void _onLogout() {
-    context.go('/login');
-  }
-
-  // Menu items for SharedSidebar
-  List<SidebarMenuItem> _getMenuItems() {
-    return const [
-      SidebarMenuItem(
-        icon: Icons.dashboard,
-        title: 'Trang chủ',
-        route: '/employee/dashboard',
-        tooltip: 'Trang chủ',
-      ),
-      SidebarMenuItem(
-        icon: Icons.library_books,
-        title: 'Khóa học của tôi',
-        route: '/employee/my-courses',
-        tooltip: 'Khóa học của tôi',
-      ),
-      SidebarMenuItem(
-        icon: Icons.explore,
-        title: 'Danh mục',
-        route: '/employee/courses',
-        tooltip: 'Danh mục khóa học',
-      ),
-      SidebarMenuItem(
-        icon: Icons.work,
-        title: 'Dự án của tôi',
-        route: '/employee/projects',
-        tooltip: 'Dự án của tôi',
-      ),
-      SidebarMenuItem(
-        icon: Icons.workspace_premium,
-        title: 'Chứng chỉ',
-        route: '/employee/certificates',
-        tooltip: 'Chứng chỉ của tôi',
-      ),
-    ];
-  }
 
   // Welcome section widget
   Widget buildWelcomeSection() {
-    final displayName = _userName.isNotEmpty ? _userName : 'Employee';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '$greetingMessage, $displayName!',
+          greetingMessage,
           style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -795,6 +746,13 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF3F6FC),
       body: SafeArea(
@@ -807,11 +765,6 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                 courseList: buildCourseList(),
                 deadlines: buildDeadlines(),
                 liveSessions: buildLiveSessions(),
-                userName: _userName.isNotEmpty ? _userName : 'Employee',
-                userRole: _userRole,
-                menuItems: _getMenuItems(),
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
                 breadcrumbs: const [BreadcrumbItem(label: 'Trang chủ')],
               );
             } else {
@@ -821,10 +774,8 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                 courseList: buildCourseList(),
                 deadlines: buildDeadlines(),
                 liveSessions: buildLiveSessions(),
-                userName: _userName.isNotEmpty ? _userName : 'Employee',
-                userRole: _userRole,
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                onNavigate: (path) => context.go(path),
+                onLogout: () => context.go('/login'),
               );
             }
           },

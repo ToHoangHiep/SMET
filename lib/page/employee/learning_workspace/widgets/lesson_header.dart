@@ -5,10 +5,8 @@ class LessonHeader extends StatelessWidget {
   final int durationMinutes;
   final String level;
   final String lessonId;
-  final String? quizId;
   final bool isCompleted;
   final VoidCallback onMarkComplete;
-  final VoidCallback? onTakeQuiz;
 
   const LessonHeader({
     super.key,
@@ -16,10 +14,8 @@ class LessonHeader extends StatelessWidget {
     required this.durationMinutes,
     required this.level,
     required this.lessonId,
-    this.quizId,
     this.isCompleted = false,
     required this.onMarkComplete,
-    this.onTakeQuiz,
   });
 
   @override
@@ -47,7 +43,7 @@ class LessonHeader extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
-        // Action Buttons
+        // 操作区：仅「Hoàn thành」；quiz 在侧边栏模块末尾「Kiểm tra Module」进入
         Row(
           children: [
             SizedBox(
@@ -72,29 +68,6 @@ class LessonHeader extends StatelessWidget {
                 label: Text(
                   isCompleted ? 'Đã hoàn thành' : 'Hoàn thành',
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 150,
-              child: OutlinedButton.icon(
-                onPressed: onTakeQuiz,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF22C55E),
-                  side: const BorderSide(color: Color(0xFF22C55E), width: 2),
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                icon: const Icon(Icons.quiz, size: 20),
-                label: const Text(
-                  'Làm Quiz',
-                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),

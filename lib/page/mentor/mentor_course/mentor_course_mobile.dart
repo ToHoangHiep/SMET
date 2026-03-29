@@ -22,7 +22,10 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
   // Pagination
   int _currentPage = 0;
+  int _totalPages = 0;
+  int _totalElements = 0;
   final int _pageSize = 10;
+  bool _isLoadingMore = false;
 
   final _searchController = TextEditingController();
 
@@ -40,8 +43,10 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
   Future<void> _loadCourses({int page = 0}) async {
     setState(() {
-      _isLoading = true;
-      _error = null;
+      if (page == 0) {
+        _isLoading = true;
+        _error = null;
+      }
       _currentPage = page;
     });
 
@@ -62,19 +67,56 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
       setState(() {
         _courses = result.content;
+        _totalPages = result.totalPages;
+        _totalElements = result.totalElements;
         _isLoading = false;
+        _isLoadingMore = false;
       });
     } catch (e) {
       setState(() {
         _error = e.toString();
         _isLoading = false;
+        _isLoadingMore = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreCourses() async {
+    if (_isLoadingMore || _currentPage >= _totalPages - 1) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      bool? published;
+      if (_selectedFilter == 'PUBLISHED') {
+        published = true;
+      } else if (_selectedFilter == 'DRAFT') {
+        published = false;
+      }
+
+      final result = await _service.listCourses(
+        keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
+        published: published,
+        page: _currentPage + 1,
+        size: _pageSize,
+      );
+
+      setState(() {
+        _courses = [..._courses, ...result.content];
+        _currentPage = result.number;
+        _totalPages = result.totalPages;
+        _totalElements = result.totalElements;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading more courses: $e');
+      setState(() => _isLoadingMore = false);
     }
   }
 
   void _onFilterChanged(String filter) {
     setState(() => _selectedFilter = filter);
-    _loadCourses();
+    _loadCourses(page: 0);
   }
 
   Future<void> _deleteCourse(CourseResponse course) async {
@@ -100,7 +142,11 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     if (confirm == true) {
       try {
         await _service.deleteCourse(course.id);
-        _loadCourses(page: _currentPage);
+        // Reload current page; if empty, go to previous page
+        final targetPage = _courses.length == 1 && _currentPage > 0
+            ? _currentPage - 1
+            : _currentPage;
+        _loadCourses(page: targetPage);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Xóa khóa học thành công")),
@@ -162,7 +208,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
               controller: _searchController,
               onSubmitted: (q) => setState(() {
                 _searchQuery = q;
-                _loadCourses();
+                _loadCourses(page: 0);
               }),
               decoration: InputDecoration(
                 hintText: "Tìm kiếm khóa học...",
@@ -268,12 +314,52 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _loadCourses(),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _courses.length,
-        itemBuilder: (context, index) => _buildCourseCard(_courses[index]),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollEndNotification &&
+            notification.metrics.pixels >=
+                notification.metrics.maxScrollExtent - 200 &&
+            !_isLoadingMore &&
+            _currentPage < _totalPages - 1) {
+          _loadMoreCourses();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: () => _loadCourses(),
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: _courses.length + 1,
+          itemBuilder: (context, index) {
+            if (index == _courses.length) {
+              if (_isLoadingMore) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              }
+              if (_currentPage >= _totalPages - 1) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      '$_totalElements khóa học',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }
+            return _buildCourseCard(_courses[index]);
+          },
+        ),
       ),
     );
   }
