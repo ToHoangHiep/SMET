@@ -1,4 +1,5 @@
 import 'package:smet/model/learning_path_model.dart';
+import 'package:smet/model/question_model.dart';
 
 class QuizModel {
   final Long? id;
@@ -11,6 +12,8 @@ class QuizModel {
   final bool isFinalQuiz;
   final Long? courseId;
   final Long? moduleId;
+  final List<QuestionModel>? questions;
+  final int? totalQuestions;
 
   QuizModel({
     this.id,
@@ -23,6 +26,8 @@ class QuizModel {
     required this.isFinalQuiz,
     this.courseId,
     this.moduleId,
+    this.questions,
+    this.totalQuestions,
   });
 
   factory QuizModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +49,12 @@ class QuizModel {
           json['module_id'] != null
               ? Long(json['module_id'])
               : (json['moduleId'] != null ? Long(json['moduleId']) : null),
+      questions: json['questions'] != null
+          ? (json['questions'] as List)
+              .map((q) => QuestionModel.fromJson(q))
+              .toList()
+          : null,
+      totalQuestions: json['totalQuestions'],
     );
   }
 

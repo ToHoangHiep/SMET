@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/Employee_learning_model.dart';
 
-/// Sidebar danh sách module / bài học — UI theo mock HTML (w-80, Lexend-like).
+/// Course Outline Sidebar — modern Coursera-style:
+/// - Progress pill per module
+/// - Current lesson: highlight bg + left border primary
+/// - Smooth expand/collapse animation
+/// - Hover states on all interactive elements
 class CourseOutlineSidebar extends StatefulWidget {
   final LearningCourse course;
   final void Function(Lesson lesson) onLessonTap;
@@ -30,8 +34,7 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
   static const _border = Color(0xFFE2E8F0);
   static const _slate500 = Color(0xFF64748B);
   static const _slate600 = Color(0xFF475569);
-  static const _slate900 = Color(0xFF0F172A);
-  static const _bgHover = Color(0xFFF8FAFC);
+  static const _success = Color(0xFF22C55E);
 
   @override
   void dispose() {
@@ -44,7 +47,8 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
     return t.isEmpty ? 'Khóa học' : t;
   }
 
-  double get _progress => widget.course.progressPercent.clamp(0, 100) / 100.0;
+  double get _progress =>
+      widget.course.progressPercent.clamp(0, 100) / 100.0;
 
   @override
   Widget build(BuildContext context) {
@@ -72,19 +76,13 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                 children: [
                   for (var i = 0; i < widget.course.modules.length; i++)
                     Padding(
-                      padding: EdgeInsets.only(bottom: i == 0 ? 0 : 16),
+                      padding: EdgeInsets.only(bottom: i == 0 ? 0 : 12),
                       child: _ModuleSection(
                         module: widget.course.modules[i],
                         currentLessonId: widget.currentLessonId,
                         currentQuizId: widget.currentQuizId,
                         onLessonTap: widget.onLessonTap,
                         onQuizTap: widget.onQuizTap,
-                        primary: _primary,
-                        border: _border,
-                        slate500: _slate500,
-                        slate600: _slate600,
-                        slate900: _slate900,
-                        bgHover: _bgHover,
                       ),
                     ),
                 ],
@@ -100,9 +98,10 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
 
   Widget _buildCourseHeader() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,7 +115,7 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
                     color: _slate500,
@@ -125,24 +124,51 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                '${widget.course.progressPercent.round().clamp(0, 100)}%',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: _primary,
+              // Progress pill
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${widget.course.progressPercent.round().clamp(0, 100)}%',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _primary,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: _progress,
-              minHeight: 8,
-              backgroundColor: const Color(0xFFF1F5F9),
-              valueColor: const AlwaysStoppedAnimation<Color>(_primary),
+          const SizedBox(height: 12),
+          // Gradient progress bar
+          Container(
+            height: 8,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                      width: constraints.maxWidth * _progress,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF137FEC), Color(0xFF22C55E)],
+                        ),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -152,6 +178,7 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
 
   Widget _buildFinalQuizSection() {
     final isActive = widget.currentQuizId != null;
+    final isLocked = widget.course.progressPercent < 80;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -161,26 +188,39 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => widget.onQuizTap(widget.course.finalQuizId!),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          onTap: isLocked ? null : () => widget.onQuizTap(widget.course.finalQuizId!),
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: isActive ? _primary.withValues(alpha: 0.1) : Colors.white,
-              borderRadius: BorderRadius.circular(8),
+              color: isActive ? _primary.withValues(alpha: 0.08) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isActive ? _primary : const Color(0xFFE2E8F0),
-                width: 1.5,
+                width: isActive ? 1.5 : 1,
               ),
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.workspace_premium_outlined,
-                  size: 22,
-                  color: isActive ? _primary : const Color(0xFF22C55E),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? _primary.withValues(alpha: 0.1)
+                        : isLocked
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF22C55E).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isLocked ? Icons.lock_outline : Icons.workspace_premium_outlined,
+                    size: 22,
+                    color: isActive ? _primary : (isLocked ? const Color(0xFFCBD5E1) : _success),
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,19 +228,21 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                       const Text(
                         'BÀI KIỂM TRA CUỐI KHÓA',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.6,
                           color: _slate500,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
-                        'Hoàn thành tất cả module để mở khóa',
+                        isLocked
+                            ? 'Hoàn thành 80% khóa học để mở'
+                            : 'Hoàn thành tất cả module để mở khóa',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: _slate600,
+                          color: isLocked ? const Color(0xFF94A3B8) : _slate600,
                         ),
                       ),
                     ],
@@ -227,12 +269,12 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
       ),
       child: Material(
         color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: () => setState(() => _collapsed = true),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -300,12 +342,6 @@ class _ModuleSection extends StatefulWidget {
   final String? currentQuizId;
   final void Function(Lesson) onLessonTap;
   final void Function(String quizId) onQuizTap;
-  final Color primary;
-  final Color border;
-  final Color slate500;
-  final Color slate600;
-  final Color slate900;
-  final Color bgHover;
 
   const _ModuleSection({
     required this.module,
@@ -313,28 +349,55 @@ class _ModuleSection extends StatefulWidget {
     required this.currentQuizId,
     required this.onLessonTap,
     required this.onQuizTap,
-    required this.primary,
-    required this.border,
-    required this.slate500,
-    required this.slate600,
-    required this.slate900,
-    required this.bgHover,
   });
 
   @override
   State<_ModuleSection> createState() => _ModuleSectionState();
 }
 
-class _ModuleSectionState extends State<_ModuleSection> {
+class _ModuleSectionState extends State<_ModuleSection>
+    with SingleTickerProviderStateMixin {
   late bool _expanded;
+  late AnimationController _animController;
+  late Animation<double> _iconRotation;
+  bool _isHovered = false;
 
   @override
   void initState() {
     super.initState();
-    _expanded =
-        widget.module.isExpanded ||
+    _expanded = widget.module.isExpanded ||
         widget.module.lessons.any((l) => l.isCurrent) ||
         widget.module.lessons.any((l) => l.id == widget.currentLessonId);
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+    _iconRotation = Tween<double>(begin: 0, end: 0.5).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+    );
+    if (_expanded) _animController.value = 1;
+  }
+
+  @override
+  void didUpdateWidget(_ModuleSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final shouldExpand = widget.module.isExpanded ||
+        widget.module.lessons.any((l) => l.isCurrent) ||
+        widget.module.lessons.any((l) => l.id == widget.currentLessonId);
+    if (shouldExpand != _expanded) {
+      _expanded = shouldExpand;
+      if (_expanded) {
+        _animController.forward();
+      } else {
+        _animController.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
   }
 
   bool get _isFinalOnly {
@@ -350,219 +413,310 @@ class _ModuleSectionState extends State<_ModuleSection> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isFinalOnly) {
-      return _buildFinalAssessmentRow();
-    }
+    if (_isFinalOnly) return _buildFinalAssessmentRow();
+    if (widget.module.isLocked) return _buildLockedModule();
 
-    if (widget.module.isLocked) {
-      return _buildLockedModule();
-    }
+    // Calculate module progress
+    final completed =
+        widget.module.lessons.where((l) => l.isCompleted).length;
+    final total = widget.module.lessons.length;
+    final progress = total > 0 ? completed / total : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    _expanded
-                        ? Icons.folder_open_outlined
-                        : Icons.folder_outlined,
-                    size: 22,
-                    color: widget.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.module.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.slate900,
+        // Module header with hover
+        MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              color: _isHovered
+                  ? const Color(0xFFF8FAFC)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  setState(() => _expanded = !_expanded);
+                  if (_expanded) {
+                    _animController.forward();
+                  } else {
+                    _animController.reverse();
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Row(
+                    children: [
+                      // Folder icon
+                      Icon(
+                        _expanded
+                            ? Icons.folder_open_outlined
+                            : Icons.folder_outlined,
+                        size: 20,
+                        color: const Color(0xFF137FEC),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.module.title,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                // Progress pill
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: progress >= 1.0
+                                        ? const Color(0xFF22C55E)
+                                            .withValues(alpha: 0.1)
+                                        : const Color(0xFF137FEC).withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${(progress * 100).round()}%',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: progress >= 1.0
+                                          ? const Color(0xFF22C55E)
+                                          : const Color(0xFF137FEC),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$completed/$total',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      RotationTransition(
+                        turns: _iconRotation,
+                        child: const Icon(
+                          Icons.expand_more,
+                          size: 20,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
                   ),
-                  Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 22,
-                    color: widget.slate500,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-        if (_expanded)
-          Padding(
-            padding: const EdgeInsets.only(left: 36, top: 4),
+
+        // Lessons list with animated reveal
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 250),
+          crossFadeState:
+              _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          firstChild: Padding(
+            padding: const EdgeInsets.only(left: 44, top: 6, bottom: 4),
             child: Column(
               children: [
-                ...widget.module.lessons.map((lesson) {
-                  final isActive =
-                      lesson.id == widget.currentLessonId || lesson.isCurrent;
-                  return _LessonRow(
+                for (final lesson in widget.module.lessons)
+                  _LessonRow(
                     lesson: lesson,
-                    isActive: isActive,
+                    currentLessonId: widget.currentLessonId,
                     onTap: () => widget.onLessonTap(lesson),
-                    primary: widget.primary,
-                    slate600: widget.slate600,
-                    bgHover: widget.bgHover,
-                  );
-                }),
+                  ),
                 if (widget.module.quizId != null)
                   _ModuleQuizRow(
                     quizId: widget.module.quizId!,
                     isCompleted: widget.module.isCompleted,
                     isActive: widget.currentQuizId == widget.module.quizId,
+                    moduleProgress: widget.module.progress,
                     onTap: widget.onQuizTap,
-                    primary: widget.primary,
-                    border: widget.border,
-                    slate500: widget.slate500,
-                    slate600: widget.slate600,
-                    bgHover: widget.bgHover,
                   ),
               ],
             ),
           ),
+          secondChild: const SizedBox.shrink(),
+        ),
       ],
     );
   }
 
   Widget _buildLockedModule() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {},
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Row(
-            children: [
-              Icon(Icons.lock_outline, size: 22, color: widget.slate500),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.module.title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: widget.slate500,
-                  ),
-                ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline, size: 20, color: Color(0xFFCBD5E1)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.module.title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF94A3B8),
               ),
-              Icon(Icons.chevron_right, size: 22, color: widget.slate500),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildFinalAssessmentRow() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Row(
-            children: [
-              Icon(Icons.quiz_outlined, size: 22, color: widget.slate500),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.module.title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: widget.slate900,
-                  ),
-                ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: [
+          const Icon(Icons.quiz_outlined, size: 20, color: Color(0xFF64748B)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.module.title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F172A),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _LessonRow extends StatelessWidget {
+class _LessonRow extends StatefulWidget {
   final Lesson lesson;
-  final bool isActive;
+  final String? currentLessonId;
   final VoidCallback onTap;
-  final Color primary;
-  final Color slate600;
-  final Color bgHover;
 
   const _LessonRow({
     required this.lesson,
-    required this.isActive,
+    required this.currentLessonId,
     required this.onTap,
-    required this.primary,
-    required this.slate600,
-    required this.bgHover,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isQuiz = lesson.lessonType == LessonType.quiz;
+  State<_LessonRow> createState() => _LessonRowState();
+}
 
+class _LessonRowState extends State<_LessonRow> {
+  bool _isHovered = false;
+
+  bool get _isActive =>
+      widget.lesson.id == widget.currentLessonId || widget.lesson.isCurrent;
+
+  IconData get _icon {
+    if (widget.lesson.isCompleted) return Icons.check_circle;
+    switch (widget.lesson.lessonType) {
+      case LessonType.quiz:
+        return Icons.quiz_outlined;
+      case LessonType.text:
+        return Icons.article_outlined;
+      case LessonType.link:
+        return Icons.link;
+      default:
+        return Icons.play_circle_outline;
+    }
+  }
+
+  Color get _iconColor {
+    if (widget.lesson.isCompleted) return const Color(0xFF22C55E);
+    if (_isActive) return const Color(0xFF137FEC);
+    return const Color(0xFF94A3B8);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          hoverColor: bgHover,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color:
-                  isActive
-                      ? primary.withValues(alpha: 0.1)
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    lesson.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                      color: isActive ? primary : slate600,
-                      height: 1.35,
+      padding: const EdgeInsets.only(bottom: 2),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _isActive
+                ? const Color(0xFF137FEC).withValues(alpha: 0.08)
+                : (_isHovered
+                    ? const Color(0xFFF8FAFC)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(6),
+            border: _isActive
+                ? const Border(
+                    left: BorderSide(
+                      color: Color(0xFF137FEC),
+                      width: 3,
                     ),
-                  ),
+                  )
+                : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                child: Row(
+                  children: [
+                    Icon(_icon, size: 20, color: _iconColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.lesson.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              _isActive ? FontWeight.w600 : FontWeight.w500,
+                          color: _isActive
+                              ? const Color(0xFF137FEC)
+                              : (widget.lesson.isCompleted
+                                  ? const Color(0xFF22C55E)
+                                  : const Color(0xFF475569)),
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    if (_isHovered && !widget.lesson.isCompleted)
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 16,
+                        color: Color(0xFFCBD5E1),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Icon(
-                  isQuiz
-                      ? (lesson.isCompleted
-                          ? Icons.check_circle
-                          : Icons.quiz_outlined)
-                      : (lesson.isCompleted
-                          ? Icons.check_circle_outline
-                          : Icons.play_circle_outline),
-                  size: 20,
-                  color:
-                      lesson.isCompleted
-                          ? const Color(0xFF22C55E)
-                          : (isActive ? primary : slate600),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -571,90 +725,101 @@ class _LessonRow extends StatelessWidget {
   }
 }
 
-class _ModuleQuizRow extends StatelessWidget {
+class _ModuleQuizRow extends StatefulWidget {
   final String quizId;
   final bool isCompleted;
   final bool isActive;
+  final double moduleProgress; // 0.0 - 1.0
   final void Function(String) onTap;
-  final Color primary;
-  final Color border;
-  final Color slate500;
-  final Color slate600;
-  final Color bgHover;
 
   const _ModuleQuizRow({
     required this.quizId,
     required this.isCompleted,
     required this.isActive,
+    required this.moduleProgress,
     required this.onTap,
-    required this.primary,
-    required this.border,
-    required this.slate500,
-    required this.slate600,
-    required this.bgHover,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isLocked = isCompleted;
+  State<_ModuleQuizRow> createState() => _ModuleQuizRowState();
+}
 
+class _ModuleQuizRowState extends State<_ModuleQuizRow> {
+  bool _isHovered = false;
+  bool get _isLocked => widget.moduleProgress < 0.8;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isLocked ? null : () => onTap(quizId),
-          borderRadius: BorderRadius.circular(6),
-          hoverColor: isLocked ? null : bgHover,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color:
-                  isActive
-                      ? primary.withValues(alpha: 0.1)
-                      : Colors.transparent,
+      padding: const EdgeInsets.only(bottom: 2),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: widget.isActive
+                ? const Color(0xFF137FEC).withValues(alpha: 0.08)
+                : (_isHovered && !_isLocked
+                    ? const Color(0xFFF8FAFC)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isLocked ? null : () => widget.onTap(widget.quizId),
               borderRadius: BorderRadius.circular(6),
-              border: isLocked ? Border.all(color: border, width: 1) : null,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isCompleted
-                      ? Icons.check_circle
-                      : (isLocked ? Icons.lock_outline : Icons.quiz_outlined),
-                  size: 20,
-                  color:
-                      isCompleted
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.isCompleted
+                          ? Icons.check_circle
+                          : (_isLocked
+                              ? Icons.lock_outline
+                              : Icons.quiz_outlined),
+                      size: 20,
+                      color: widget.isCompleted
                           ? const Color(0xFF22C55E)
-                          : (isLocked ? slate500 : primary),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isCompleted
-                        ? 'Kiểm tra Module'
-                        : (isLocked
-                            ? 'Hoàn thành bài học để mở'
-                            : 'Kiểm tra Module'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                      color:
-                          isCompleted
-                              ? const Color(0xFF22C55E)
-                              : (isLocked ? slate500 : slate600),
-                      height: 1.35,
+                          : (_isLocked
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF137FEC)),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.isCompleted
+                            ? 'Kiểm tra Module'
+                            : (_isLocked
+                                ? 'Hoàn thành 80% bài học để mở'
+                                : 'Kiểm tra Module'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              widget.isActive ? FontWeight.w600 : FontWeight.w500,
+                          color: widget.isCompleted
+                              ? const Color(0xFF22C55E)
+                              : (_isLocked
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF475569)),
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    if (_isLocked)
+                      Tooltip(
+                        message: 'Hoàn thành 80% bài học để mở',
+                        child: const Icon(Icons.help_outline,
+                            size: 15, color: Color(0xFFCBD5E1)),
+                      ),
+                  ],
                 ),
-                if (isLocked)
-                  Tooltip(
-                    message: 'Hoàn thành tất cả bài học để mở',
-                    child: Icon(Icons.help_outline, size: 16, color: slate500),
-                  ),
-              ],
+              ),
             ),
           ),
         ),

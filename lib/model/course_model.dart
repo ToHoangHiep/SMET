@@ -315,6 +315,8 @@ class ModuleResponse {
   final int orderIndex;
   final List<LessonResponse> lessons;
   final DateTime? createdAt;
+  /// Quiz cuối module (từ API GET /lms/modules/course/{id})
+  final Long? quizId;
 
   ModuleResponse({
     required this.id,
@@ -323,6 +325,7 @@ class ModuleResponse {
     required this.orderIndex,
     this.lessons = const [],
     this.createdAt,
+    this.quizId,
   });
 
   int get lessonCount => lessons.length;
@@ -342,6 +345,7 @@ class ModuleResponse {
           json['createdAt'] != null
               ? DateTime.tryParse(json['createdAt'])
               : null,
+      quizId: json['quizId'] != null ? _parseLong(json['quizId']) : null,
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smet/page/mentor/mentor_dashboard/mentor_sidebar.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class MentorDashboardWeb extends StatelessWidget {
   const MentorDashboardWeb({super.key});
@@ -20,34 +20,17 @@ class MentorDashboardWeb extends StatelessWidget {
             child: Column(
               children: [
 
-                /// HEADER
+                /// PAGE HEADER WITH BREADCRUMB
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  height: 70,
-                  color: Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-
-                      const Text(
-                        "Mentor Dashboard",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      Row(
-                        children: const [
-                          Icon(Icons.search),
-                          SizedBox(width: 20),
-                          CircleAvatar(
-                            backgroundImage: NetworkImage(
-                                "https://lh3.googleusercontent.com/aida-public/AB6AXuBWLiqpFmgOF57zCBqOqCPaAy_fiVLHuuBmUc4kL5OnkqsnCELHDrE9dvZhwuE7Tfdo2BfeJsnbI7eFzKecAAUvc4VDQyy9fhroLL9Fsq3Fe9m9OQdQsarQiEaDahR8Gu-wx5kEcJiFtw7okVymvu3-BArXeYWLirr9AGeRNlVEh_eVuk4lyRcMYsIs8xYl8bt-CFoFoYm8lmHXVccX_Hd0qO1alKdFyK5FS-2l0G8eVs6Im6Sh1BFPZ5RlhXyRxAEitnNLTq7OnPD4"),
-                          )
-                        ],
-                      )
+                  margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+                  child: BreadcrumbPageHeader(
+                    pageTitle: "Mentor Dashboard",
+                    pageIcon: Icons.dashboard_rounded,
+                    breadcrumbs: const [
+                      BreadcrumbItem(label: "Mentor", route: "/mentor/dashboard"),
+                      BreadcrumbItem(label: "Tổng quan"),
                     ],
+                    primaryColor: const Color(0xFF6366F1),
                   ),
                 ),
 

@@ -6,8 +6,6 @@ class EmployeeDashboardMobile extends StatelessWidget {
   final Widget courseList;
   final Widget deadlines;
   final Widget liveSessions;
-  final String userName;
-  final String userRole;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
 
@@ -18,8 +16,6 @@ class EmployeeDashboardMobile extends StatelessWidget {
     required this.courseList,
     required this.deadlines,
     required this.liveSessions,
-    required this.userName,
-    required this.userRole,
     required this.onNavigate,
     required this.onLogout,
   });
@@ -138,16 +134,16 @@ class EmployeeDashboardMobile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  userName.isNotEmpty ? userName : 'Employee',
-                  style: const TextStyle(
+                const Text(
+                  'Nhân viên',
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  userRole.isNotEmpty ? userRole : 'Nhân viên',
+                  'Nhân viên',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 14,

@@ -1,13 +1,16 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/course_model.dart';
+import 'package:smet/model/learning_path_model.dart' as lp_model;
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/mentor/lesson_service.dart';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 import 'package:smet/service/mentor/lesson_content_service.dart';
+import 'package:smet/service/mentor/quiz_service.dart';
 
 /// Mentor Course Detail / Edit - Web Layout
 class MentorCourseDetailWeb extends StatefulWidget {
@@ -21,10 +24,14 @@ class MentorCourseDetailWeb extends StatefulWidget {
 
 class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     with SingleTickerProviderStateMixin {
+  static const _primary = Color(0xFF137FEC);
+
   final MentorCourseService _courseService = MentorCourseService();
   final MentorModuleService _moduleService = MentorModuleService();
   final MentorLessonService _lessonService = MentorLessonService();
   final LessonContentService _lessonContentService = LessonContentService();
+  final MentorQuizService _quizService = MentorQuizService();
+
   late TabController _tabController;
   CourseDetailResponse? _course;
   bool _isLoading = true;
@@ -33,15 +40,15 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   bool _isEditMode = false;
 
   bool _isLessonDialogOpen = false;
-  // Form controllers
+
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
   DeadlineType _deadlineType = DeadlineType.RELATIVE;
   int _deadlineDays = 20;
   DateTime? _fixedDeadline;
 
-  // Module/lesson editing state
   List<ModuleResponse> _modules = [];
+  Long? _finalQuizId;
 
   @override
   void initState() {
@@ -84,8 +91,8 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         _deadlineDays = course.defaultDeadlineDays ?? 20;
         _fixedDeadline = course.fixedDeadline;
       });
-      // Load modules separately since course detail doesn't include them
       await _loadModules();
+      await _loadFinalQuizId();
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -103,7 +110,6 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     if (_course == null) return;
     try {
       final modules = await _moduleService.getModulesByCourse(_course!.id);
-      // Load lessons for each module separately
       final modulesWithLessons = await Future.wait(
         modules.map((m) async {
           try {
@@ -113,18 +119,40 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
               title: m.title,
               orderIndex: m.orderIndex,
               lessons: lessons,
+              quizId: m.quizId,
             );
           } catch (_) {
-            return m; // fallback to module without lessons
+            return m;
           }
         }),
       );
       if (mounted) {
         setState(() => _modules = modulesWithLessons);
       }
+      for (final m in modulesWithLessons) {
+        log(
+          '[QuizDebug] module id=${m.id.value} title="${m.title}" quizId=${m.quizId?.value} '
+          '(UI "Đã tạo"/"Chưa tạo" theo quizId != null)',
+        );
+      }
     } catch (e) {
-      // Silently fail for modules load, course info still shows
       log("  [WARN] Failed to load modules: $e");
+    }
+  }
+
+  Future<void> _loadFinalQuizId() async {
+    if (_course == null) return;
+    try {
+      final q = await _quizService.getFinalQuizByCourse(
+        lp_model.Long(_course!.id.value),
+      );
+      if (mounted) {
+        setState(() {
+          _finalQuizId = q.id != null ? Long(q.id!.value) : null;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _finalQuizId = null);
     }
   }
 
@@ -155,19 +183,15 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Lưu thành công"),
-            backgroundColor: Colors.green,
+            backgroundColor: Color(0xFF22C55E),
           ),
         );
-
-        // 👉 QUAN TRỌNG: quay về list + trigger reload
-        context.go(
-          '/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}',
-        );
+        context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
         );
       }
     } finally {
@@ -178,27 +202,54 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   Future<void> _publishCourse() async {
     try {
       await _courseService.publishCourse(_course!.id);
-      context.go('/mentor/courses?refresh=...');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Xuất bản thành công"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Xuất bản thành công"),
+          backgroundColor: Color(0xFF22C55E),
+        ),
+      );
+      context.go(
+        '/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}',
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
         );
       }
     }
   }
 
   // ============================================
-  // MODULE ACTIONS
+  // DIALOG HELPERS
   // ============================================
+
+  InputDecoration _field(String label, {IconData? icon}) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF94A3B8), size: 20) : null,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      filled: true,
+      fillColor: const Color(0xFFFAFAFA),
+    );
+  }
 
   Future<void> _showAddModuleDialog() async {
     final titleController = TextEditingController();
@@ -206,49 +257,57 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
     final result = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Thêm Chương mới"),
-            content: Form(
-              key: formKey,
-              child: TextFormField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: "Tên chương",
-                  border: OutlineInputBorder(),
-                ),
-                validator:
-                    (v) =>
-                        (v == null || v.trim().isEmpty)
-                            ? "Vui lòng nhập tên chương"
-                            : null,
-                autofocus: true,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: const Icon(Icons.library_add, color: _primary, size: 20),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Hủy"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (formKey.currentState!.validate()) {
-                    Navigator.pop(context, true);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff1a90ff),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text("Thêm"),
-              ),
-            ],
+            const SizedBox(width: 12),
+            const Text("Thêm Chương mới"),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: titleController,
+            autofocus: true,
+            decoration: _field("Tên chương", icon: Icons.bookmark_add_outlined),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? "Vui lòng nhập tên chương" : null,
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Thêm"),
+          ),
+        ],
+      ),
     );
 
-    if (result == true &&
-        titleController.text.trim().isNotEmpty &&
-        _course != null) {
+    if (result == true && titleController.text.trim().isNotEmpty && _course != null) {
       try {
         final request = CreateModuleRequest(
           title: titleController.text.trim(),
@@ -261,14 +320,14 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Thêm chương thành công"),
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFF22C55E),
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
           );
         }
       }
@@ -281,39 +340,54 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
     final result = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Chỉnh sửa chương"),
-            content: Form(
-              key: formKey,
-              child: TextFormField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  labelText: "Tên chương",
-                  border: OutlineInputBorder(),
-                ),
-                validator:
-                    (v) =>
-                        (v == null || v.trim().isEmpty)
-                            ? "Không được để trống"
-                            : null,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: const Icon(Icons.edit_outlined, color: _primary, size: 20),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Hủy"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (formKey.currentState!.validate()) {
-                    Navigator.pop(context, true);
-                  }
-                },
-                child: const Text("Lưu"),
-              ),
-            ],
+            const SizedBox(width: 12),
+            const Text("Chỉnh sửa chương"),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            decoration: _field("Tên chương", icon: Icons.bookmark_outlined),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? "Không được để trống" : null,
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Lưu"),
+          ),
+        ],
+      ),
     );
 
     if (result == true) {
@@ -323,17 +397,22 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           orderIndex: module.orderIndex,
           courseId: _course!.id,
         );
-
         await _moduleService.updateModule(module.id, request);
         await _loadCourse();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Cập nhật chương thành công")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Cập nhật chương thành công"),
+              backgroundColor: Color(0xFF22C55E),
+            ),
+          );
+        }
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          );
+        }
       }
     }
   }
@@ -347,103 +426,94 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
     final result = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text("Thêm Bài học vào '${module.title}'"),
-            content: StatefulBuilder(
-              builder: (context, setStateDialog) {
-                return Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      /// TITLE
-                      TextFormField(
-                        controller: titleController,
-                        decoration: const InputDecoration(
-                          labelText: "Tên bài học",
-                          border: OutlineInputBorder(),
-                        ),
-                        validator:
-                            (v) =>
-                                (v == null || v.trim().isEmpty)
-                                    ? "Vui lòng nhập tên bài học"
-                                    : null,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      /// TYPE
-                      DropdownButtonFormField<String>(
-                        value: lessonType,
-                        decoration: const InputDecoration(
-                          labelText: "Loại nội dung",
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'TEXT', child: Text("Text")),
-                          DropdownMenuItem(
-                            value: 'VIDEO',
-                            child: Text("Video"),
-                          ),
-                          DropdownMenuItem(
-                            value: 'LINK',
-                            child: Text("Tài liệu"),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          setStateDialog(() {
-                            lessonType = v!;
-                          });
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      /// CONTENT
-                      if (lessonType == 'TEXT' || lessonType == 'LINK')
-                        TextFormField(
-                          controller: contentController,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: "Nội dung / Link",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-
-                      if (lessonType == 'VIDEO')
-                        TextFormField(
-                          controller: videoController,
-                          decoration: const InputDecoration(
-                            labelText: "YouTube embed URL",
-                            hintText: "https://www.youtube.com/embed/xxx",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Hủy"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  if (formKey.currentState!.validate()) {
-                    Navigator.pop(context, true);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff1a90ff),
-                  foregroundColor: Colors.white,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text("Thêm"),
+                child: const Icon(Icons.play_circle_filled, color: _primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "Bài học: ${module.title}",
+                  style: const TextStyle(fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleController,
+                    decoration: _field("Tên bài học", icon: Icons.title),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? "Vui lòng nhập tên bài học" : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: lessonType,
+                    decoration: _field("Loại nội dung", icon: Icons.category_outlined),
+                    items: const [
+                      DropdownMenuItem(value: 'TEXT', child: Text("Văn bản")),
+                      DropdownMenuItem(value: 'VIDEO', child: Text("Video")),
+                      DropdownMenuItem(value: 'LINK', child: Text("Tài liệu")),
+                    ],
+                    onChanged: (v) => setStateDialog(() => lessonType = v!),
+                  ),
+                  const SizedBox(height: 12),
+                  if (lessonType == 'TEXT' || lessonType == 'LINK')
+                    TextFormField(
+                      controller: contentController,
+                      maxLines: 3,
+                      decoration: _field(
+                        lessonType == 'LINK' ? "Link tài liệu" : "Nội dung",
+                        icon: lessonType == 'LINK' ? Icons.link : Icons.article_outlined,
+                      ),
+                    ),
+                  if (lessonType == 'VIDEO')
+                    TextFormField(
+                      controller: videoController,
+                      decoration: _field("YouTube embed URL", icon: Icons.videocam_outlined),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(context, true);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text("Thêm"),
+            ),
+          ],
+        ),
+      ),
     );
 
     if (result == true && titleController.text.trim().isNotEmpty) {
@@ -458,197 +528,152 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         );
         final lesson = await _lessonService.createLesson(request);
 
-        // 🔥 TẠO CONTENT
-        String? contentValue;
-
+        String contentValue;
         if (lessonType == 'VIDEO') {
           contentValue = videoController.text.trim();
         } else {
           contentValue = contentController.text.trim();
         }
 
-        if (contentValue != null && contentValue.isNotEmpty) {
+        if (contentValue.isNotEmpty) {
           await _lessonContentService.createContent(
-            lesson.id.value, // 🔥 FIX CHÍNH
+            lesson.id.value,
             {"type": lessonType, "content": contentValue, "orderIndex": 0},
           );
         }
 
         await _loadCourse();
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Thêm bài học thành công"),
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFF22C55E),
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
           );
         }
       }
     }
   }
 
-  Future<void> _showEditLessonDialog(
-    ModuleResponse module,
-    LessonResponse lesson,
-  ) async {
+  Future<void> _showEditLessonDialog(ModuleResponse module, LessonResponse lesson) async {
     final titleController = TextEditingController(text: lesson.title);
     final contentController = TextEditingController(text: lesson.content ?? '');
     final videoController = TextEditingController(text: lesson.videoUrl ?? '');
-
     String lessonType = lesson.contentType ?? 'TEXT';
-
     final formKey = GlobalKey<FormState>();
 
     final result = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder: (context, setStateDialog) {
-              return AlertDialog(
-                title: const Text("Chỉnh sửa bài học"),
-                content: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      /// TITLE
-                      TextFormField(
-                        controller: titleController,
-                        decoration: const InputDecoration(
-                          labelText: "Tên bài học",
-                          border: OutlineInputBorder(),
-                        ),
-                        validator:
-                            (v) =>
-                                (v == null || v.trim().isEmpty)
-                                    ? "Vui lòng nhập tên bài học"
-                                    : null,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      /// TYPE
-                      DropdownButtonFormField<String>(
-                        value: lessonType,
-                        items: const [
-                          DropdownMenuItem(value: 'TEXT', child: Text("Text")),
-                          DropdownMenuItem(
-                            value: 'VIDEO',
-                            child: Text("Video"),
-                          ),
-                          DropdownMenuItem(
-                            value: 'LINK',
-                            child: Text("Tài liệu"),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          setStateDialog(() {
-                            lessonType = v!;
-                          });
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      /// CONTENT
-                      if (lessonType == 'TEXT' || lessonType == 'LINK')
-                        TextFormField(
-                          controller: contentController,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            labelText:
-                                lessonType == 'LINK'
-                                    ? "Link tài liệu"
-                                    : "Nội dung",
-                            hintText:
-                                lessonType == 'LINK'
-                                    ? "https://example.com/file.pdf"
-                                    : null,
-                            border: const OutlineInputBorder(),
-                          ),
-                          validator: (v) {
-                            final value = v?.trim() ?? '';
-
-                            if (lessonType == 'TEXT') {
-                              if (value.isEmpty) {
-                                return "Vui lòng nhập nội dung";
-                              }
-                            }
-
-                            if (lessonType == 'LINK') {
-                              if (value.isEmpty) {
-                                return "Vui lòng nhập link tài liệu";
-                              }
-
-                              final lower = value.toLowerCase();
-                              final isValid =
-                                  lower.endsWith('.pdf') ||
-                                  lower.endsWith('.doc') ||
-                                  lower.endsWith('.docx');
-
-                              if (!isValid) {
-                                return "Chỉ chấp nhận link .pdf, .doc, .docx";
-                              }
-                            }
-
-                            return null;
-                          },
-                        ),
-
-                      if (lessonType == 'VIDEO')
-                        TextFormField(
-                          controller: videoController,
-                          decoration: const InputDecoration(
-                            labelText: "YouTube URL",
-                            hintText: "https://www.youtube.com/watch?v=xxx",
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (v) {
-                            final value = v?.trim() ?? '';
-
-                            if (value.isEmpty) {
-                              return "Vui lòng nhập link YouTube";
-                            }
-
-                            final lower = value.toLowerCase();
-                            final isYoutube =
-                                lower.contains('youtube.com') ||
-                                lower.contains('youtu.be');
-
-                            if (!isYoutube) {
-                              return "Chỉ chấp nhận link YouTube";
-                            }
-
-                            return null;
-                          },
-                        ),
-                    ],
-                  ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text("Hủy"),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (formKey.currentState!.validate()) {
-                        Navigator.pop(context, true);
-                      }
-                    },
-                    child: const Text("Lưu"),
-                  ),
-                ],
-              );
-            },
+                child: const Icon(Icons.edit_outlined, color: _primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text("Chỉnh sửa bài học"),
+            ],
           ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleController,
+                    decoration: _field("Tên bài học", icon: Icons.title),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? "Vui lòng nhập tên bài học" : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: lessonType,
+                    decoration: _field("Loại nội dung", icon: Icons.category_outlined),
+                    items: const [
+                      DropdownMenuItem(value: 'TEXT', child: Text("Văn bản")),
+                      DropdownMenuItem(value: 'VIDEO', child: Text("Video")),
+                      DropdownMenuItem(value: 'LINK', child: Text("Tài liệu")),
+                    ],
+                    onChanged: (v) => setStateDialog(() => lessonType = v!),
+                  ),
+                  const SizedBox(height: 12),
+                  if (lessonType == 'TEXT' || lessonType == 'LINK')
+                    TextFormField(
+                      controller: contentController,
+                      maxLines: 3,
+                      decoration: _field(
+                        lessonType == 'LINK' ? "Link tài liệu" : "Nội dung",
+                        icon: lessonType == 'LINK' ? Icons.link : Icons.article_outlined,
+                      ),
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (value.isEmpty && lessonType == 'TEXT') return "Vui lòng nhập nội dung";
+                        if (value.isEmpty && lessonType == 'LINK') return "Vui lòng nhập link tài liệu";
+                        if (lessonType == 'LINK') {
+                          final lower = value.toLowerCase();
+                          final isValid = lower.endsWith('.pdf') ||
+                              lower.endsWith('.doc') ||
+                              lower.endsWith('.docx');
+                          if (!isValid) return "Chỉ chấp nhận link .pdf, .doc, .docx";
+                        }
+                        return null;
+                      },
+                    ),
+                  if (lessonType == 'VIDEO')
+                    TextFormField(
+                      controller: videoController,
+                      decoration: _field("YouTube URL", icon: Icons.videocam_outlined),
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (value.isEmpty) return "Vui lòng nhập link YouTube";
+                        final lower = value.toLowerCase();
+                        if (!lower.contains('youtube.com') && !lower.contains('youtu.be')) {
+                          return "Chỉ chấp nhận link YouTube";
+                        }
+                        return null;
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(context, true);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text("Lưu"),
+            ),
+          ],
+        ),
+      ),
     );
 
     if (result == true) {
@@ -673,13 +698,12 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
         if (contentValue.isNotEmpty) {
           if (lesson.contentId != null) {
-            await _lessonContentService
-                .updateContent(lesson.id.value, lesson.contentId!.value, {
-                  "lessonId": lesson.id.value,
-                  "type": lessonType,
-                  "content": contentValue,
-                  "orderIndex": 0,
-                });
+            await _lessonContentService.updateContent(lesson.id.value, lesson.contentId!.value, {
+              "lessonId": lesson.id.value,
+              "type": lessonType,
+              "content": contentValue,
+              "orderIndex": 0,
+            });
           } else {
             await _lessonContentService.createContent(lesson.id.value, {
               "type": lessonType,
@@ -690,17 +714,19 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         }
 
         await _loadCourse();
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Cập nhật bài học thành công")),
+            const SnackBar(
+              content: Text("Cập nhật bài học thành công"),
+              backgroundColor: Color(0xFF22C55E),
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          );
         }
       }
     }
@@ -709,27 +735,43 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   Future<void> _deleteModule(ModuleResponse module) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Xóa chương"),
-            content: Text(
-              "Bạn có chắc muốn xóa chương '${module.title}' và tất cả bài học trong đó?",
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Hủy"),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text("Xóa"),
-              ),
-            ],
+            const SizedBox(width: 12),
+            const Text("Xóa chương"),
+          ],
+        ),
+        content: Text(
+          "Bạn có chắc muốn xóa chương \"${module.title}\" và tất cả bài học trong đó?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Xóa"),
+          ),
+        ],
+      ),
     );
 
     if (confirm == true) {
@@ -740,45 +782,58 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Xóa chương thành công"),
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFF22C55E),
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
           );
         }
       }
     }
   }
 
-  Future<void> _deleteLesson(
-    ModuleResponse module,
-    LessonResponse lesson,
-  ) async {
+  Future<void> _deleteLesson(ModuleResponse module, LessonResponse lesson) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Xóa bài học"),
-            content: Text("Bạn có chắc muốn xóa bài học '${lesson.title}'?"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Hủy"),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(8),
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text("Xóa"),
-              ),
-            ],
+              child: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text("Xóa bài học"),
+          ],
+        ),
+        content: Text("Bạn có chắc muốn xóa bài học \"${lesson.title}\"?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Xóa"),
+          ),
+        ],
+      ),
     );
 
     if (confirm == true) {
@@ -789,64 +844,130 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Xóa bài học thành công"),
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFF22C55E),
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
           );
         }
       }
     }
   }
 
-  Widget _buildBreadcrumb() {
-    return Row(
-      children: [
-        InkWell(
-          onTap: () => context.go('/mentor/courses'),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xfff5f6fa),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.arrow_back, size: 20, color: Color(0xff1a90ff)),
-                SizedBox(width: 4),
-                Text("Khóa học", style: TextStyle(color: Color(0xff1a90ff))),
-              ],
-            ),
-          ),
+  String _convertYoutubeUrl(String url) {
+    final value = url.trim();
+    if (value.isEmpty) return '';
+
+    final rawIdReg = RegExp(r'^[a-zA-Z0-9_-]{11}$');
+    if (rawIdReg.hasMatch(value)) {
+      return 'https://www.youtube.com/embed/$value';
+    }
+
+    final uri = Uri.tryParse(value);
+    if (uri == null) return value;
+
+    if (uri.host.contains('youtube.com')) {
+      final videoId = uri.queryParameters['v'];
+      if (videoId != null && videoId.isNotEmpty) {
+        return 'https://www.youtube.com/embed/$videoId';
+      }
+      if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'embed') {
+        return value;
+      }
+    }
+
+    if (uri.host.contains('youtu.be')) {
+      if (uri.pathSegments.isNotEmpty) {
+        return 'https://www.youtube.com/embed/${uri.pathSegments.first}';
+      }
+    }
+
+    return value;
+  }
+
+  Widget _buildLessonContent(LessonResponse lesson) {
+    log("TYPE: ${lesson.contentType}");
+    log("VIDEO URL: ${lesson.videoUrl}");
+
+    if (_isLessonDialogOpen) {
+      return Container(
+        margin: const EdgeInsets.only(top: 8),
+        height: 60,
+        alignment: Alignment.centerLeft,
+        child: const Text(
+          "Đang chỉnh sửa bài học...",
+          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
         ),
-        const SizedBox(width: 16),
-        const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-        const SizedBox(width: 16),
-        Flexible(
+      );
+    }
+
+    switch (lesson.contentType) {
+      case 'VIDEO':
+        return _buildVideoIframe(lesson.videoUrl);
+      case 'LINK':
+        return InkWell(
+          onTap: () {},
           child: Text(
-            _course?.title ?? "Chi tiết khóa học",
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
+            lesson.content ?? '',
+            style: const TextStyle(
+              fontSize: 12,
+              color: _primary,
+              decoration: TextDecoration.underline,
+            ),
           ),
-        ),
-      ],
+        );
+      default:
+        return Text(
+          lesson.content ?? '',
+          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        );
+    }
+  }
+
+  Widget _buildVideoIframe(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return const Text("Không có video", style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)));
+    }
+
+    final embedUrl = _convertYoutubeUrl(url);
+    log("RAW VIDEO URL: $url");
+    log("EMBED VIDEO URL: $embedUrl");
+
+    final viewId = 'video-${embedUrl.hashCode}-${DateTime.now().millisecondsSinceEpoch}';
+
+    // ignore: undefined_prefixed_name
+    ui.platformViewRegistry.registerViewFactory(viewId, (int _) {
+      final iframe = html.IFrameElement()
+        ..src = embedUrl
+        ..style.border = 'none'
+        ..style.width = '100%'
+        ..style.height = '200px'
+        ..allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+        ..allowFullscreen = true;
+
+      return iframe;
+    });
+
+    return SizedBox(
+      width: double.infinity,
+      height: 200,
+      child: HtmlElementView(viewType: viewId),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xfff5f6fa),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
+      backgroundColor: const Color(0xFFF3F6FC),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _primary))
+          : _error != null
               ? _buildError()
               : _buildContent(),
     );
@@ -857,11 +978,32 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEE2E2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.error_outline, size: 32, color: Color(0xFFEF4444)),
+          ),
           const SizedBox(height: 16),
-          Text(_error!, style: const TextStyle(color: Colors.red)),
-          const SizedBox(height: 16),
-          ElevatedButton(onPressed: _loadCourse, child: const Text("Thử lại")),
+          Text(
+            _error!,
+            style: const TextStyle(color: Color(0xFFEF4444), fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: _loadCourse,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Thử lại"),
+          ),
         ],
       ),
     );
@@ -870,81 +1012,127 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   Widget _buildContent() {
     return Column(
       children: [
-        /// BREADCRUMB
+        // PAGE HEADER
         Padding(
-          padding: const EdgeInsets.only(top: 30, left: 30, right: 30),
-          child: Row(
-            children: [
-              Expanded(child: _buildBreadcrumb()),
+          padding: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+          child: BreadcrumbPageHeader(
+            pageTitle: _course?.title ?? "Chi tiết khóa học",
+            pageIcon: Icons.menu_book_rounded,
+            breadcrumbs: [
+              const BreadcrumbItem(label: "Khóa học", route: "/mentor/courses"),
+              BreadcrumbItem(label: _course?.title ?? "Chi tiết khóa học"),
+            ],
+            primaryColor: _primary,
+            actions: [
               if (_isEditMode && _course != null) ...[
-                TextButton.icon(
+                OutlinedButton.icon(
                   onPressed: () {
-                    context.go(
-                      '/mentor/quizzes/create?courseId=${_course!.id.value}&final=true',
-                    );
+                    final cid = _course!.id.value;
+                    if (_finalQuizId != null) {
+                      context.go(
+                        '/mentor/quizzes/create?quizId=${_finalQuizId!.value}&courseId=$cid&final=true',
+                      );
+                    } else {
+                      context.go(
+                        '/mentor/quizzes/create?courseId=$cid&final=true',
+                      );
+                    }
                   },
-                  icon: const Icon(Icons.quiz_outlined),
-                  label: const Text("Final Quiz"),
-                ),
-                const SizedBox(width: 8),
-                if (!_course!.isPublished)
-                  TextButton.icon(
-                    onPressed: _publishCourse,
-                    icon: const Icon(Icons.publish),
-                    label: const Text("Xuất bản"),
+                  icon: const Icon(Icons.quiz_outlined, size: 18),
+                  label: Text(_finalQuizId != null ? 'Sửa Final Quiz' : 'Tạo Final Quiz'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF64748B),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
-                const SizedBox(width: 8),
+                ),
+                const SizedBox(width: 10),
+                if (!_course!.isPublished) ...[
+                  OutlinedButton.icon(
+                    onPressed: _publishCourse,
+                    icon: const Icon(Icons.publish, size: 18),
+                    label: const Text("Xuất bản"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF22C55E),
+                      side: const BorderSide(color: Color(0xFF22C55E)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 ElevatedButton.icon(
                   onPressed: _isSaving ? null : _saveCourse,
-                  icon:
-                      _isSaving
-                          ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : const Icon(Icons.save),
-                  label: const Text("Lưu thay đổi"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff1a90ff),
+                    backgroundColor: _primary,
                     foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                   ),
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.save, size: 18),
+                  label: const Text("Lưu thay đổi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 ),
               ],
             ],
           ),
         ),
 
-        /// TAB BAR
-        Container(
-          margin: const EdgeInsets.only(top: 20, left: 30, right: 30),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: TabBar(
-            controller: _tabController,
-            labelColor: const Color(0xff1a90ff),
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: const Color(0xff1a90ff),
-            indicatorWeight: 3,
-            indicatorSize: TabBarIndicatorSize.tab,
-            dividerColor: Colors.transparent,
-            labelStyle: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
+        // TAB BAR
+        Padding(
+          padding: const EdgeInsets.only(top: 20, left: 30, right: 30),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            tabs: const [
-              Tab(text: "Thông tin khóa học"),
-              Tab(text: "Cấu trúc khóa học"),
-            ],
+            child: TabBar(
+              controller: _tabController,
+              labelColor: Colors.white,
+              unselectedLabelColor: const Color(0xFF64748B),
+              indicatorColor: Colors.transparent,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              indicator: BoxDecoration(
+                color: _primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              tabs: const [
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline, size: 18),
+                      SizedBox(width: 6),
+                      Text("Thông tin khóa học"),
+                    ],
+                  ),
+                ),
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.account_tree_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Text("Cấu trúc khóa học"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 
-        /// TAB CONTENT
+        // TAB CONTENT
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -958,64 +1146,105 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   Widget _buildInfoTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_course != null) ...[_statusRow(), const SizedBox(height: 20)],
-
-            /// TITLE
-            _buildField(label: "Tên khóa học *", controller: _titleController),
-            const SizedBox(height: 16),
-
-            /// DESCRIPTION
-            _buildField(
-              label: "Mô tả",
-              controller: _descriptionController,
-              maxLines: 4,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // LEFT
+          Expanded(
+            flex: 2,
+            child: _buildCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_course != null) ...[
+                    _buildStatusRow(),
+                    const SizedBox(height: 20),
+                  ],
+                  _buildSectionHeader("Thông tin cơ bản", Icons.book_outlined),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _titleController,
+                    decoration: _field("Tên khóa học *", icon: Icons.school_outlined),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _descriptionController,
+                    decoration: _field("Mô tả khóa học", icon: Icons.description_outlined),
+                    maxLines: 5,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
+          ),
 
-            /// DEADLINE TYPE
-            _buildDeadlineSection(),
-          ],
-        ),
+          const SizedBox(width: 20),
+
+          // RIGHT
+          Expanded(
+            child: _buildCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionHeader("Hạn nộp bài", Icons.timer_outlined),
+                  const SizedBox(height: 16),
+                  _buildDeadlineSection(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _statusRow() {
+  Widget _buildStatusRow() {
     final course = _course!;
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color:
-                course.isPublished
-                    ? Colors.green.withValues(alpha: 0.1)
-                    : Colors.orange.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
+    final isPublished = course.isPublished;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isPublished ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isPublished
+              ? const Color(0xFF22C55E).withValues(alpha: 0.3)
+              : const Color(0xFFF59E0B).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isPublished ? Icons.check_circle : Icons.pending_outlined,
+            size: 18,
+            color: isPublished ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
           ),
-          child: Text(
+          const SizedBox(width: 8),
+          Text(
             course.statusLabel,
             style: TextStyle(
-              color: course.isPublished ? Colors.green : Colors.orange,
+              color: isPublished ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
               fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Text(
-          "${_modules.length} chương • ${_modules.fold(0, (sum, m) => sum + m.lessonCount)} bài học",
-          style: TextStyle(color: Colors.grey[600], fontSize: 13),
-        ),
-      ],
+          const SizedBox(width: 16),
+          Container(width: 1, height: 14, color: Colors.grey.withValues(alpha: 0.3)),
+          const SizedBox(width: 16),
+          const Icon(Icons.view_module, size: 16, color: Color(0xFF64748B)),
+          const SizedBox(width: 6),
+          Text(
+            "${_modules.length} chương",
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+          ),
+          const SizedBox(width: 12),
+          const Icon(Icons.play_lesson, size: 16, color: Color(0xFF64748B)),
+          const SizedBox(width: 6),
+          Text(
+            "${_modules.fold(0, (sum, m) => sum + m.lessonCount)} bài học",
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1023,90 +1252,69 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Hạn nộp bài",
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        const SizedBox(height: 12),
-
-        /// Type selector
-        Row(
-          children: [
-            Expanded(
-              child: RadioListTile<DeadlineType>(
-                title: const Text("Tương đối", style: TextStyle(fontSize: 14)),
-                value: DeadlineType.RELATIVE,
-                groupValue: _deadlineType,
-                onChanged: (v) => setState(() => _deadlineType = v!),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            Expanded(
-              child: RadioListTile<DeadlineType>(
-                title: const Text(
-                  "Ngày cố định",
-                  style: TextStyle(fontSize: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _DeadlineOption(
+                  label: "Tương đối",
+                  icon: Icons.schedule,
+                  isSelected: _deadlineType == DeadlineType.RELATIVE,
+                  onTap: () => setState(() => _deadlineType = DeadlineType.RELATIVE),
+                  primaryColor: _primary,
                 ),
-                value: DeadlineType.FIXED,
-                groupValue: _deadlineType,
-                onChanged: (v) => setState(() => _deadlineType = v!),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
               ),
-            ),
-          ],
-        ),
-
+              const SizedBox(width: 10),
+              Expanded(
+                child: _DeadlineOption(
+                  label: "Ngày cố định",
+                  icon: Icons.event,
+                  isSelected: _deadlineType == DeadlineType.FIXED,
+                  onTap: () => setState(() => _deadlineType = DeadlineType.FIXED),
+                  primaryColor: _primary,
+                ),
+              ),
+            ],
+          ),
+        const SizedBox(height: 14),
         if (_deadlineType == DeadlineType.RELATIVE) ...[
-          const SizedBox(height: 8),
           Row(
             children: [
               SizedBox(
-                width: 100,
+                width: 90,
                 child: TextField(
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.numbers, size: 18, color: Color(0xFF94A3B8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                     ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFFFAFAFA),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   ),
-                  controller: TextEditingController(
-                    text: _deadlineDays.toString(),
-                  ),
+                  controller: TextEditingController(text: _deadlineDays.toString()),
                   onChanged: (v) => _deadlineDays = int.tryParse(v) ?? 20,
                 ),
               ),
               const SizedBox(width: 12),
-              const Text("ngày sau ngày đăng ký"),
+              const Text("ngày sau ngày đăng ký", style: TextStyle(fontSize: 14, color: Color(0xFF64748B))),
             ],
           ),
-        ],
-
-        if (_deadlineType == DeadlineType.FIXED) ...[
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate:
-                    _fixedDeadline ??
-                    DateTime.now().add(const Duration(days: 30)),
-                firstDate: DateTime.now(),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-              );
-              if (date != null) {
-                setState(() => _fixedDeadline = date);
-              }
-            },
-            icon: const Icon(Icons.calendar_today, size: 18),
-            label: Text(
-              _fixedDeadline != null
-                  ? "${_fixedDeadline!.day}/${_fixedDeadline!.month}/${_fixedDeadline!.year}"
-                  : "Chọn ngày",
-            ),
+        ] else ...[
+          _DatePickerButton(
+            selectedDate: _fixedDeadline,
+            primaryColor: _primary,
+            onPicked: (date) => setState(() => _fixedDeadline = date),
           ),
         ],
       ],
@@ -1122,20 +1330,34 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                "${_modules.length} Chương",
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.account_tree_outlined, color: _primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    "${_modules.length} Chương",
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                ],
               ),
               ElevatedButton.icon(
                 onPressed: _showAddModuleDialog,
-                icon: const Icon(Icons.add),
-                label: const Text("Thêm Chương"),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text("Thêm Chương", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff1a90ff),
+                  backgroundColor: _primary,
                   foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
               ),
             ],
@@ -1143,30 +1365,9 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           const SizedBox(height: 20),
 
           if (_modules.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.folder_open, size: 48, color: Colors.grey[400]),
-                    const SizedBox(height: 12),
-                    Text(
-                      "Chưa có chương nào",
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-            )
+            _buildEmptyState()
           else
-            ...List.generate(
-              _modules.length,
-              (i) => _buildModuleCard(_modules[i], i),
-            ),
+            ...List.generate(_modules.length, (i) => _buildModuleCard(_modules[i], i)),
         ],
       ),
     );
@@ -1177,292 +1378,465 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: ExpansionTile(
-        title: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Chương ${index + 1}: ${module.title}",
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    "${module.lessonCount} bài học • Quiz",
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
-                ],
-              ),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        childrenPadding: const EdgeInsets.only(bottom: 16),
+        initiallyExpanded: index == 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Text(
+              "${index + 1}",
+              style: const TextStyle(fontWeight: FontWeight.bold, color: _primary, fontSize: 15),
             ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.quiz_outlined, size: 20),
-                  tooltip: "Tạo Quiz",
-                  onPressed: () {
-                    context.go(
-                      '/mentor/quizzes/create?moduleId=${module.id.value}',
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
-                  tooltip: "Sửa chương",
-                  onPressed: () => _showEditModuleDialog(module),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                  onPressed: () => _deleteModule(module),
-                ),
-              ],
+          ),
+        ),
+        title: Text(
+          module.title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF0F172A)),
+        ),
+        subtitle: Text(
+          module.quizId != null
+              ? "${module.lessonCount} bài học · Đã gắn quiz"
+              : "${module.lessonCount} bài học",
+          style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: "Sửa chương",
+              onPressed: () => _showEditModuleDialog(module),
+              style: IconButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: "Xóa chương",
+              onPressed: () => _deleteModule(module),
+              style: IconButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
             ),
           ],
         ),
-        initiallyExpanded: index == 0,
         children: [
-          // Header row with add lesson button
+          // Add lesson header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "Danh sách bài học",
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
+                Row(
+                  children: [
+                    const Icon(Icons.list_alt, size: 16, color: Color(0xFF64748B)),
+                    const SizedBox(width: 8),
+                    const Text(
+                      "Danh sách bài học",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        "${module.lessons.length}",
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
                 ),
                 TextButton.icon(
                   onPressed: () async {
-                    setState(() {
-                      _isLessonDialogOpen = true;
-                    });
-
+                    setState(() => _isLessonDialogOpen = true);
                     await Future.delayed(const Duration(milliseconds: 50));
                     await _showAddLessonDialog(module);
-
                     if (!mounted) return;
-                    setState(() {
-                      _isLessonDialogOpen = false;
-                    });
+                    setState(() => _isLessonDialogOpen = false);
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text("Thêm bài học"),
+                  label: const Text("Thêm bài học", style: TextStyle(fontSize: 13)),
+                  style: TextButton.styleFrom(foregroundColor: _primary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          if (module.lessons.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Text(
+                "Chưa có bài học nào",
+                style: TextStyle(color: Colors.grey[400], fontSize: 13),
+              ),
+            )
+          else
+            ...module.lessons.map((lesson) => _buildLessonTile(module, lesson)),
+
+          // Quiz section
+          const SizedBox(height: 8),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.quiz_outlined, size: 16, color: Color(0xFF64748B)),
+                    const SizedBox(width: 8),
+                    const Text(
+                      "Quiz",
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: module.quizId != null
+                            ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                            : const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        module.quizId != null ? "Đã tạo" : "Chưa tạo",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: module.quizId != null ? const Color(0xFF6366F1) : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    if (module.quizId != null) {
+                      context.go(
+                        '/mentor/quizzes/create?quizId=${module.quizId!.value}&moduleId=${module.id.value}&courseId=${_course!.id.value}',
+                      );
+                    } else {
+                      context.go(
+                        '/mentor/quizzes/create?moduleId=${module.id.value}&courseId=${_course!.id.value}',
+                      );
+                    }
+                  },
+                  icon: Icon(
+                    module.quizId != null ? Icons.edit_outlined : Icons.add,
+                    size: 18,
+                  ),
+                  label: Text(
+                    module.quizId != null ? "Sửa quiz" : "Tạo quiz",
+                    style: const TextStyle(fontSize: 13),
+                  ),
                   style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xff1a90ff),
+                    foregroundColor: module.quizId != null ? const Color(0xFF6366F1) : _primary,
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          if (module.lessons.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                "Chưa có bài học nào",
-                style: TextStyle(color: Colors.grey[500], fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            ...module.lessons.map(
-              (lesson) => ListTile(
-                leading: const Icon(Icons.play_circle_outline, size: 20),
-                title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      lesson.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    _buildLessonContent(lesson),
-                  ],
-                ),
-                subtitle:
-                    lesson.durationMinutes != null
-                        ? Text(
-                          "${lesson.durationMinutes} phút",
-                          style: const TextStyle(fontSize: 12),
-                        )
-                        : null,
-                dense: true,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 18),
-                      tooltip: "Sửa bài học",
-                      onPressed: () async {
-                        setState(() {
-                          _isLessonDialogOpen = true;
-                        });
-
-                        await Future.delayed(const Duration(milliseconds: 50));
-                        await _showEditLessonDialog(module, lesson);
-
-                        if (!mounted) return;
-                        setState(() {
-                          _isLessonDialogOpen = false;
-                        });
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.red,
-                        size: 18,
-                      ),
-                      onPressed: () => _deleteLesson(module, lesson),
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildField({
-    required String label,
-    required TextEditingController controller,
-    int maxLines = 1,
-  }) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
+  Widget _buildLessonTile(ModuleResponse module, LessonResponse lesson) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          _lessonIcon(lesson.contentType),
+          size: 16,
+          color: const Color(0xFF64748B),
+        ),
+      ),
+      title: Text(
+        lesson.title,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      subtitle: _buildLessonContent(lesson),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            tooltip: "Sửa bài học",
+            onPressed: () async {
+              setState(() => _isLessonDialogOpen = true);
+              await Future.delayed(const Duration(milliseconds: 50));
+              await _showEditLessonDialog(module, lesson);
+              if (!mounted) return;
+              setState(() => _isLessonDialogOpen = false);
+            },
+            style: IconButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18),
+            tooltip: "Xóa bài học",
+            onPressed: () => _deleteLesson(module, lesson),
+            style: IconButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLessonContent(LessonResponse lesson) {
-    log("TYPE: ${lesson.contentType}");
-    log("VIDEO URL: ${lesson.videoUrl}");
-
-    if (_isLessonDialogOpen) {
-      return Container(
-        margin: const EdgeInsets.only(top: 8),
-        height: 60,
-        alignment: Alignment.centerLeft,
-        child: const Text(
-          "Đang chỉnh sửa bài học...",
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-      );
-    }
-
-    switch (lesson.contentType) {
+  IconData _lessonIcon(String? type) {
+    switch (type) {
       case 'VIDEO':
-        return _buildVideoIframe(lesson.videoUrl);
-
+        return Icons.videocam_outlined;
       case 'LINK':
-        return InkWell(
-          onTap: () {},
-          child: Text(
-            lesson.content ?? '',
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.blue,
-              decoration: TextDecoration.underline,
+        return Icons.link;
+      default:
+        return Icons.article_outlined;
+    }
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: _primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: _primary, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.library_books_outlined, size: 32, color: Color(0xFFCBD5E1)),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "Chưa có chương nào",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
             ),
           ),
-        );
-
-      default:
-        return Text(lesson.content ?? '', style: const TextStyle(fontSize: 12));
-    }
-  }
-
-  Widget _buildVideoIframe(String? url) {
-    if (url == null || url.trim().isEmpty) {
-      return const Text("Không có video");
-    }
-
-    final embedUrl = _convertYoutubeUrl(url);
-    log("RAW VIDEO URL: $url");
-    log("EMBED VIDEO URL: $embedUrl");
-
-    final viewId =
-        'video-${embedUrl.hashCode}-${DateTime.now().millisecondsSinceEpoch}';
-
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(viewId, (int _) {
-      final iframe =
-          html.IFrameElement()
-            ..src = embedUrl
-            ..style.border = 'none'
-            ..style.width = '100%'
-            ..style.height = '250px'
-            ..allow =
-                'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-            ..allowFullscreen = true;
-
-      return iframe;
-    });
-
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      child: SizedBox(
-        width: double.infinity,
-        height: 250,
-        child: HtmlElementView(viewType: viewId),
+          const SizedBox(height: 6),
+          const Text(
+            "Nhấn \"Thêm Chương\" để bắt đầu xây dựng cấu trúc khóa học.",
+            style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
+}
 
-  String _convertYoutubeUrl(String url) {
-    final value = url.trim();
-    if (value.isEmpty) return '';
+class _DeadlineOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color primaryColor;
 
-    // raw video id
-    final rawIdReg = RegExp(r'^[a-zA-Z0-9_-]{11}$');
-    if (rawIdReg.hasMatch(value)) {
-      return 'https://www.youtube.com/embed/$value';
-    }
+  const _DeadlineOption({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    required this.primaryColor,
+  });
 
-    final uri = Uri.tryParse(value);
-    if (uri == null) return value;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? primaryColor.withValues(alpha: 0.1) : const Color(0xFFFAFAFA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? primaryColor : const Color(0xFFE5E7EB),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: isSelected ? primaryColor : const Color(0xFF94A3B8)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? primaryColor : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-    // youtube watch url
-    if (uri.host.contains('youtube.com')) {
-      final videoId = uri.queryParameters['v'];
-      if (videoId != null && videoId.isNotEmpty) {
-        return 'https://www.youtube.com/embed/$videoId';
-      }
+class _DatePickerButton extends StatelessWidget {
+  final DateTime? selectedDate;
+  final Color primaryColor;
+  final ValueChanged<DateTime> onPicked;
 
-      // already embed url
-      if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'embed') {
-        return value;
-      }
-    }
+  const _DatePickerButton({
+    required this.selectedDate,
+    required this.primaryColor,
+    required this.onPicked,
+  });
 
-    // youtu.be short url
-    if (uri.host.contains('youtu.be')) {
-      if (uri.pathSegments.isNotEmpty) {
-        return 'https://www.youtube.com/embed/${uri.pathSegments.first}';
-      }
-    }
+  String _format(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
 
-    return value;
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 30)),
+          firstDate: DateTime.now(),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: primaryColor,
+                  onPrimary: Colors.white,
+                  surface: Colors.white,
+                  onSurface: const Color(0xFF0F172A),
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (picked != null) onPicked(picked);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAFAFA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selectedDate != null ? primaryColor : const Color(0xFFE5E7EB),
+            width: selectedDate != null ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 20,
+              color: selectedDate != null ? primaryColor : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                selectedDate != null ? _format(selectedDate!) : 'Chọn ngày',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: selectedDate != null ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                  fontWeight: selectedDate != null ? FontWeight.w500 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (selectedDate != null)
+              GestureDetector(
+                onTap: () => onPicked(DateTime(1900)),
+                child: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

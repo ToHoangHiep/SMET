@@ -1,24 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:smet/page/employee/my_courses/widgets/enrolled_course_card.dart';
+import 'package:smet/page/employee/my_courses/widgets/filter_tabs.dart';
 import 'package:smet/service/employee/lms_service.dart';
 
 class MyCoursesMobile extends StatelessWidget {
   final List<EnrolledCourse> courses;
+  final List<EnrolledCourse> allCourses;
   final bool isLoading;
   final String? error;
+  final CourseFilter selectedFilter;
+  final ValueChanged<CourseFilter> onFilterChanged;
   final VoidCallback onRetry;
   final Function(String) onCourseTap;
   final VoidCallback onLogout;
   final Function(String) onNavigate;
+  final int currentPage;
+  final int totalPages;
+  final int totalElements;
+  final bool isPaging;
+  final ValueChanged<int> onPageChanged;
 
   const MyCoursesMobile({
     super.key,
     required this.courses,
+    required this.allCourses,
     required this.isLoading,
     this.error,
+    required this.selectedFilter,
+    required this.onFilterChanged,
     required this.onRetry,
     required this.onCourseTap,
     required this.onLogout,
     required this.onNavigate,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalElements,
+    required this.isPaging,
+    required this.onPageChanged,
   });
 
   @override
@@ -80,7 +98,7 @@ class MyCoursesMobile extends StatelessWidget {
       ),
       drawer: _buildDrawer(context),
       body: _buildBody(),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -126,20 +144,20 @@ class MyCoursesMobile extends StatelessWidget {
       );
     }
 
-    if (courses.isEmpty) {
-      return const Center(
+    if (allCourses.isEmpty) {
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.school_outlined,
                 size: 64,
                 color: Color(0xFFE5E7EB),
               ),
-              SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 16),
+              const Text(
                 'Chưa có khóa học nào',
                 style: TextStyle(
                   fontSize: 18,
@@ -147,14 +165,31 @@ class MyCoursesMobile extends StatelessWidget {
                   color: Color(0xFF64748B),
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
+              const SizedBox(height: 8),
+              const Text(
                 'Hãy đăng ký khóa học để bắt đầu học tập',
                 style: TextStyle(
                   fontSize: 14,
                   color: Color(0xFF94A3B8),
                 ),
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => onNavigate('/employee/courses'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF137FEC),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.explore),
+                label: const Text('Khám phá khóa học'),
               ),
             ],
           ),
@@ -167,150 +202,90 @@ class MyCoursesMobile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.library_books,
-                color: Color(0xFF137FEC),
-                size: 20,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Khóa học của tôi',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ],
+          // Stats
+          _MobileStatsSection(
+            courses: allCourses,
+            totalCountOverride: totalElements > 0 ? totalElements : null,
           ),
           const SizedBox(height: 16),
-          ...courses.map((course) => _buildCourseItem(course)),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildCourseItem(EnrolledCourse course) {
-    return GestureDetector(
-      onTap: () => onCourseTap(course.id),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
-                    image: course.imageUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(course.imageUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: course.imageUrl == null
-                      ? const Icon(
-                          Icons.school,
-                          color: Color(0xFFCBD5E1),
-                          size: 28,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        course.title,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+          // Filter tabs
+          SizedBox(
+            width: double.infinity,
+            child: FilterTabs(
+              selected: selectedFilter,
+              onChanged: onFilterChanged,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Course list
+          if (courses.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.search_off,
+                      size: 48,
+                      color: Colors.grey.shade300,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Không có khóa học nào trong mục này',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade500,
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: course.progressPercent / 100,
-                                backgroundColor: const Color(0xFFE2E8F0),
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  course.progressPercent >= 100
-                                      ? const Color(0xFF22C55E)
-                                      : const Color(0xFF137FEC),
-                                ),
-                                minHeight: 6,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Opacity(
+                  opacity: isPaging ? 0.45 : 1,
+                  child: Column(
+                    children: courses
+                        .map(
+                          (course) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: SizedBox(
+                              height: 280,
+                              child: EnrolledCourseCard(
+                                course: course,
+                                onTap: () => onCourseTap(course.id),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${course.progressPercent.toInt()}%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: course.progressPercent >= 100
-                                  ? const Color(0xFF22C55E)
-                                  : const Color(0xFF137FEC),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                        )
+                        .toList(),
                   ),
                 ),
+                if (isPaging)
+                  const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF137FEC),
+                    ),
+                  ),
               ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => onCourseTap(course.id),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: course.progressPercent >= 100
-                      ? const Color(0xFF22C55E)
-                      : const Color(0xFF137FEC),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  course.progressPercent >= 100
-                      ? 'Hoàn thành'
-                      : course.progressPercent > 0
-                          ? 'Tiếp tục học'
-                          : 'Bắt đầu học',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+            _MobilePaginationBar(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalElements: totalElements,
+              isPaging: isPaging,
+              onPageChanged: onPageChanged,
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -382,18 +357,6 @@ class MyCoursesMobile extends StatelessWidget {
               onNavigate('/employee/courses');
             },
           ),
-          _buildDrawerItem(
-            icon: Icons.work,
-            label: 'Dự án của tôi',
-            isActive: false,
-            onTap: () => Navigator.pop(context),
-          ),
-          _buildDrawerItem(
-            icon: Icons.workspace_premium,
-            label: 'Chứng chỉ của tôi',
-            isActive: false,
-            onTap: () => Navigator.pop(context),
-          ),
           const Divider(),
           _buildDrawerItem(
             icon: Icons.logout,
@@ -431,7 +394,7 @@ class MyCoursesMobile extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,
@@ -442,15 +405,248 @@ class MyCoursesMobile extends StatelessWidget {
         fontWeight: FontWeight.w600,
       ),
       unselectedLabelStyle: const TextStyle(fontSize: 12),
+      currentIndex: 1,
+      onTap: (index) {
+        switch (index) {
+          case 0:
+            onNavigate('/employee/dashboard');
+            break;
+          case 2:
+            onNavigate('/employee/courses');
+            break;
+          case 3:
+            break;
+        }
+      },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
         BottomNavigationBarItem(
           icon: Icon(Icons.library_books),
           label: 'Khóa học',
         ),
-        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Danh mục'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.grid_view),
+          label: 'Danh mục',
+        ),
         BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
       ],
+    );
+  }
+}
+
+class _MobilePaginationBar extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final int totalElements;
+  final bool isPaging;
+  final ValueChanged<int> onPageChanged;
+
+  const _MobilePaginationBar({
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalElements,
+    required this.isPaging,
+    required this.onPageChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const primary = Color(0xFF137FEC);
+    final tp = totalPages <= 0 ? 1 : totalPages;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: !isPaging && currentPage > 0
+                    ? () => onPageChanged(currentPage - 1)
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+                color: const Color(0xFF64748B),
+              ),
+              Opacity(
+                opacity: isPaging ? 0.5 : 1,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    tp > 5 ? 5 : tp,
+                    (index) {
+                      int pageNum;
+                      if (tp > 5) {
+                        if (currentPage < 3) {
+                          pageNum = index;
+                        } else if (currentPage > tp - 3) {
+                          pageNum = tp - 5 + index;
+                        } else {
+                          pageNum = currentPage - 2 + index;
+                        }
+                      } else {
+                        pageNum = index;
+                      }
+                      final isCurrent = pageNum == currentPage;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: InkWell(
+                          onTap: isPaging ? null : () => onPageChanged(pageNum),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isCurrent ? primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${pageNum + 1}',
+                              style: TextStyle(
+                                color: isCurrent ? Colors.white : const Color(0xFF64748B),
+                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: !isPaging && currentPage < tp - 1
+                    ? () => onPageChanged(currentPage + 1)
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+                color: const Color(0xFF64748B),
+              ),
+            ],
+          ),
+          Text(
+            'Trang ${currentPage + 1}/$tp · $totalElements khóa học',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileStatsSection extends StatelessWidget {
+  final List<EnrolledCourse> courses;
+  final int? totalCountOverride;
+
+  const _MobileStatsSection({
+    required this.courses,
+    this.totalCountOverride,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = totalCountOverride ?? courses.length;
+    final inProgress = courses
+        .where((c) => c.status == EnrollmentStatus.inProgress)
+        .length;
+    final completed = courses
+        .where((c) => c.status == EnrollmentStatus.completed)
+        .length;
+    final overdue = courses
+        .where((c) => c.deadlineStatus == DeadlineStatus.overdue)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _MiniStat(
+                label: 'Tổng',
+                value: total,
+                color: const Color(0xFF137FEC),
+              ),
+              const SizedBox(width: 12),
+              _MiniStat(
+                label: 'Đang học',
+                value: inProgress,
+                color: const Color(0xFFF59E0B),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _MiniStat(
+                label: 'Hoàn thành',
+                value: completed,
+                color: const Color(0xFF22C55E),
+              ),
+              const SizedBox(width: 12),
+              _MiniStat(
+                label: 'Quá hạn',
+                value: overdue,
+                color: const Color(0xFFEF4444),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '$label: ',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF64748B),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            value.toString(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

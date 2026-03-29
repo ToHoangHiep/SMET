@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:smet/page/employee/widgets/shell/employee_top_header.dart';
 
-/// Layout web: sidebar danh sách khóa học (w-80) + nội dung bài học — không dùng icon rail.
+/// Layout web — Coursera-style learning workspace:
+/// - More breathing room (larger padding)
+/// - Improved spacing between sections
+/// - Content area flows: breadcrumb → video → header → tabs → content
 class LearningWorkspaceWeb extends StatelessWidget {
   final Widget sidebarNavigation;
-  final Widget videoPlayer;
+  final Widget contentArea;
   final Widget lessonHeader;
   final Widget tabs;
   final Widget tabContent;
@@ -16,7 +19,7 @@ class LearningWorkspaceWeb extends StatelessWidget {
   const LearningWorkspaceWeb({
     super.key,
     required this.sidebarNavigation,
-    required this.videoPlayer,
+    required this.contentArea,
     required this.lessonHeader,
     required this.tabs,
     required this.tabContent,
@@ -41,25 +44,31 @@ class LearningWorkspaceWeb extends StatelessWidget {
               ),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.fromLTRB(32, 28, 32, 40),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (breadcrumbs == null || breadcrumbs!.isEmpty)
                         _buildBreadcrumbs(),
-                      const SizedBox(height: 20),
-                      videoPlayer,
                       const SizedBox(height: 24),
+                      contentArea,
+                      const SizedBox(height: 28),
                       lessonHeader,
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       tabs,
                       const SizedBox(height: 24),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(flex: 2, child: tabContent),
-                          const SizedBox(width: 24),
-                          SizedBox(width: 300, child: resourcesSidebar),
+                          Expanded(
+                            flex: 2,
+                            child: tabContent,
+                          ),
+                          const SizedBox(width: 28),
+                          SizedBox(
+                            width: 300,
+                            child: resourcesSidebar,
+                          ),
                         ],
                       ),
                     ],
@@ -80,9 +89,15 @@ class LearningWorkspaceWeb extends StatelessWidget {
           'Courses',
           onTap: () => onNavigate('/employee/courses'),
         ),
-        const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
+        const SizedBox(width: 4),
+        const Icon(Icons.chevron_right, size: 18,
+            color: Color(0xFFCBD5E1)),
+        const SizedBox(width: 4),
         _buildBreadcrumbItem('SMETS Fundamentals', onTap: () {}),
-        const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
+        const SizedBox(width: 4),
+        const Icon(Icons.chevron_right, size: 18,
+            color: Color(0xFFCBD5E1)),
+        const SizedBox(width: 4),
         _buildBreadcrumbItem('1.1 Welcome to SMETS', isActive: true),
       ],
     );
@@ -95,12 +110,18 @@ class LearningWorkspaceWeb extends StatelessWidget {
   }) {
     return InkWell(
       onTap: onTap,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: isActive ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+            color: isActive
+                ? const Color(0xFF0F172A)
+                : const Color(0xFF64748B),
+          ),
         ),
       ),
     );

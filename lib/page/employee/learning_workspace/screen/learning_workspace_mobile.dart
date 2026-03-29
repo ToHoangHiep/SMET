@@ -9,12 +9,11 @@ import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart'
 class LearningWorkspaceMobile extends StatelessWidget {
   final LearningCourse course;
   final LessonContent lessonContent;
-  final String? quizId;
   final LessonTab selectedTab;
   final ValueChanged<LessonTab> onTabChanged;
   final VoidCallback onMarkComplete;
-  final VoidCallback? onTakeQuiz;
   final Function(Lesson) onLessonTap;
+  final void Function(String quizId) onQuizTap;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
 
@@ -22,12 +21,11 @@ class LearningWorkspaceMobile extends StatelessWidget {
     super.key,
     required this.course,
     required this.lessonContent,
-    this.quizId,
     required this.selectedTab,
     required this.onTabChanged,
     required this.onMarkComplete,
-    this.onTakeQuiz,
     required this.onLessonTap,
+    required this.onQuizTap,
     required this.onNavigate,
     required this.onLogout,
   });
@@ -77,13 +75,8 @@ class LearningWorkspaceMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Video Player
-            VideoPlayerWidget(
-              youtubeVideoId: lessonContent.youtubeVideoId,
-              thumbnailUrl: lessonContent.thumbnailUrl,
-              videoDurationSeconds: lessonContent.videoDurationSeconds,
-              currentPositionSeconds: lessonContent.currentPositionSeconds,
-            ),
+            // Video Player hoặc Text Content
+            _buildContentArea(lessonContent),
             // Content
             Padding(
               padding: const EdgeInsets.all(16),
@@ -96,10 +89,8 @@ class LearningWorkspaceMobile extends StatelessWidget {
                     durationMinutes: lessonContent.videoDurationSeconds ~/ 60,
                     level: lessonContent.level,
                     lessonId: lessonContent.id,
-                    quizId: quizId,
                     isCompleted: lessonContent.isCompleted,
                     onMarkComplete: onMarkComplete,
-                    onTakeQuiz: onTakeQuiz,
                   ),
                   const SizedBox(height: 20),
                   // Tabs
@@ -230,41 +221,151 @@ class LearningWorkspaceMobile extends StatelessWidget {
                   : const Color(0xFF0F172A),
         ),
       ),
-      children:
-          module.lessons.map((lesson) {
-            return ListTile(
-              contentPadding: const EdgeInsets.only(left: 56, right: 16),
-              leading: Icon(
-                lesson.isCompleted
-                    ? Icons.check_circle
-                    : (lesson.isCurrent
-                        ? Icons.play_circle
-                        : Icons.circle_outlined),
-                size: 18,
-                color:
-                    lesson.isCompleted
-                        ? const Color(0xFF22C55E)
-                        : (lesson.isCurrent
-                            ? const Color(0xFF137FEC)
-                            : const Color(0xFF94A3B8)),
-              ),
-              title: Text(
-                lesson.title,
-                style: TextStyle(
-                  fontSize: 13,
-                  color:
-                      lesson.isCurrent
+      children: [
+        ...module.lessons.map((lesson) {
+          return ListTile(
+            contentPadding: const EdgeInsets.only(left: 56, right: 16),
+            leading: Icon(
+              lesson.isCompleted
+                  ? Icons.check_circle
+                  : (lesson.isCurrent
+                      ? Icons.play_circle
+                      : (lesson.lessonType == LessonType.text
+                          ? Icons.article_outlined
+                          : (lesson.lessonType == LessonType.link
+                              ? Icons.link
+                              : Icons.circle_outlined))),
+              size: 18,
+              color:
+                  lesson.isCompleted
+                      ? const Color(0xFF22C55E)
+                      : (lesson.isCurrent
                           ? const Color(0xFF137FEC)
-                          : const Color(0xFF475569),
-                ),
+                          : const Color(0xFF94A3B8)),
+            ),
+            title: Text(
+              lesson.title,
+              style: TextStyle(
+                fontSize: 13,
+                color:
+                    lesson.isCurrent
+                        ? const Color(0xFF137FEC)
+                        : const Color(0xFF475569),
               ),
-              onTap: () => onLessonTap(lesson),
-            );
-          }).toList(),
+            ),
+            onTap: () => onLessonTap(lesson),
+          );
+        }),
+        if (module.quizId != null)
+          ListTile(
+            contentPadding: const EdgeInsets.only(left: 56, right: 16),
+            leading: Icon(
+              module.isCompleted
+                  ? Icons.check_circle
+                  : Icons.quiz_outlined,
+              size: 18,
+              color: module.isCompleted
+                  ? const Color(0xFF22C55E)
+                  : const Color(0xFF64748B),
+            ),
+            title: Text(
+              module.isCompleted ? 'Kiểm tra Module' : 'Kiểm tra Module',
+              style: TextStyle(
+                fontSize: 13,
+                color: module.isCompleted
+                    ? const Color(0xFF22C55E)
+                    : const Color(0xFF64748B),
+              ),
+            ),
+            onTap: module.isCompleted
+                ? () => onQuizTap(module.quizId!)
+                : null,
+          ),
+      ],
     );
   }
 
   void _showSidebar(BuildContext context) {
     Scaffold.of(context).openDrawer();
+  }
+
+  static Widget _buildContentArea(LessonContent lessonContent) {
+    final isVideo = lessonContent.contentType == 'VIDEO' &&
+        lessonContent.youtubeVideoId != null &&
+        lessonContent.youtubeVideoId!.isNotEmpty;
+
+    if (isVideo) {
+      return VideoPlayerWidget(
+        youtubeVideoId: lessonContent.youtubeVideoId!,
+        thumbnailUrl: lessonContent.thumbnailUrl,
+        videoDurationSeconds: lessonContent.videoDurationSeconds,
+        currentPositionSeconds: lessonContent.currentPositionSeconds,
+      );
+    }
+
+    // TEXT or LINK — hiển thị nội dung dạng văn bản
+    final textContent = lessonContent.content ?? '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF137FEC).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  lessonContent.contentType == 'LINK'
+                      ? Icons.link
+                      : Icons.article_outlined,
+                  size: 14,
+                  color: const Color(0xFF137FEC),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  lessonContent.contentType == 'LINK' ? 'Tài liệu' : 'Văn bản',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF137FEC),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (textContent.isNotEmpty)
+            SelectableText(
+              textContent,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.8,
+                color: Color(0xFF334155),
+              ),
+            )
+          else
+            const Text(
+              'Chưa có nội dung cho bài học này.',
+              style: TextStyle(
+                fontSize: 15,
+                color: Color(0xFF94A3B8),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

@@ -2,20 +2,24 @@ import 'package:flutter/material.dart';
 
 class CourseDetailMobile extends StatelessWidget {
   final Widget hero;
+  final Widget courseStats;
   final Widget syllabus;
   final Widget instructor;
   final Widget reviews;
   final Widget enrollCard;
+  final Widget courseInfoCard;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
 
   const CourseDetailMobile({
     super.key,
     required this.hero,
+    required this.courseStats,
     required this.syllabus,
     required this.instructor,
     required this.reviews,
     required this.enrollCard,
+    required this.courseInfoCard,
     required this.onNavigate,
     required this.onLogout,
   });
@@ -93,21 +97,37 @@ class CourseDetailMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Hero
             hero,
+
+            // Stats
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: courseStats,
+            ),
+
+            // Content
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Enroll Card
+                  // Enroll Card — ở trên cùng cho mobile
                   enrollCard,
+                  const SizedBox(height: 16),
+
+                  // Course info (deadline + share)
+                  courseInfoCard,
                   const SizedBox(height: 24),
+
                   // Syllabus
                   syllabus,
                   const SizedBox(height: 24),
+
                   // Instructor
                   instructor,
                   const SizedBox(height: 24),
+
                   // Reviews
                   reviews,
                   const SizedBox(height: 24),

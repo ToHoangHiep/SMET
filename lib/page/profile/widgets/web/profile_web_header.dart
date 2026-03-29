@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/user_service.dart';
 
 class ProfileWebHeader extends StatelessWidget {
   final UserModel? currentUser;
@@ -44,8 +45,17 @@ class ProfileWebHeader extends StatelessWidget {
             ],
           ),
           IconButton(
-            onPressed: () {
-              final role = currentUser?.role;
+            onPressed: () async {
+              UserRole? role = currentUser?.role;
+              if (role == null) {
+                try {
+                  final u = await UserService.getProfile();
+                  role = u.role;
+                } catch (_) {
+                  role = null;
+                }
+              }
+              if (!context.mounted) return;
               switch (role) {
                 case UserRole.ADMIN:
                   context.go('/user_management');
@@ -54,6 +64,8 @@ class ProfileWebHeader extends StatelessWidget {
                   context.go('/pm/dashboard');
                   break;
                 case UserRole.MENTOR:
+                  context.go('/mentor/dashboard');
+                  break;
                 case UserRole.USER:
                 default:
                   context.go('/employee/dashboard');

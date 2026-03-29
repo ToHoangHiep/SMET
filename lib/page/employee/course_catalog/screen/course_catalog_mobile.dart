@@ -33,7 +33,7 @@ class CourseCatalogMobile extends StatelessWidget {
                 color: const Color(0xFF137FEC),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.school, color: Colors.white, size: 20),
+              child: const Icon(Icons.book, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
             const Text(
@@ -79,7 +79,6 @@ class CourseCatalogMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Page title
             Row(
               children: [
                 const Icon(
@@ -106,7 +105,7 @@ class CourseCatalogMobile extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -143,13 +142,6 @@ class CourseCatalogMobile extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  'Nhân viên',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 14,
-                  ),
-                ),
               ],
             ),
           ),
@@ -166,27 +158,15 @@ class CourseCatalogMobile extends StatelessWidget {
             icon: Icons.library_books,
             label: 'Khóa học của tôi',
             isActive: false,
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              Navigator.pop(context);
+              onNavigate('/employee/my-courses');
+            },
           ),
           _buildDrawerItem(
             icon: Icons.explore,
             label: 'Danh mục',
             isActive: true,
-            onTap: () {
-              Navigator.pop(context);
-              onNavigate('/employee/courses');
-            },
-          ),
-          _buildDrawerItem(
-            icon: Icons.work,
-            label: 'Dự án của tôi',
-            isActive: false,
-            onTap: () => Navigator.pop(context),
-          ),
-          _buildDrawerItem(
-            icon: Icons.workspace_premium,
-            label: 'Chứng chỉ của tôi',
-            isActive: false,
             onTap: () => Navigator.pop(context),
           ),
           const Divider(),
@@ -226,7 +206,7 @@ class CourseCatalogMobile extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,
@@ -237,6 +217,19 @@ class CourseCatalogMobile extends StatelessWidget {
         fontWeight: FontWeight.w600,
       ),
       unselectedLabelStyle: const TextStyle(fontSize: 12),
+      currentIndex: 2,
+      onTap: (index) {
+        switch (index) {
+          case 0:
+            onNavigate('/employee/dashboard');
+            break;
+          case 1:
+            onNavigate('/employee/my-courses');
+            break;
+          case 3:
+            break;
+        }
+      },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
         BottomNavigationBarItem(

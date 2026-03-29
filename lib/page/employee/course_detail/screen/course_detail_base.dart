@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_web.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_mobile.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_enroll_card.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_hero.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_instructor.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_reviews.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_syllabus.dart';
+import 'package:smet/page/employee/course_detail/widgets/hero_section.dart';
+import 'package:smet/page/employee/course_detail/widgets/course_stats_section.dart';
+import 'package:smet/page/employee/course_detail/widgets/syllabus_section.dart';
+import 'package:smet/page/employee/course_detail/widgets/instructor_section.dart';
+import 'package:smet/page/employee/course_detail/widgets/reviews_section.dart';
+import 'package:smet/page/employee/course_detail/widgets/offered_by_section.dart';
+import 'package:smet/page/employee/course_detail/widgets/enroll_card.dart';
+import 'package:smet/page/employee/course_detail/widgets/course_info_card.dart';
 import 'package:smet/service/employee/course_service.dart';
 import 'package:smet/model/Employee_course_model.dart';
-import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class CourseDetailPage extends StatefulWidget {
@@ -28,6 +30,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   String? _error;
   bool _isEnrolled = false;
   bool _isEnrolling = false;
+  double _progressPercent = 0;
 
   // Track expanded modules
   final Map<int, bool> _expandedModules = {};
@@ -53,9 +56,23 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         _expandedModules[i] = course.modules[i].isExpanded;
       }
 
+      // Load progress if enrolled
+      double progress = 0;
+      if (enrolled) {
+        try {
+          final learningCourse = await CourseService.getCourseProgress(widget.courseId);
+          if (learningCourse != null) {
+            progress = learningCourse.progressPercent;
+          }
+        } catch (_) {
+          // Progress API may not be available, ignore
+        }
+      }
+
       setState(() {
         _course = course;
         _isEnrolled = enrolled;
+        _progressPercent = progress;
         _isLoading = false;
       });
     } catch (e) {
@@ -115,47 +132,33 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     context.go('/login');
   }
 
-  // Menu items for SharedSidebar
-  List<SidebarMenuItem> _getMenuItems() {
-    return const [
-      SidebarMenuItem(
-        icon: Icons.dashboard,
-        title: 'Trang chủ',
-        route: '/employee/dashboard',
-        tooltip: 'Trang chủ',
-      ),
-      SidebarMenuItem(
-        icon: Icons.library_books,
-        title: 'Khóa học của tôi',
-        route: '/employee/my-courses',
-        tooltip: 'Khóa học của tôi',
-      ),
-      SidebarMenuItem(
-        icon: Icons.explore,
-        title: 'Danh mục',
-        route: '/employee/courses',
-        tooltip: 'Danh mục khóa học',
-      ),
-      SidebarMenuItem(
-        icon: Icons.work,
-        title: 'Dự án của tôi',
-        route: '/employee/projects',
-        tooltip: 'Dự án của tôi',
-      ),
-      SidebarMenuItem(
-        icon: Icons.workspace_premium,
-        title: 'Chứng chỉ',
-        route: '/employee/certificates',
-        tooltip: 'Chứng chỉ của tôi',
-      ),
-    ];
+  void _onShare() {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã sao chép liên kết khóa học!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
-  // Build Hero widget
+  void _onBookmark() {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã lưu khóa học!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // ─── Build Hero ───
   Widget buildHero() {
     if (_course == null) return const SizedBox.shrink();
 
-    return CourseHero(
+    return HeroSection(
       title: _course!.title,
       description: _course!.description,
       imageUrl: _course!.imageUrl,
@@ -165,60 +168,101 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       studentsCount: _course!.studentsCount,
       isBestSeller: _course!.isBestSeller,
       category: _course!.category,
+      instructorName: _course!.instructor.name,
+      instructorAvatar: _course!.instructor.avatarUrl,
     );
   }
 
-  // Build Syllabus widget
+  // ─── Build Course Stats ───
+  Widget buildCourseStats() {
+    if (_course == null) return const SizedBox.shrink();
+
+    return CourseStatsSection(
+      videoHours: _course!.videoHours,
+      resources: _course!.resources,
+      hasCertificate: _course!.hasCertificate,
+    );
+  }
+
+  // ─── Build Syllabus ───
   Widget buildSyllabus() {
     if (_course == null) return const SizedBox.shrink();
 
-    final modulesWithState =
-        _course!.modules.asMap().entries.map((entry) {
-          final index = entry.key;
-          final module = entry.value;
-          return Module(
-            title: module.title,
-            lessonCount: module.lessonCount,
-            lessons: module.lessons,
-            isExpanded: _expandedModules[index] ?? false,
-            onToggle: () => _toggleModule(index),
-          );
-        }).toList();
+    final modulesWithState = _course!.modules.asMap().entries.map((entry) {
+      final index = entry.key;
+      final module = entry.value;
+      return SyllabusModule(
+        title: module.title,
+        lessonCount: module.lessonCount,
+        lessons: module.lessons
+            .map((l) => SyllabusLesson(title: l, type: SyllabusLessonType.video))
+            .toList(),
+        isExpanded: _expandedModules[index] ?? false,
+        onToggle: () => _toggleModule(index),
+      );
+    }).toList();
 
-    return CourseSyllabus(modules: modulesWithState);
+    return SyllabusSection(
+      modules: modulesWithState,
+      onLessonTap: (moduleIdx, lessonIdx) {
+        // TODO: Navigate to specific lesson
+        debugPrint('Tap lesson $lessonIdx in module $moduleIdx');
+      },
+    );
   }
 
-  // Build Instructor widget
+  // ─── Build Instructor ───
   Widget buildInstructor() {
     if (_course == null) return const SizedBox.shrink();
 
-    return CourseInstructor(
+    return InstructorSection(
       name: _course!.instructor.name,
       title: _course!.instructor.title,
       avatarUrl: _course!.instructor.avatarUrl,
       bio: _course!.instructor.bio,
       linkedInUrl: _course!.instructor.linkedInUrl,
       websiteUrl: _course!.instructor.websiteUrl,
+      isTopInstructor: _course!.rating >= 4.5,
     );
   }
 
-  // Build Reviews widget
+  // ─── Build Reviews ───
   Widget buildReviews() {
     if (_course == null) return const SizedBox.shrink();
 
-    return CourseReviews(
-      reviews: _course!.reviews,
+    final reviewItems = _course!.reviews
+        .map((r) => ReviewItem(
+              rating: r.rating,
+              comment: r.comment,
+              userName: r.userName,
+              avatarUrl: r.avatarUrl,
+            ))
+        .toList();
+
+    return ReviewsSection(
+      reviews: reviewItems,
+      averageRating: _course!.rating,
       onSeeAll: () {
-        // TODO: Navigate to all reviews
+        // TODO: Navigate to all reviews page
       },
     );
   }
 
-  // Build Enroll Card widget
+  // ─── Build Offered By ───
+  Widget buildOfferedBy() {
+    if (_course == null) return const SizedBox.shrink();
+
+    return OfferedBySection(
+      departmentName: _course!.departmentName,
+      mentorName: _course!.instructor.name,
+    );
+  }
+
+  // ─── Build Enroll Card ───
   Widget buildEnrollCard() {
     if (_course == null) return const SizedBox.shrink();
 
-    return CourseEnrollCard(
+    return EnrollCard(
       onEnroll: () {
         if (!_isEnrolling) _onEnroll();
       },
@@ -228,6 +272,24 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       hasCertificate: _course!.hasCertificate,
       enrolledCount: _course!.enrolledCount,
       isEnrolled: _isEnrolled,
+      isLoading: _isEnrolling,
+      progressPercent: _isEnrolled ? _progressPercent : null,
+      imageUrl: _course!.imageUrl,
+      onShare: _onShare,
+      onBookmark: _onBookmark,
+    );
+  }
+
+  // ─── Build Course Info Card ───
+  Widget buildCourseInfoCard() {
+    if (_course == null) return const SizedBox.shrink();
+
+    return CourseInfoCard(
+      deadlineType: _course!.deadlineType,
+      defaultDeadlineDays: _course!.defaultDeadlineDays,
+      fixedDeadline: _course!.fixedDeadline,
+      onShare: _onShare,
+      courseTitle: _course!.title,
     );
   }
 
@@ -276,13 +338,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             if (kIsWeb || constraints.maxWidth > 850) {
               return CourseDetailWeb(
                 hero: buildHero(),
+                courseStats: buildCourseStats(),
                 syllabus: buildSyllabus(),
                 instructor: buildInstructor(),
                 reviews: buildReviews(),
                 enrollCard: buildEnrollCard(),
-                menuItems: _getMenuItems(),
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                offeredBy: buildOfferedBy(),
+                courseInfoCard: buildCourseInfoCard(),
                 breadcrumbs: [
                   const BreadcrumbItem(
                     label: 'Trang chủ',
@@ -298,10 +360,12 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             } else {
               return CourseDetailMobile(
                 hero: buildHero(),
+                courseStats: buildCourseStats(),
                 syllabus: buildSyllabus(),
                 instructor: buildInstructor(),
                 reviews: buildReviews(),
                 enrollCard: buildEnrollCard(),
+                courseInfoCard: buildCourseInfoCard(),
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,
               );

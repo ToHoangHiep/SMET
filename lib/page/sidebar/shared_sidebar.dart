@@ -144,13 +144,16 @@ class _SharedSidebarState extends State<SharedSidebar>
                     Expanded(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: AnimatedCrossFade(
-                          firstChild: _buildExpandedMenu(),
-                          secondChild: _buildCollapsedMenu(),
-                          crossFadeState: _isExpanded
-                              ? CrossFadeState.showFirst
-                              : CrossFadeState.showSecond,
-                          duration: const Duration(milliseconds: 200),
+                        child: SizedBox(
+                          width: _sidebarExpandedWidth,
+                          child: AnimatedCrossFade(
+                            firstChild: _buildExpandedMenu(),
+                            secondChild: _buildCollapsedMenu(),
+                            crossFadeState: _isExpanded
+                                ? CrossFadeState.showFirst
+                                : CrossFadeState.showSecond,
+                            duration: const Duration(milliseconds: 200),
+                          ),
                         ),
                       ),
                     ),

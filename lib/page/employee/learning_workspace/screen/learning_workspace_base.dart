@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/Employee_learning_model.dart';
@@ -18,12 +17,14 @@ class LearningWorkspacePage extends StatefulWidget {
   final String courseId;
   final String? lessonId;
   final String? quizId;
+  final String? learningPathId;
 
   const LearningWorkspacePage({
     super.key,
     required this.courseId,
     this.lessonId,
     this.quizId,
+    this.learningPathId,
   });
 
   @override
@@ -37,6 +38,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   LessonTab _selectedTab = LessonTab.overview;
   bool _isLoading = true;
   String? _error;
+  LearningPathDetail? _learningPath;
 
   @override
   void initState() {
@@ -49,7 +51,8 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.courseId != widget.courseId ||
         oldWidget.lessonId != widget.lessonId ||
-        oldWidget.quizId != widget.quizId) {
+        oldWidget.quizId != widget.quizId ||
+        oldWidget.learningPathId != widget.learningPathId) {
       _loadData();
     }
   }
@@ -67,10 +70,17 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         'user_1',
       );
 
+      // Fetch Learning Path detail if path ID is provided
+      LearningPathDetail? pathDetail;
+      if (widget.learningPathId != null) {
+        pathDetail = await LmsService.getLearningPathDetail(widget.learningPathId!);
+      }
+
       if (widget.quizId != null) {
         setState(() {
           _course = course;
           _lessonContent = null;
+          _learningPath = pathDetail;
           _isLoading = false;
         });
         return;
@@ -102,6 +112,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       setState(() {
         _course = course;
         _lessonContent = lessonContent;
+        _learningPath = pathDetail;
         _isLoading = false;
       });
     } catch (e) {
@@ -145,8 +156,16 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         widget.courseId,
         'user_1',
       );
+      // Reload Learning Path detail if available
+      LearningPathDetail? pathDetail;
+      if (widget.learningPathId != null) {
+        pathDetail = await LmsService.getLearningPathDetail(widget.learningPathId!);
+      }
       setState(() {
         _course = course;
+        if (pathDetail != null) {
+          _learningPath = pathDetail;
+        }
       });
     } catch (e) {
       debugPrint('Error reloading course: $e');
@@ -169,6 +188,14 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     context.go('/employee/quiz/$quizId');
   }
 
+  void _onCourseInPathTap(String courseId) {
+    if (widget.learningPathId != null) {
+      context.go('/employee/learn/$courseId?learningPathId=${widget.learningPathId}');
+    } else {
+      context.go('/employee/learn/$courseId');
+    }
+  }
+
   void _onNavigateTo(String path) {
     context.go(path);
   }
@@ -177,22 +204,94 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     context.go('/login');
   }
 
-  // Build video player widget
-  Widget buildVideoPlayer() {
+  // Build content area: video player (VIDEO) hoặc text content (TEXT/LINK)
+  Widget buildContentArea() {
     if (_lessonContent == null) return const SizedBox.shrink();
 
-    return VideoPlayerWidget(
-      youtubeVideoId: _lessonContent!.youtubeVideoId,
-      thumbnailUrl: _lessonContent!.thumbnailUrl,
-      videoDurationSeconds: _lessonContent!.videoDurationSeconds,
-      currentPositionSeconds: _lessonContent!.currentPositionSeconds,
-      onPlay: () {
-        debugPrint('Video started playing');
-      },
-      onVideoComplete: () {
-        debugPrint('Video completed');
-        _onMarkComplete();
-      },
+    if (_lessonContent!.contentType == 'VIDEO' &&
+        _lessonContent!.youtubeVideoId != null &&
+        _lessonContent!.youtubeVideoId!.isNotEmpty) {
+      return VideoPlayerWidget(
+        youtubeVideoId: _lessonContent!.youtubeVideoId,
+        thumbnailUrl: _lessonContent!.thumbnailUrl,
+        videoDurationSeconds: _lessonContent!.videoDurationSeconds,
+        currentPositionSeconds: _lessonContent!.currentPositionSeconds,
+        onPlay: () {
+          debugPrint('Video started playing');
+        },
+        onVideoComplete: () {
+          debugPrint('Video completed');
+          _onMarkComplete();
+        },
+      );
+    }
+
+    // TEXT or LINK — hiển thị nội dung dạng văn bản
+    final textContent = _lessonContent!.content ?? '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF137FEC).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _lessonContent!.contentType == 'LINK'
+                          ? Icons.link
+                          : Icons.article_outlined,
+                      size: 14,
+                      color: const Color(0xFF137FEC),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _lessonContent!.contentType == 'LINK' ? 'Tài liệu' : 'Văn bản',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF137FEC),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (textContent.isNotEmpty)
+            SelectableText(
+              textContent,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.8,
+                color: Color(0xFF334155),
+              ),
+            )
+          else
+            const Text(
+              'Chưa có nội dung cho bài học này.',
+              style: TextStyle(
+                fontSize: 15,
+                color: Color(0xFF94A3B8),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -200,25 +299,13 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   Widget buildLessonHeader() {
     if (_lessonContent == null) return const SizedBox.shrink();
 
-    String? quizId;
-    if (_course != null) {
-      for (var module in _course!.modules) {
-        if (module.quizId != null && _lessonContent!.id == module.quizId) {
-          quizId = module.quizId;
-          break;
-        }
-      }
-    }
-
     return LessonHeader(
       title: _lessonContent!.title,
       durationMinutes: _lessonContent!.videoDurationSeconds ~/ 60,
       level: _lessonContent!.level,
       lessonId: _lessonContent!.id,
-      quizId: quizId,
       isCompleted: _lessonContent!.isCompleted,
       onMarkComplete: _onMarkComplete,
-      onTakeQuiz: quizId != null ? () => _onTakeQuiz(quizId!) : null,
     );
   }
 
@@ -263,6 +350,9 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       resources: _lessonContent!.resources,
       nextLesson: _lessonContent!.nextLesson,
       onJumpToLesson: _onJumpToLesson,
+      learningPath: _learningPath,
+      currentCourseId: widget.courseId,
+      onCourseTap: _onCourseInPathTap,
     );
   }
 
@@ -324,7 +414,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
             if (constraints.maxWidth > 850) {
               return LearningWorkspaceWeb(
                 sidebarNavigation: buildSidebarNavigation(),
-                videoPlayer: buildVideoPlayer(),
+                contentArea: buildContentArea(),
                 lessonHeader: buildLessonHeader(),
                 tabs: buildTabs(),
                 tabContent: buildTabContent(),
@@ -360,15 +450,11 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
               return LearningWorkspaceMobile(
                 course: _course!,
                 lessonContent: _lessonContent!,
-                quizId: _currentQuizId,
                 selectedTab: _selectedTab,
                 onTabChanged: _onTabChanged,
                 onMarkComplete: _onMarkComplete,
-                onTakeQuiz:
-                    _currentQuizId != null
-                        ? () => _onTakeQuiz(_currentQuizId!)
-                        : null,
                 onLessonTap: _onJumpToLesson,
+                onQuizTap: _onQuizTap,
                 onNavigate: _onNavigateTo,
                 onLogout: _onLogout,
               );

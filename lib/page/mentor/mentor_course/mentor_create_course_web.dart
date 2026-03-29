@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
@@ -18,22 +19,21 @@ class MentorCreateCourseWeb extends StatefulWidget {
 
 class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
     with SingleTickerProviderStateMixin {
+  static const _primary = Color(0xFF137FEC);
+
   final MentorCourseService _courseService = MentorCourseService();
   final DepartmentService _departmentService = DepartmentService();
 
   late TabController _tabController;
   bool _isSaving = false;
 
-  // Form fields
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  // Department selector
   List<DepartmentModel> _departments = [];
   DepartmentModel? _selectedDepartment;
   bool _loadingDepartments = false;
 
-  // Deadline config
   DeadlineType _deadlineType = DeadlineType.RELATIVE;
   int _defaultDeadlineDays = 20;
   DateTime? _fixedDeadline;
@@ -56,7 +56,6 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
   Future<void> _loadDepartments() async {
     setState(() => _loadingDepartments = true);
 
-    // Load departments list — separate try-catch so auth failure doesn't block form
     List<DepartmentModel> departments = [];
     try {
       final result = await _departmentService.searchDepartments(page: 0, size: 100);
@@ -65,18 +64,14 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
       log("Load departments failed: $e");
     }
 
-    // Get current user's department from auth/me
-    // Department info is in auth/me response itself — use it even if departments list fails
     try {
       final userData = await AuthService.getMe();
-      // auth/me already contains departmentId + departmentName + departmentCode
       final userDeptId = userData['departmentId'] as int?;
       final userDeptName = userData['departmentName'] as String?;
 
       if (userDeptId != null && userDeptName != null) {
         log("auth/me department: id=$userDeptId, name=$userDeptName");
 
-        // Try to match from loaded departments list first
         DepartmentModel? currentDept;
         if (departments.isNotEmpty) {
           currentDept = departments.cast<DepartmentModel?>().firstWhere(
@@ -95,7 +90,6 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
           return;
         }
 
-        // If departments list didn't load, create a synthetic department from auth/me
         final synthetic = DepartmentModel(
           id: userDeptId,
           name: userDeptName,
@@ -150,13 +144,16 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
         fixedDeadline: fixedDeadlineStr,
       );
 
-      log("Creating course with: title=${request.title}, departmentId=${request.departmentId?.value}, deadlineType=${request.deadlineType}");
+      log("Creating course: title=${request.title}, departmentId=${request.departmentId?.value}, deadlineType=${request.deadlineType}");
 
-      final created = await _courseService.createCourse(request);
+      await _courseService.createCourse(request);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Tạo khóa học thành công!"), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text("Tạo khóa học thành công!"),
+            backgroundColor: Color(0xFF22C55E),
+          ),
         );
         context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
       }
@@ -164,109 +161,188 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
         );
       }
     }
   }
 
-  Widget _buildBreadcrumb() {
+  InputDecoration _field(String label, {IconData? icon}) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF94A3B8), size: 20) : null,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      filled: true,
+      fillColor: const Color(0xFFFAFAFA),
+    );
+  }
+
+  Widget _sectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        InkWell(
-          onTap: () => context.go('/mentor/courses'),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xfff5f6fa),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.arrow_back, size: 20, color: Color(0xff1a90ff)),
-                SizedBox(width: 4),
-                Text("Khóa học", style: TextStyle(color: Color(0xff1a90ff))),
-              ],
-            ),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: _primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
+          child: Icon(icon, color: _primary, size: 18),
         ),
-        const SizedBox(width: 16),
-        const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-        const SizedBox(width: 16),
-        const Flexible(
-          child: Text(
-            "Tạo khóa học mới",
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
-            overflow: TextOverflow.ellipsis,
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
           ),
         ),
       ],
     );
   }
 
+  Widget _card({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xfff5f6fa),
+      backgroundColor: const Color(0xFFF3F6FC),
       body: Column(
         children: [
-          /// BREADCRUMB
+          // HEADER
           Padding(
-            padding: const EdgeInsets.only(top: 30, left: 30, right: 30),
-            child: Row(
-              children: [
-                Expanded(child: _buildBreadcrumb()),
-                const SizedBox(width: 16),
+            padding: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+            child: BreadcrumbPageHeader(
+              pageTitle: "Tạo khóa học mới",
+              pageIcon: Icons.add_box_rounded,
+              breadcrumbs: const [
+                BreadcrumbItem(label: "Khóa học", route: "/mentor/courses"),
+                BreadcrumbItem(label: "Tạo khóa học mới"),
+              ],
+              primaryColor: _primary,
+              actions: [
                 OutlinedButton(
                   onPressed: () => context.go('/mentor/courses'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF64748B),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
                   child: const Text("Hủy"),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: _isSaving ? null : _saveCourse,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
                   icon: _isSaving
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.save),
-                  label: const Text("Tạo khóa học"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff1a90ff),
-                    foregroundColor: Colors.white,
+                      : const Icon(Icons.save, size: 18),
+                  label: const Text(
+                    "Tạo khóa học",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
               ],
             ),
           ),
 
-          /// TAB BAR
-          Container(
-            margin: const EdgeInsets.only(top: 20, left: 30, right: 30),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              labelColor: const Color(0xff1a90ff),
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: const Color(0xff1a90ff),
-              indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              tabs: const [
-                Tab(text: "Thông tin khóa học"),
-                Tab(text: "Cấu trúc khóa học"),
-              ],
+          // TAB BAR
+          Padding(
+            padding: const EdgeInsets.only(top: 20, left: 30, right: 30),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                labelColor: Colors.white,
+                unselectedLabelColor: const Color(0xFF64748B),
+                indicatorColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                indicator: BoxDecoration(
+                  color: _primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                tabs: const [
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.info_outline, size: 18),
+                        SizedBox(width: 6),
+                        Text("Thông tin khóa học"),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.account_tree_outlined, size: 18),
+                        SizedBox(width: 6),
+                        Text("Cấu trúc khóa học"),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
-          /// TAB CONTENT
+          // TAB CONTENT
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -284,199 +360,181 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
   Widget _buildInfoTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// LEFT + RIGHT column layout
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// LEFT: Main info
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+          // LEFT: Main info
+          Expanded(
+            flex: 2,
+            child: _card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionHeader("Thông tin cơ bản", Icons.book_outlined),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _titleController,
+                    decoration: _field("Tên khóa học *", icon: Icons.school_outlined),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Thông tin cơ bản",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 20),
-
-                      /// TITLE
-                      TextField(
-                        controller: _titleController,
-                        decoration: const InputDecoration(
-                          labelText: "Tên khóa học *",
-                          hintText: "Nhập tên khóa học",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      /// DESCRIPTION
-                      TextField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: "Mô tả",
-                          hintText: "Mô tả nội dung khóa học",
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 5,
-                      ),
-                    ],
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _descriptionController,
+                    decoration: _field("Mô tả khóa học", icon: Icons.description_outlined),
+                    maxLines: 5,
                   ),
-                ),
+                ],
               ),
+            ),
+          ),
 
-              const SizedBox(width: 20),
+          const SizedBox(width: 20),
 
-              /// RIGHT: Settings
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+          // RIGHT: Settings
+          Expanded(
+            child: _card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionHeader("Cài đặt", Icons.settings_outlined),
+                  const SizedBox(height: 20),
+
+                  // Department
+                  _fieldLabel("Phòng ban", Icons.business_outlined),
+                  const SizedBox(height: 8),
+                  if (_loadingDepartments)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
+                        ),
+                      ),
+                    )
+                  else
+                    DropdownButtonFormField<DepartmentModel>(
+                      value: _selectedDepartment,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        filled: true,
+                        fillColor: Color(0xFFFAFAFA),
+                      ),
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem<DepartmentModel>(
+                          value: null,
+                          child: Text("Không chọn phòng ban"),
+                        ),
+                        ..._departments.map((d) => DropdownMenuItem(
+                          value: d,
+                          child: Text(d.name, overflow: TextOverflow.ellipsis),
+                        )),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedDepartment = value);
+                      },
+                    ),
+
+                  const SizedBox(height: 20),
+                  const Divider(color: Color(0xFFE5E7EB), thickness: 1),
+                  const SizedBox(height: 16),
+
+                  // Deadline type
+                  _fieldLabel("Kiểu deadline", Icons.schedule_outlined),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<DeadlineType>(
+                    value: _deadlineType,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      filled: true,
+                      fillColor: Color(0xFFFAFAFA),
+                    ),
+                    items: DeadlineType.values.map((t) {
+                      return DropdownMenuItem(value: t, child: Text(t.label));
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() => _deadlineType = value ?? DeadlineType.RELATIVE);
+                    },
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Cài đặt",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 20),
 
-                      /// DEPARTMENT
-                      const Text(
-                        "Phòng ban",
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_loadingDepartments)
-                        const Center(child: CircularProgressIndicator())
-                      else
-                        DropdownButtonFormField<DepartmentModel>(
-                          value: _selectedDepartment,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                          hint: const Text("Chọn phòng ban (không bắt buộc)"),
-                          isExpanded: true,
-                          items: [
-                            const DropdownMenuItem<DepartmentModel>(
-                              value: null,
-                              child: Text("Không chọn phòng ban"),
-                            ),
-                            ..._departments.map((d) => DropdownMenuItem(
-                              value: d,
-                              child: Text(d.name, overflow: TextOverflow.ellipsis),
-                            )),
-                          ],
-                          onChanged: (value) {
-                            setState(() => _selectedDepartment = value);
-                          },
-                        ),
-
-                      const SizedBox(height: 20),
-                      const Divider(),
-                      const SizedBox(height: 12),
-
-                      /// DEADLINE TYPE
-                      const Text(
-                        "Kiểu deadline",
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<DeadlineType>(
-                        value: _deadlineType,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        items: DeadlineType.values.map((t) {
-                          return DropdownMenuItem(
-                            value: t,
-                            child: Text(t.label),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() => _deadlineType = value ?? DeadlineType.RELATIVE);
-                        },
-                      ),
-
-                      /// DEADLINE VALUE (conditional)
-                      const SizedBox(height: 16),
-                      if (_deadlineType == DeadlineType.RELATIVE) ...[
-                        const Text(
-                          "Số ngày deadline (sau khi đăng ký)",
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 100,
-                              child: TextField(
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                ),
-                                controller: TextEditingController(text: '$_defaultDeadlineDays'),
-                                onChanged: (v) {
-                                  final parsed = int.tryParse(v);
-                                  if (parsed != null && parsed > 0) {
-                                    setState(() => _defaultDeadlineDays = parsed);
-                                  }
-                                },
+                  const SizedBox(height: 16),
+                  if (_deadlineType == DeadlineType.RELATIVE) ...[
+                    _fieldLabel("Số ngày deadline (sau khi đăng ký)", Icons.numbers),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 90,
+                          child: TextField(
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.numbers, size: 18, color: Color(0xFF94A3B8)),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                               ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: _primary, width: 2),
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFFFAFAFA),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                             ),
-                            const SizedBox(width: 8),
-                            const Text("ngày"),
-                          ],
-                        ),
-                      ] else ...[
-                        const Text(
-                          "Ngày deadline cố định",
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: _fixedDeadline ?? DateTime.now().add(const Duration(days: 30)),
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 365)),
-                            );
-                            if (picked != null) {
-                              setState(() => _fixedDeadline = picked);
-                            }
-                          },
-                          icon: const Icon(Icons.calendar_today, size: 18),
-                          label: Text(
-                            _fixedDeadline != null
-                                ? '${_fixedDeadline!.day}/${_fixedDeadline!.month}/${_fixedDeadline!.year}'
-                                : 'Chọn ngày',
+                            controller: TextEditingController(text: '$_defaultDeadlineDays'),
+                            onChanged: (v) {
+                              final parsed = int.tryParse(v);
+                              if (parsed != null && parsed > 0) {
+                                setState(() => _defaultDeadlineDays = parsed);
+                              }
+                            },
                           ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          "ngày",
+                          style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
                         ),
                       ],
-                    ],
-                  ),
-                ),
+                    ),
+                  ] else ...[
+                    _fieldLabel("Ngày deadline cố định", Icons.calendar_today),
+                    const SizedBox(height: 8),
+                    _DatePickerButton(
+                      selectedDate: _fixedDeadline,
+                      primaryColor: _primary,
+                      onPicked: (date) {
+                        setState(() => _fixedDeadline = date);
+                      },
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _fieldLabel(String text, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: const Color(0xFF94A3B8)),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+        ),
+      ],
     );
   }
 
@@ -489,52 +547,172 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "Cấu trúc khóa học",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.account_tree_outlined, color: _primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    "Cấu trúc khóa học",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                ],
               ),
               ElevatedButton.icon(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Tạo khóa học trước để thêm chương")),
+                    const SnackBar(
+                      content: Text("Tạo khóa học trước để thêm chương"),
+                      backgroundColor: Color(0xFFF59E0B),
+                    ),
                   );
                 },
-                icon: const Icon(Icons.add),
-                label: const Text("Thêm Chương"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff1a90ff),
+                  backgroundColor: _primary,
                   foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text(
+                  "Thêm Chương",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           Container(
-            padding: const EdgeInsets.all(40),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(Icons.library_books_outlined, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  const Text(
-                    "Chưa có chương nào",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            child: Column(
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF1F5F9),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Tạo khóa học và quay lại trang chỉnh sửa để thêm chương.",
-                    style: TextStyle(color: Colors.grey[400]),
+                  child: const Icon(
+                    Icons.library_books_outlined,
+                    size: 36,
+                    color: Color(0xFFCBD5E1),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "Chưa có chương nào",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Tạo khóa học và quay lại trang chỉnh sửa để thêm chương.",
+                  style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DatePickerButton extends StatelessWidget {
+  final DateTime? selectedDate;
+  final Color primaryColor;
+  final ValueChanged<DateTime> onPicked;
+
+  const _DatePickerButton({
+    required this.selectedDate,
+    required this.primaryColor,
+    required this.onPicked,
+  });
+
+  String _format(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 30)),
+          firstDate: DateTime.now(),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: primaryColor,
+                  onPrimary: Colors.white,
+                  surface: Colors.white,
+                  onSurface: const Color(0xFF0F172A),
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (picked != null) onPicked(picked);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAFAFA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selectedDate != null ? primaryColor : const Color(0xFFE5E7EB),
+            width: selectedDate != null ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 20,
+              color: selectedDate != null ? primaryColor : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                selectedDate != null ? _format(selectedDate!) : 'Chọn ngày',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: selectedDate != null ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                  fontWeight: selectedDate != null ? FontWeight.w500 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (selectedDate != null)
+              GestureDetector(
+                onTap: () => onPicked(DateTime(1900)),
+                child: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
+              ),
+          ],
+        ),
       ),
     );
   }

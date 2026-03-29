@@ -5,71 +5,55 @@ import 'package:smet/page/sidebar/shared_sidebar.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/user_service.dart';
 
-/// Mentor Shell - Layout chung cho tất cả các màn hình mentor
+/// Employee Shell - Layout chung cho tất cả các màn hình employee
 /// Sử dụng SharedSidebar dùng chung cho cả dự án
-class MentorShell extends StatefulWidget {
+class EmployeeShell extends StatefulWidget {
   final Widget child;
-  final int currentIndex;
 
-  const MentorShell({super.key, required this.child, this.currentIndex = 0});
+  const EmployeeShell({super.key, required this.child});
 
-  /// Get current index based on route path
-  static int getIndexFromPath(String path) {
-    // Quiz tạo/sửa từ chi tiết khóa — coi như thuộc luồng Khóa học
-    if (path.startsWith('/mentor/courses') || path.startsWith('/mentor/quizzes')) return 1;
-    if (path.startsWith('/mentor/learning-paths')) return 2;
-    if (path.startsWith('/mentor/dashboard')) return 0;
-    return 0;
-  }
+  /// Employee color theme
+  static const Color employeePrimaryColor = Color(0xFF137FEC);
 
-  /// Mentor color theme
-  static const Color mentorPrimaryColor = Color(0xFF6366F1);
-
-  /// Menu items cho mentor sidebar
-  static List<SidebarMenuItem> get mentorMenuItems => [
+  /// Menu items cho employee sidebar
+  static List<SidebarMenuItem> get employeeMenuItems => [
     SidebarMenuItem(
-      icon: Icons.grid_view_rounded,
-      title: 'Tổng quan',
-      route: '/mentor/dashboard',
-      tooltip: 'Tổng quan',
+      icon: Icons.dashboard_rounded,
+      title: 'Trang chủ',
+      route: '/employee/dashboard',
+      tooltip: 'Trang chủ',
     ),
     SidebarMenuItem(
-      icon: Icons.menu_book_rounded,
-      title: 'Khóa học',
-      route: '/mentor/courses',
-      tooltip: 'Khóa học',
+      icon: Icons.library_books_rounded,
+      title: 'Khóa học của tôi',
+      route: '/employee/my-courses',
+      tooltip: 'Khóa học của tôi',
     ),
     SidebarMenuItem(
-      icon: Icons.account_tree_rounded,
-      title: 'Lộ trình',
-      route: '/mentor/learning-paths',
-      tooltip: 'Lộ trình học tập',
+      icon: Icons.explore_rounded,
+      title: 'Danh mục',
+      route: '/employee/courses',
+      tooltip: 'Danh mục khóa học',
     ),
     SidebarMenuItem(
-      icon: Icons.people_rounded,
-      title: 'Học viên',
-      route: '/mentor/students',
-      tooltip: 'Học viên',
+      icon: Icons.work_rounded,
+      title: 'Dự án của tôi',
+      route: '/employee/projects',
+      tooltip: 'Dự án của tôi',
     ),
     SidebarMenuItem(
-      icon: Icons.chat_bubble_rounded,
-      title: 'Tin nhắn',
-      route: '/mentor/messages',
-      tooltip: 'Tin nhắn',
-    ),
-    SidebarMenuItem(
-      icon: Icons.settings_rounded,
-      title: 'Cài đặt',
-      route: '/mentor/settings',
-      tooltip: 'Cài đặt',
+      icon: Icons.workspace_premium_rounded,
+      title: 'Chứng chỉ',
+      route: '/employee/certificates',
+      tooltip: 'Chứng chỉ của tôi',
     ),
   ];
 
   @override
-  State<MentorShell> createState() => _MentorShellState();
+  State<EmployeeShell> createState() => _EmployeeShellState();
 }
 
-class _MentorShellState extends State<MentorShell> {
+class _EmployeeShellState extends State<EmployeeShell> {
   String _userDisplayName = '';
   String _userRoleLabel = '';
 
@@ -93,7 +77,7 @@ class _MentorShellState extends State<MentorShell> {
       if (!mounted) return;
       setState(() {
         _userDisplayName = 'Người dùng';
-        _userRoleLabel = UserRole.MENTOR.displayName;
+        _userRoleLabel = UserRole.USER.displayName;
       });
     }
   }
@@ -107,11 +91,11 @@ class _MentorShellState extends State<MentorShell> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SharedSidebar(
-            primaryColor: MentorShell.mentorPrimaryColor,
+            primaryColor: EmployeeShell.employeePrimaryColor,
             logoIcon: Icons.school,
             logoText: 'SMETS',
-            subtitle: 'Mentor Portal',
-            menuItems: MentorShell.mentorMenuItems,
+            subtitle: 'EMPLOYEE PORTAL',
+            menuItems: EmployeeShell.employeeMenuItems,
             activeRoute: location,
             userDisplayName: _userDisplayName.isEmpty ? '…' : _userDisplayName,
             userRole: _userRoleLabel.isEmpty ? '…' : _userRoleLabel,

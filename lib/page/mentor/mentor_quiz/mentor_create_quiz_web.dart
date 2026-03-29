@@ -1,5 +1,7 @@
+import 'dart:developer' as dev;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/model/option_model.dart';
 import 'package:smet/model/question_model.dart';
@@ -12,12 +14,18 @@ class MentorCreateQuizWeb extends StatefulWidget {
   final String? moduleId;
   final String? courseId;
   final bool isFinalQuiz;
+  /** Nếu truyền quizId → chế độ sửa quiz đã tồn tại. */
+  final String? quizId;
+  /** Gọi sau khi lưu thành công, trước khi quay lại trang khóa học. */
+  final VoidCallback? onSaved;
 
   const MentorCreateQuizWeb({
     super.key,
     this.moduleId,
     this.courseId,
     this.isFinalQuiz = false,
+    this.quizId,
+    this.onSaved,
   });
 
   @override
@@ -31,6 +39,8 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   final MentorQuestionService _questionService = MentorQuestionService();
   final MentorOptionService _optionService = MentorOptionService();
 
+  bool get _isEditMode => widget.quizId != null;
+
   final _titleController = TextEditingController();
   final _durationController = TextEditingController(text: '45');
   final _passingScoreController = TextEditingController(text: '80');
@@ -38,13 +48,80 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
 
   bool _showAnswer = false;
   bool _isSaving = false;
+  bool _isLoading = true;
+  String? _loadError;
 
   final List<_EditableQuestion> _questions = [];
 
   @override
   void initState() {
     super.initState();
-    _addQuestion();
+    if (_isEditMode) {
+      _loadExistingQuiz();
+    } else {
+      _addQuestion();
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadExistingQuiz() async {
+    try {
+      final quiz = await _quizService.getQuizWithQuestions(
+        Long(int.parse(widget.quizId!)),
+      );
+
+      _titleController.text = quiz.title;
+      _durationController.text = quiz.timeLimitMinutes.toString();
+      _passingScoreController.text = quiz.passingScore.toString();
+      _maxAttemptsController.text = (quiz.maxAttempts ?? 1).toString();
+      _showAnswer = quiz.showAnswer;
+
+      if (quiz.questions != null) {
+        for (final q in quiz.questions!) {
+          final editable = _EditableQuestion();
+          editable.questionController.text = q.content;
+          editable.questionId = q.id;
+
+          // _EditableQuestion() đã tạo sẵn 4 ô trống; khi sửa quiz phải thay bằng đáp án từ API,
+          // không được add thêm → tránh 8 ô (4 placeholder + 4 thật).
+          if (q.options != null && q.options!.isNotEmpty) {
+            for (final c in editable.optionControllers) {
+              c.dispose();
+            }
+            editable.optionControllers.clear();
+            editable.correctAnswers.clear();
+            editable.optionIds.clear();
+            for (final o in q.options!) {
+              editable.optionControllers.add(
+                TextEditingController(text: o.content),
+              );
+              editable.correctAnswers.add(o.isCorrect);
+              editable.optionIds.add(o.id);
+            }
+            while (editable.optionControllers.length < 2) {
+              editable.optionControllers.add(TextEditingController());
+              editable.correctAnswers.add(false);
+              editable.optionIds.add(null);
+            }
+          }
+
+          _questions.add(editable);
+        }
+      }
+
+      if (_questions.isEmpty) {
+        _addQuestion();
+      }
+
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadError = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -53,7 +130,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
     _durationController.dispose();
     _passingScoreController.dispose();
     _maxAttemptsController.dispose();
-
     for (final q in _questions) {
       q.dispose();
     }
@@ -61,8 +137,17 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   }
 
   void _goBack() {
-    final router = GoRouter.of(context);
-    if (router.canPop()) {
+    widget.onSaved?.call();
+    // Mở bằng context.go() → stack không có route để pop → phải go() lại chi tiết khóa
+    if (widget.courseId != null && widget.courseId!.isNotEmpty) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/mentor/courses/${widget.courseId}');
+      }
+      return;
+    }
+    if (context.canPop()) {
       context.pop();
     } else {
       context.go('/mentor/courses');
@@ -118,58 +203,222 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
     setState(() => _isSaving = true);
 
     try {
-      final quiz = QuizModel(
-        title: _titleController.text.trim(),
-        timeLimitMinutes: int.tryParse(_durationController.text.trim()) ?? 0,
-        passingScore: int.tryParse(_passingScoreController.text.trim()) ?? 0,
-        maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
-        questionCount: _questions.length,
-        showAnswer: _showAnswer,
-        isFinalQuiz: widget.isFinalQuiz,
-        moduleId:
-            widget.moduleId != null ? Long(int.parse(widget.moduleId!)) : null,
-        courseId:
-            widget.courseId != null ? Long(int.parse(widget.courseId!)) : null,
-      );
+      // ── Ghi lại ID gốc từ server trước khi save ──
+      final _originalQuestionIds = <Long>{};
+      for (final eq in _questions) {
+        if (eq.questionId != null) _originalQuestionIds.add(eq.questionId!);
+      }
 
-      final createdQuiz = await _quizService.createQuiz(quiz);
+      if (_isEditMode) {
+        // ── EDIT MODE: cập nhật metadata quiz ──
+        final updatedQuiz = QuizModel(
+          title: _titleController.text.trim(),
+          timeLimitMinutes: int.tryParse(_durationController.text.trim()) ?? 0,
+          passingScore: int.tryParse(_passingScoreController.text.trim()) ?? 0,
+          maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
+          questionCount: _questions.length,
+          showAnswer: _showAnswer,
+          isFinalQuiz: widget.isFinalQuiz,
+          moduleId:
+              widget.moduleId != null
+                  ? Long(int.parse(widget.moduleId!))
+                  : null,
+          courseId:
+              widget.courseId != null
+                  ? Long(int.parse(widget.courseId!))
+                  : null,
+        );
 
-      for (int i = 0; i < _questions.length; i++) {
-        final item = _questions[i];
-        item.ensureValidState();
+        await _quizService.updateQuiz(
+          Long(int.parse(widget.quizId!)),
+          updatedQuiz,
+        );
 
-        final createdQuestion = await _questionService.createQuestion(
-          QuestionModel(
-            quizId: createdQuiz.id,
-            content: item.questionController.text.trim(),
-            type: 'MULTIPLE_CHOICE',
+        // ── Cập nhật / tạo / xóa câu hỏi & đáp án ──
+        final _stillUsedQuestionIds = <Long>{};
+
+        for (int i = 0; i < _questions.length; i++) {
+          final item = _questions[i];
+          item.ensureValidState();
+
+          Long questionId;
+          if (item.questionId != null) {
+            // Câu hỏi đã có → cập nhật
+            final updated = await _questionService.updateQuestion(
+              item.questionId!,
+              QuestionModel(
+                quizId: Long(int.parse(widget.quizId!)),
+                content: item.questionController.text.trim(),
+                type: 'MULTIPLE_CHOICE',
+              ),
+            );
+            questionId = updated.id!;
+          } else {
+            // Câu hỏi mới → tạo mới
+            final created = await _questionService.createQuestion(
+              QuestionModel(
+                quizId: Long(int.parse(widget.quizId!)),
+                content: item.questionController.text.trim(),
+                type: 'MULTIPLE_CHOICE',
+              ),
+            );
+            questionId = created.id!;
+          }
+          _stillUsedQuestionIds.add(questionId);
+
+          for (int j = 0; j < item.optionControllers.length; j++) {
+            final optionId = item.optionIds[j];
+            final isNewOption = optionId == null;
+
+            if (isNewOption) {
+              await _optionService.createOption(
+                OptionModel(
+                  questionId: questionId,
+                  content: item.optionControllers[j].text.trim(),
+                  isCorrect: item.correctAnswers[j],
+                ),
+              );
+            } else {
+              await _optionService.updateOption(
+                optionId,
+                OptionModel(
+                  questionId: questionId,
+                  content: item.optionControllers[j].text.trim(),
+                  isCorrect: item.correctAnswers[j],
+                ),
+              );
+            }
+          }
+        }
+
+        // Xóa câu hỏi đã bị bỏ đi (trong original nhưng không còn trong form)
+        for (final qid in _originalQuestionIds) {
+          if (!_stillUsedQuestionIds.contains(qid)) {
+            try {
+              await _questionService.deleteQuestion(qid);
+            } catch (_) {}
+          }
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cập nhật quiz thành công'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _goBack();
+      } else {
+        // ── CREATE MODE: create quiz + questions ──
+        final quiz = QuizModel(
+          title: _titleController.text.trim(),
+          timeLimitMinutes: int.tryParse(_durationController.text.trim()) ?? 0,
+          passingScore: int.tryParse(_passingScoreController.text.trim()) ?? 0,
+          maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
+          questionCount: _questions.length,
+          showAnswer: _showAnswer,
+          isFinalQuiz: widget.isFinalQuiz,
+          moduleId:
+              widget.moduleId != null
+                  ? Long(int.parse(widget.moduleId!))
+                  : null,
+          courseId:
+              widget.courseId != null
+                  ? Long(int.parse(widget.courseId!))
+                  : null,
+        );
+
+        dev.log(
+          '[MentorCreateQuizWeb._saveQuiz] CREATE payload: moduleId=${widget.moduleId} '
+          'courseId=${widget.courseId} isFinalQuiz=${widget.isFinalQuiz} '
+          'quiz.moduleId=${quiz.moduleId?.value} quiz.courseId=${quiz.courseId?.value}',
+          name: 'QuizDebug',
+        );
+        final createdQuiz = await _quizService.createQuiz(quiz);
+        dev.log(
+          '[MentorCreateQuizWeb._saveQuiz] created quiz id=${createdQuiz.id?.value} '
+          '(sau khi quay lại trang khóa, GET modules/course phải trả quizId khớp module)',
+          name: 'QuizDebug',
+        );
+
+        for (int i = 0; i < _questions.length; i++) {
+          final item = _questions[i];
+          item.ensureValidState();
+
+          dev.log(
+            '[MentorCreateQuizWeb._saveQuiz] Creating question $i for quiz id=${createdQuiz.id?.value}',
+            name: 'QuizDebug',
+          );
+          final createdQuestion = await _questionService.createQuestion(
+            QuestionModel(
+              quizId: createdQuiz.id,
+              content: item.questionController.text.trim(),
+              type: 'MULTIPLE_CHOICE',
+            ),
+          );
+          dev.log(
+            '[MentorCreateQuizWeb._saveQuiz]   question $i created, id=${createdQuestion.id?.value}',
+            name: 'QuizDebug',
+          );
+
+          for (int j = 0; j < item.optionControllers.length; j++) {
+            dev.log(
+              '[MentorCreateQuizWeb._saveQuiz]     Creating option $j for question $i',
+              name: 'QuizDebug',
+            );
+            await _optionService.createOption(
+              OptionModel(
+                questionId: createdQuestion.id,
+                content: item.optionControllers[j].text.trim(),
+                isCorrect: item.correctAnswers[j],
+              ),
+            );
+            dev.log(
+              '[MentorCreateQuizWeb._saveQuiz]     option $j created',
+              name: 'QuizDebug',
+            );
+          }
+        }
+
+        // validateQuiz là bước backend kiểm tra quiz đủ câu hỏi.
+        // Nếu questionCount (form) != số câu hỏi thực tế → lỗi, nhưng quiz đã lưu rồi.
+        // Bọc riêng để user vẫn thấy "Tạo quiz thành công" dù validation fail.
+        if (createdQuiz.id != null) {
+          dev.log(
+            '[MentorCreateQuizWeb._saveQuiz] Calling validateQuiz(id=${createdQuiz.id?.value})',
+            name: 'QuizDebug',
+          );
+          try {
+            await _quizService.validateQuiz(createdQuiz.id!);
+            dev.log(
+              '[MentorCreateQuizWeb._saveQuiz] validateQuiz OK',
+              name: 'QuizDebug',
+            );
+          } catch (e) {
+            dev.log(
+              '[MentorCreateQuizWeb._saveQuiz] validateQuiz FAILED (quiz+questions đã lưu OK): $e',
+              name: 'QuizDebug',
+            );
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Quiz đã lưu nhưng chưa validate: $e'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tạo quiz thành công'),
+            backgroundColor: Colors.green,
           ),
         );
 
-        for (int j = 0; j < item.optionControllers.length; j++) {
-          await _optionService.createOption(
-            OptionModel(
-              questionId: createdQuestion.id,
-              content: item.optionControllers[j].text.trim(),
-              isCorrect: item.correctAnswers[j],
-            ),
-          );
-        }
+        _goBack();
       }
-
-      if (createdQuiz.id != null) {
-        await _quizService.validateQuiz(createdQuiz.id!);
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tạo quiz thành công'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      _goBack();
     } catch (e) {
       _showError('Lưu quiz thất bại: $e');
     } finally {
@@ -188,29 +437,58 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_loadError != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(_loadError!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: _goBack, child: const Text('Quay lại')),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xfff5f6fa),
       body: Column(
         children: [
           Container(
-            height: 70,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            color: Colors.white,
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: _goBack,
-                  icon: const Icon(Icons.arrow_back),
+            margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+            child: BreadcrumbPageHeader(
+              pageTitle:
+                  _isEditMode
+                      ? 'Sửa Quiz'
+                      : (widget.isFinalQuiz ? 'Tạo Final Quiz' : 'Tạo Quiz'),
+              pageIcon: Icons.quiz_rounded,
+              breadcrumbs: [
+                const BreadcrumbItem(
+                  label: 'Khóa học',
+                  route: '/mentor/courses',
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  widget.isFinalQuiz ? 'Tạo Final Quiz' : 'Tạo Quiz',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                if (widget.courseId != null && widget.courseId!.isNotEmpty)
+                  BreadcrumbItem(
+                    label: 'Chi tiết khóa',
+                    route: '/mentor/courses/${widget.courseId}',
                   ),
+                BreadcrumbItem(
+                  label:
+                      _isEditMode
+                          ? 'Sửa quiz'
+                          : (widget.isFinalQuiz ? 'Final Quiz' : 'Quiz module'),
                 ),
-                const Spacer(),
+              ],
+              primaryColor: const Color(0xFF6366F1),
+              actions: [
                 TextButton(
                   onPressed: _isSaving ? null : _goBack,
                   child: const Text('Hủy'),
@@ -218,13 +496,18 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
                 const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: _isSaving ? null : _saveQuiz,
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Lưu'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                  ),
+                  child:
+                      _isSaving
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : Text(_isEditMode ? 'Lưu thay đổi' : 'Lưu'),
                 ),
               ],
             ),
@@ -262,10 +545,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
                       ),
                     ),
                     const SizedBox(width: 24),
-                    Expanded(
-                      flex: 1,
-                      child: _buildSettingCard(),
-                    ),
+                    Expanded(flex: 1, child: _buildSettingCard()),
                   ],
                 ),
               ),
@@ -343,16 +623,14 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
 
     return _buildCard(
       title: 'Câu hỏi ${index + 1}',
-      action: _questions.length > 1
-          ? TextButton.icon(
-              onPressed: () => _removeQuestion(index),
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              label: const Text(
-                'Xóa',
-                style: TextStyle(color: Colors.red),
-              ),
-            )
-          : null,
+      action:
+          _questions.length > 1
+              ? TextButton.icon(
+                onPressed: () => _removeQuestion(index),
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('Xóa', style: TextStyle(color: Colors.red)),
+              )
+              : null,
       child: Column(
         children: [
           TextFormField(
@@ -373,9 +651,10 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Checkbox(
-                    value: optionIndex < question.correctAnswers.length
-                        ? question.correctAnswers[optionIndex]
-                        : false,
+                    value:
+                        optionIndex < question.correctAnswers.length
+                            ? question.correctAnswers[optionIndex]
+                            : false,
                     onChanged: (value) {
                       setState(() {
                         question.ensureValidState();
@@ -405,13 +684,14 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
                   const SizedBox(width: 8),
                   IconButton(
                     tooltip: 'Xóa đáp án',
-                    onPressed: question.optionControllers.length <= 2
-                        ? null
-                        : () {
-                            setState(() {
-                              question.removeOption(optionIndex);
-                            });
-                          },
+                    onPressed:
+                        question.optionControllers.length <= 2
+                            ? null
+                            : () {
+                              setState(() {
+                                question.removeOption(optionIndex);
+                              });
+                            },
                     icon: const Icon(Icons.close, size: 18),
                   ),
                 ],
@@ -534,6 +814,11 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
 }
 
 class _EditableQuestion {
+  /** ID gốc từ server (null = câu hỏi mới thêm lúc sửa quiz). */
+  Long? questionId;
+  /** ID gốc của mỗi đáp án (null = đáp án mới thêm). */
+  final List<Long?> optionIds = [];
+
   final TextEditingController questionController = TextEditingController();
   final List<TextEditingController> optionControllers = List.generate(
     4,
@@ -545,6 +830,7 @@ class _EditableQuestion {
   void addOption() {
     optionControllers.add(TextEditingController());
     correctAnswers.add(false);
+    optionIds.add(null);
   }
 
   void removeOption(int index) {
@@ -552,6 +838,7 @@ class _EditableQuestion {
     optionControllers[index].dispose();
     optionControllers.removeAt(index);
     correctAnswers.removeAt(index);
+    optionIds.removeAt(index);
   }
 
   void ensureValidState() {

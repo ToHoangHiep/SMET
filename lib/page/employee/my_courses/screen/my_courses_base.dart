@@ -4,8 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/my_courses/screen/my_courses_web.dart';
 import 'package:smet/page/employee/my_courses/screen/my_courses_mobile.dart';
 import 'package:smet/page/employee/my_courses/widgets/enrolled_course_card.dart';
+import 'package:smet/page/employee/my_courses/widgets/my_courses_stats_section.dart';
+import 'package:smet/page/employee/my_courses/widgets/filter_tabs.dart';
 import 'package:smet/service/employee/lms_service.dart';
-import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class MyCoursesPage extends StatefulWidget {
@@ -16,9 +17,17 @@ class MyCoursesPage extends StatefulWidget {
 }
 
 class _MyCoursesPageState extends State<MyCoursesPage> {
-  List<EnrolledCourse> _courses = [];
+  List<EnrolledCourse> _allCourses = [];
   bool _isLoading = true;
   String? _error;
+  CourseFilter _selectedFilter = CourseFilter.all;
+
+  // Pagination
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 12;
+  bool _isPaging = false;
 
   @override
   void initState() {
@@ -27,70 +36,154 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
   }
 
   Future<void> _loadCourses() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    await _fetchPage(0, isFullReload: true);
+  }
+
+  Future<void> _fetchPage(int page, {required bool isFullReload}) async {
+    if (isFullReload) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    } else {
+      if (page < 0 || page >= _totalPages || page == _currentPage) return;
+      setState(() => _isPaging = true);
+    }
 
     try {
-      final courses = await LmsService.getMyCourses();
+      final result = await LmsService.getMyCourses(
+        page: page,
+        size: _pageSize,
+      );
+      if (!mounted) return;
+      final tp = result.totalPages <= 0 ? 1 : result.totalPages;
+      final safePage = result.number.clamp(0, tp - 1);
       setState(() {
-        _courses = courses;
+        _allCourses = result.content;
+        _currentPage = safePage;
+        _totalPages = tp;
+        _totalElements = result.totalElements;
         _isLoading = false;
+        _isPaging = false;
+        _error = null;
       });
     } catch (e) {
       debugPrint('Error loading my courses: $e');
+      if (!mounted) return;
       setState(() {
-        _error = 'Không thể tải danh sách khóa học';
+        if (isFullReload) {
+          _error = 'Không thể tải danh sách khóa học';
+        }
         _isLoading = false;
+        _isPaging = false;
       });
     }
   }
 
-  void _onNavigateTo(String path) {
-    context.go(path);
+  void _goToPage(int page) {
+    if (page < 0 || page >= _totalPages || page == _currentPage) return;
+    _fetchPage(page, isFullReload: false);
   }
 
-  void _onLogout() {
-    context.go('/login');
+  Widget _buildPaginationBar() {
+    const primary = Color(0xFF137FEC);
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed: !_isPaging && _currentPage > 0
+                ? () => _goToPage(_currentPage - 1)
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            color: const Color(0xFF64748B),
+          ),
+          Opacity(
+            opacity: _isPaging ? 0.5 : 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                _totalPages > 5 ? 5 : _totalPages,
+                (index) {
+                  int pageNum;
+                  if (_totalPages > 5) {
+                    if (_currentPage < 3) {
+                      pageNum = index;
+                    } else if (_currentPage > _totalPages - 3) {
+                      pageNum = _totalPages - 5 + index;
+                    } else {
+                      pageNum = _currentPage - 2 + index;
+                    }
+                  } else {
+                    pageNum = index;
+                  }
+                  final isCurrent = pageNum == _currentPage;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: InkWell(
+                      onTap: _isPaging ? null : () => _goToPage(pageNum),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isCurrent ? primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${pageNum + 1}',
+                          style: TextStyle(
+                            color: isCurrent ? Colors.white : const Color(0xFF64748B),
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: !_isPaging && _currentPage < _totalPages - 1
+                ? () => _goToPage(_currentPage + 1)
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            color: const Color(0xFF64748B),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Trang ${_currentPage + 1}/$_totalPages · $_totalElements khóa học',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
   }
 
-  List<SidebarMenuItem> _getMenuItems() {
-    return const [
-      SidebarMenuItem(
-        icon: Icons.dashboard,
-        title: 'Trang chủ',
-        route: '/employee/dashboard',
-        tooltip: 'Trang chủ',
-      ),
-      SidebarMenuItem(
-        icon: Icons.library_books,
-        title: 'Khóa học của tôi',
-        route: '/employee/my-courses',
-        tooltip: 'Khóa học của tôi',
-      ),
-      SidebarMenuItem(
-        icon: Icons.explore,
-        title: 'Danh mục',
-        route: '/employee/courses',
-        tooltip: 'Danh mục khóa học',
-      ),
-      SidebarMenuItem(
-        icon: Icons.work,
-        title: 'Dự án của tôi',
-        route: '/employee/projects',
-        tooltip: 'Dự án của tôi',
-      ),
-      SidebarMenuItem(
-        icon: Icons.workspace_premium,
-        title: 'Chứng chỉ',
-        route: '/employee/certificates',
-        tooltip: 'Chứng chỉ của tôi',
-      ),
-    ];
+  List<EnrolledCourse> get _filteredCourses {
+    switch (_selectedFilter) {
+      case CourseFilter.all:
+        return _allCourses;
+      case CourseFilter.inProgress:
+        return _allCourses
+            .where((c) => c.status == EnrollmentStatus.inProgress)
+            .toList();
+      case CourseFilter.completed:
+        return _allCourses
+            .where((c) => c.status == EnrollmentStatus.completed)
+            .toList();
+      case CourseFilter.overdue:
+        return _allCourses
+            .where((c) => c.deadlineStatus == DeadlineStatus.overdue)
+            .toList();
+    }
   }
 
-  Widget buildCourseGrid() {
+  Widget buildContent() {
     if (_isLoading) {
       return const Center(
         child: Padding(
@@ -131,7 +224,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
       );
     }
 
-    if (_courses.isEmpty) {
+    if (_allCourses.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(48),
@@ -180,23 +273,97 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
       );
     }
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 300,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _courses.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        final course = _courses[index];
-        return EnrolledCourseCard(
-          course: course,
-          onTap: () => context.go('/employee/learn/${course.id}'),
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Stats
+        MyCoursesStatsSection(
+          courses: _allCourses,
+          totalCountOverride: _totalElements > 0 ? _totalElements : null,
+        ),
+        const SizedBox(height: 24),
+
+        // Filter tabs
+        FilterTabs(
+          selected: _selectedFilter,
+          onChanged: (filter) {
+            setState(() {
+              _selectedFilter = filter;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Course grid
+        if (_filteredCourses.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.search_off,
+                    size: 48,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Không có khóa học nào trong mục này',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: _isPaging ? 0.45 : 1,
+                    child: GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 300,
+                        childAspectRatio: 0.72,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: _filteredCourses.length,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemBuilder: (context, index) {
+                        final course = _filteredCourses[index];
+                        return EnrolledCourseCard(
+                          course: course,
+                          onTap: () => context.go('/employee/learn/${course.id}'),
+                        );
+                      },
+                    ),
+                  ),
+                  if (_isPaging)
+                    const Material(
+                      color: Colors.transparent,
+                      child: SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF137FEC),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              _buildPaginationBar(),
+            ],
+          ),
+      ],
     );
   }
 
@@ -210,10 +377,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
             if (kIsWeb || constraints.maxWidth > 850) {
               return MyCoursesWeb(
                 pageTitle: 'Khóa học của tôi',
-                courseGrid: buildCourseGrid(),
-                menuItems: _getMenuItems(),
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                content: buildContent(),
                 breadcrumbs: const [
                   BreadcrumbItem(
                     label: 'Trang chủ',
@@ -224,14 +388,25 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
               );
             } else {
               return MyCoursesMobile(
-                courses: _courses,
+                courses: _filteredCourses,
+                allCourses: _allCourses,
                 isLoading: _isLoading,
                 error: _error,
+                selectedFilter: _selectedFilter,
+                onFilterChanged: (filter) {
+                  setState(() {
+                    _selectedFilter = filter;
+                  });
+                },
                 onRetry: _loadCourses,
-                onCourseTap:
-                    (courseId) => context.go('/employee/learn/$courseId'),
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                onCourseTap: (courseId) => context.go('/employee/learn/$courseId'),
+                onNavigate: (path) => context.go(path),
+                onLogout: () => context.go('/login'),
+                currentPage: _currentPage,
+                totalPages: _totalPages,
+                totalElements: _totalElements,
+                isPaging: _isPaging,
+                onPageChanged: _goToPage,
               );
             }
           },

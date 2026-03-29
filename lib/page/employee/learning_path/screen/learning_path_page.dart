@@ -191,10 +191,18 @@ class _EmployeeLearningPathPageState extends State<EmployeeLearningPathPage> {
           ),
           child: Material(
             color: Colors.transparent,
-            child: InkWell(
+              child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                // TODO: Navigate to path detail
+              onTap: () async {
+                // Fetch detail to get course IDs, then navigate to first course
+                try {
+                  final detail = await LmsService.getLearningPathDetail(path.id);
+                  if (detail != null && detail.courses.isNotEmpty && ctx.mounted) {
+                    ctx.go('/employee/learn/${detail.courses.first.id}?learningPathId=${path.id}');
+                  }
+                } catch (e) {
+                  debugPrint('Error navigating to learning path: $e');
+                }
               },
               child: Padding(
                 padding: const EdgeInsets.all(20),
