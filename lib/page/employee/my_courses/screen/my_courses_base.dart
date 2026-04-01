@@ -7,6 +7,7 @@ import 'package:smet/page/employee/my_courses/widgets/enrolled_course_card.dart'
 import 'package:smet/page/employee/my_courses/widgets/my_courses_stats_section.dart';
 import 'package:smet/page/employee/my_courses/widgets/filter_tabs.dart';
 import 'package:smet/service/employee/lms_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class MyCoursesPage extends StatefulWidget {
@@ -341,7 +342,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                         final course = _filteredCourses[index];
                         return EnrolledCourseCard(
                           course: course,
-                          onTap: () => context.go('/employee/learn/${course.id}'),
+                          onTap: () => context.go('/employee/learn/${course.id}?from=my_courses'),
                         );
                       },
                     ),
@@ -399,9 +400,13 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                   });
                 },
                 onRetry: _loadCourses,
-                onCourseTap: (courseId) => context.go('/employee/learn/$courseId'),
+                onCourseTap: (courseId) => context.go('/employee/learn/$courseId?from=my_courses'),
                 onNavigate: (path) => context.go(path),
-                onLogout: () => context.go('/login'),
+                onLogout: () async {
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  if (context.mounted) context.go('/login');
+                },
                 currentPage: _currentPage,
                 totalPages: _totalPages,
                 totalElements: _totalElements,

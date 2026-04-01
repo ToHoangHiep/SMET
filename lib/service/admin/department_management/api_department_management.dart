@@ -299,7 +299,7 @@ class DepartmentService {
         queryParams['keyword'] = keyword;
       }
 
-      final uri = Uri.parse("$baseUrl/departments/department/managers").replace(
+      final uri = Uri.parse("$baseUrl/users/department/managers").replace(
         queryParameters: queryParams,
       );
 
@@ -340,7 +340,7 @@ class DepartmentService {
         queryParams['keyword'] = keyword;
       }
 
-      final uri = Uri.parse("$baseUrl/departments/department/members").replace(
+      final uri = Uri.parse("$baseUrl/users/department/members").replace(
         queryParameters: queryParams,
       );
 

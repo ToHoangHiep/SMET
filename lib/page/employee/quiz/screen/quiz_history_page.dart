@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/service/employee/quiz_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 class QuizHistoryPage extends StatefulWidget {
   final String quizId;
@@ -302,7 +303,11 @@ class _QuizHistoryPageState extends State<QuizHistoryPage> {
     );
   }
 
-  void handleLogout() => context.go('/login');
+  void handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,9 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
-import 'package:smet/page/admin/widgets/admin_sidebar.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
@@ -11,7 +9,6 @@ import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
 import 'package:flutter/foundation.dart';
-import 'package:smet/service/common/auth_service.dart';
 
 int? _parsePaginationInt(dynamic value) {
   if (value == null) return null;
@@ -55,31 +52,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   UserRole _createRole = UserRole.USER;
-  String _currentUserName = 'Admin';
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
     _fetchUsers();
-  }
-
-  Future<void> _loadCurrentUser() async {
-    try {
-      final userData = await AuthService.getMe();
-      setState(() {
-        _currentUserName =
-            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
-                .trim();
-        if (_currentUserName.isEmpty) {
-          _currentUserName = userData['userName'] ?? 'Admin';
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _currentUserName = 'Admin';
-      });
-    }
   }
 
   final Color _primaryColor = const Color(0xFF6366F1); // Indigo như login
@@ -319,27 +296,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: _bgLight,
-      body: SafeArea(
-        child: Row(
-          children: [
-            AdminSidebar(
-              primaryColor: _primaryColor,
-              userDisplayName: _currentUserName,
-              activeRoute: '/user_management',
-              onProfileTap: () => context.go('/profile'),
-              onLogout: () async {
-                final router = GoRouter.of(context);
-                await AuthService.logout();
-                if (!mounted) return;
-                router.go('/login');
-              },
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  const UserManagementTopHeader(
+    return ColoredBox(
+      color: _bgLight,
+      child: Column(
+        children: [
+          const UserManagementTopHeader(
                     breadcrumbs: [BreadcrumbItem(label: 'Quản lý nhân viên')],
                   ),
                   Expanded(
@@ -428,10 +389,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

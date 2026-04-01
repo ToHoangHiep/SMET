@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/model/user_model.dart';
 import 'package:smet/page/admin/department_management/screen/department_management.dart';
 import 'package:smet/page/admin/department_management/screen/department_detail_base.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
+import 'package:smet/page/admin/course_preview/admin_course_preview_base.dart';
+import 'package:smet/page/admin/widgets/admin_shell.dart';
 import 'package:smet/page/first_login_password/first_login_password_page.dart';
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_base.dart';
@@ -35,7 +38,15 @@ import 'package:smet/page/project_manager/learning_path/screen/learning_path_bas
 import 'package:smet/page/project_manager/project/screen/project_management_base.dart';
 import 'package:smet/page/project_manager/project_member/screen/project_member_base.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_base.dart';
+import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
 import 'package:smet/page/mentor/mentor_quiz/mentor_create_quiz_web.dart';
+import 'package:smet/page/mentor/mentor_course_report/mentor_course_report.dart';
+import 'package:smet/page/mentor/mentor_course_report_detail/mentor_course_report_detail.dart';
+import 'package:smet/page/mentor/mentor_live_session/screen/mentor_live_session.dart';
+import 'package:smet/page/mentor/mentor_review_assignment/mentor_review_assignment.dart';
+import 'package:smet/page/mentor/mentor_students/mentor_students.dart';
+import 'package:smet/service/common/auth_guard_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 final bool isWebPlatform = kIsWeb;
 
@@ -44,8 +55,67 @@ class AppPages {
 
   static const initial = '/login';
 
+  static Future<String?> _authRedirect(
+      BuildContext context, GoRouterState state) async {
+    final token = await AuthService.getToken();
+    if (token == null) return '/login';
+
+    final path = state.uri.path;
+
+    try {
+      final user = await AuthService.getCurrentUser();
+
+      // Phân quyền theo role — chặn mọi route không thuộc phạm vi role
+      if (path.startsWith('/admin') && user.role != UserRole.ADMIN) {
+        return AuthGuardService.getRedirectPath(user.role);
+      }
+      if (path.startsWith('/mentor') &&
+          user.role != UserRole.MENTOR &&
+          user.role != UserRole.ADMIN) {
+        return AuthGuardService.getRedirectPath(user.role);
+      }
+      if (path.startsWith('/pm') &&
+          user.role != UserRole.PROJECT_MANAGER &&
+          user.role != UserRole.ADMIN) {
+        return AuthGuardService.getRedirectPath(user.role);
+      }
+      if (path.startsWith('/user_management') ||
+          path.startsWith('/department_management') ||
+          path.startsWith('/admin')) {
+        if (user.role != UserRole.ADMIN) {
+          return AuthGuardService.getRedirectPath(user.role);
+        }
+      }
+      if (path.startsWith('/employee')) {
+        if (user.role != UserRole.USER &&
+            user.role != UserRole.ADMIN &&
+            user.role != UserRole.MENTOR &&
+            user.role != UserRole.PROJECT_MANAGER) {
+          return AuthGuardService.getRedirectPath(user.role);
+        }
+      }
+    } catch (_) {
+      return '/login';
+    }
+
+    return null;
+  }
+
   static final GoRouter router = GoRouter(
     initialLocation: initial,
+    redirect: (context, state) async {
+      final path = state.uri.path;
+
+      // Public routes — skip guard
+      if (path == '/login' ||
+          path == '/first-login-password' ||
+          path == '/home') {
+        return null;
+      }
+
+      // Authenticated routes — check auth + role
+      return _authRedirect(context, state);
+    },
     routes: [
       // Mentor routes with ShellRoute (sidebar + content)
       ShellRoute(
@@ -127,6 +197,49 @@ class AppPages {
             ],
           ),
 
+          // Mentor Course Report
+          GoRoute(
+            path: '/mentor/course-report',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MentorCourseReport()),
+          ),
+
+          // Mentor Course Report Detail
+          GoRoute(
+            path: '/mentor/course-report-detail',
+            pageBuilder: (context, state) {
+              final courseId = state.uri.queryParameters['courseId'];
+              return NoTransitionPage(
+                child: MentorCourseReportDetail(courseId: courseId),
+              );
+            },
+          ),
+
+          // Mentor Live Session
+          GoRoute(
+            path: '/mentor/live-sessions',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MentorLiveSession()),
+          ),
+
+          // Mentor Review Assignment
+          GoRoute(
+            path: '/mentor/review-assignments',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MentorReviewAssignment()),
+          ),
+
+          // Mentor Students
+          GoRoute(
+            path: '/mentor/students',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MentorStudents()),
+          ),
+
           // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module / final)
           GoRoute(
             path: '/mentor/quizzes/create',
@@ -154,20 +267,40 @@ class AppPages {
         builder: (context, state) => const FirstLoginPasswordPage(),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
-      GoRoute(
-        path: '/user_management',
-        builder: (context, state) => const UserManagementPage(),
-      ),
-      GoRoute(
-        path: '/department_management',
-        builder: (context, state) => const DepartmentManagementPage(),
-      ),
-      GoRoute(
-        path: '/department_management/:id',
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return DepartmentDetailPage(departmentId: int.tryParse(id) ?? 0);
-        },
+      // Admin routes — wrapped in ShellRoute with AdminShell (auth guard + sidebar)
+      ShellRoute(
+        builder: (context, state, child) => AdminShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/user_management',
+            builder: (context, state) => const UserManagementPage(),
+          ),
+          GoRoute(
+            path: '/department_management',
+            builder: (context, state) => const DepartmentManagementPage(),
+          ),
+          GoRoute(
+            path: '/department_management/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              return DepartmentDetailPage(departmentId: int.tryParse(id) ?? 0);
+            },
+          ),
+          GoRoute(
+            path: '/admin/course-preview/:courseId',
+            builder: (context, state) {
+              final courseId = state.pathParameters['courseId'] ?? '';
+              return AdminCoursePreviewPage(courseId: courseId);
+            },
+          ),
+          GoRoute(
+            path: '/admin/course/:id',
+            pageBuilder: (context, state) {
+              final courseId = state.pathParameters['id'] ?? '';
+              return NoTransitionPage(child: AdminCoursePreviewPage(courseId: courseId));
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/profile',
@@ -177,26 +310,37 @@ class AppPages {
         path: '/notifications',
         builder: (context, state) => const NotificationPage(),
       ),
-      // Project Manager Routes
-      GoRoute(
-        path: '/pm/dashboard',
-        builder: (context, state) => const ProjectManagerDashboardPage(),
-      ),
-      GoRoute(
-        path: '/pm/projects',
-        builder: (context, state) => const ProjectManagementPage(),
-      ),
-      GoRoute(
-        path: '/pm/project_members',
-        builder: (context, state) => const ProjectMemberPage(),
-      ),
-      GoRoute(
-        path: '/pm/project_progress',
-        builder: (context, state) => const ProjectProgressPage(),
-      ),
-      GoRoute(
-        path: '/pm/learning_path',
-        builder: (context, state) => const LearningPathPage(),
+
+      // Project Manager Routes — wrapped in ShellRoute with PmShell
+      ShellRoute(
+        builder: (context, state, child) => PmShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/pm/dashboard',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProjectManagerDashboardPage()),
+          ),
+          GoRoute(
+            path: '/pm/projects',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProjectManagementPage()),
+          ),
+          GoRoute(
+            path: '/pm/project_members',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProjectMemberPage()),
+          ),
+          GoRoute(
+            path: '/pm/project_progress',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProjectProgressPage()),
+          ),
+          GoRoute(
+            path: '/pm/learning_path',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: LearningPathPage()),
+          ),
+        ],
       ),
 
       // Employee Routes with ShellRoute (shared sidebar)
@@ -226,8 +370,9 @@ class AppPages {
             pageBuilder:
                 (context, state) {
                   final courseId = state.pathParameters['id'] ?? '';
+                  final from = state.uri.queryParameters['from'];
                   return NoTransitionPage(
-                    child: CourseDetailPage(courseId: courseId),
+                    child: CourseDetailPage(courseId: courseId, from: from),
                   );
                 },
           ),
@@ -238,11 +383,13 @@ class AppPages {
                   final courseId = state.pathParameters['courseId'] ?? '';
                   final quizId = state.uri.queryParameters['quizId'];
                   final learningPathId = state.uri.queryParameters['learningPathId'];
+                  final from = state.uri.queryParameters['from'];
                   return NoTransitionPage(
                     child: LearningWorkspacePage(
                       courseId: courseId,
                       quizId: quizId,
                       learningPathId: learningPathId,
+                      from: from,
                     ),
                   );
                 },
@@ -254,11 +401,13 @@ class AppPages {
                   final courseId = state.pathParameters['courseId'] ?? '';
                   final quizId = state.pathParameters['quizId'] ?? '';
                   final learningPathId = state.uri.queryParameters['learningPathId'];
+                  final from = state.uri.queryParameters['from'];
                   return NoTransitionPage(
                     child: LearningWorkspacePage(
                       courseId: courseId,
                       quizId: quizId,
                       learningPathId: learningPathId,
+                      from: from,
                     ),
                   );
                 },
@@ -270,11 +419,13 @@ class AppPages {
                   final courseId = state.pathParameters['courseId'] ?? '';
                   final lessonId = state.pathParameters['lessonId'] ?? '';
                   final learningPathId = state.uri.queryParameters['learningPathId'];
+                  final from = state.uri.queryParameters['from'];
                   return NoTransitionPage(
                     child: LearningWorkspacePage(
                       courseId: courseId,
                       lessonId: lessonId,
                       learningPathId: learningPathId,
+                      from: from,
                     ),
                   );
                 },

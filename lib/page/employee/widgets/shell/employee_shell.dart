@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/page/sidebar/shared_sidebar.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
-import 'package:smet/service/common/user_service.dart';
+import 'package:smet/service/common/auth_guard_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 /// Employee Shell - Layout chung cho tất cả các màn hình employee
 /// Sử dụng SharedSidebar dùng chung cho cả dự án
@@ -65,7 +67,8 @@ class _EmployeeShellState extends State<EmployeeShell> {
 
   Future<void> _loadUserForSidebar() async {
     try {
-      final user = await UserService.getProfile();
+      // Dùng getCurrentUser để vừa lấy user vừa cache
+      final user = await AuthService.getCurrentUser();
       if (!mounted) return;
       final name =
           user.fullName.trim().isNotEmpty ? user.fullName.trim() : user.email;
@@ -86,6 +89,26 @@ class _EmployeeShellState extends State<EmployeeShell> {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
 
+    // Safety net: nếu user đã cached nhưng role không phù hợp → redirect
+    final cachedUser = AuthService.currentUserCached;
+    if (cachedUser != null) {
+      final targetRole = cachedUser.role;
+      // Chặn USER (employee) vào các route không thuộc employee
+      if (!AuthGuardService.canAccess('/employee', targetRole)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.go(AuthGuardService.getRedirectPath(targetRole));
+        });
+        return const SizedBox.shrink();
+      }
+      // Chặn ADMIN/PM/MENTOR ở trong employee shell (đang navigate sang route khác namespace)
+      if (targetRole != UserRole.USER && (location.startsWith('/admin') || location.startsWith('/pm') || location.startsWith('/mentor'))) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.go(AuthGuardService.getRedirectPath(targetRole));
+        });
+        return const SizedBox.shrink();
+      }
+    }
+
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -100,10 +123,10 @@ class _EmployeeShellState extends State<EmployeeShell> {
             userDisplayName: _userDisplayName.isEmpty ? '…' : _userDisplayName,
             userRole: _userRoleLabel.isEmpty ? '…' : _userRoleLabel,
             onProfileTap: () => context.go('/profile'),
-            onLogout: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đăng xuất thành công')),
-              );
+            onLogout: () async {
+              await AuthService.logout();
+              if (!mounted) return;
+              context.showAppToast('Đăng xuất thành công!');
               context.go('/login');
             },
           ),

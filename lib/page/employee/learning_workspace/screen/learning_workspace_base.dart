@@ -10,7 +10,9 @@ import 'package:smet/page/employee/learning_workspace/widgets/lesson_tabs.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/resources_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart';
 import 'package:smet/service/employee/lms_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class LearningWorkspacePage extends StatefulWidget {
@@ -18,6 +20,7 @@ class LearningWorkspacePage extends StatefulWidget {
   final String? lessonId;
   final String? quizId;
   final String? learningPathId;
+  final String? from;
 
   const LearningWorkspacePage({
     super.key,
@@ -25,6 +28,7 @@ class LearningWorkspacePage extends StatefulWidget {
     this.lessonId,
     this.quizId,
     this.learningPathId,
+    this.from,
   });
 
   @override
@@ -54,6 +58,36 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         oldWidget.quizId != widget.quizId ||
         oldWidget.learningPathId != widget.learningPathId) {
       _loadData();
+    }
+  }
+
+  BreadcrumbItem _buildBreadcrumbParent() {
+    switch (widget.from) {
+      case 'my_courses':
+        return const BreadcrumbItem(
+          label: 'Khóa học của tôi',
+          route: '/employee/my-courses',
+        );
+      case 'dashboard':
+        return const BreadcrumbItem(
+          label: 'Trang chủ',
+          route: '/employee/dashboard',
+        );
+      case 'learning_path':
+        return const BreadcrumbItem(
+          label: 'Lộ trình học tập',
+          route: '/employee/learning-paths',
+        );
+      case 'search':
+        return const BreadcrumbItem(
+          label: 'Tìm kiếm',
+          route: '/employee/search',
+        );
+      default:
+        return const BreadcrumbItem(
+          label: 'Danh mục khóa học',
+          route: '/employee/courses',
+        );
     }
   }
 
@@ -136,12 +170,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     try {
       await CourseService.completeLesson(_lessonContent!.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã đánh dấu hoàn thành!'),
-            backgroundColor: Color(0xFF22C55E),
-          ),
-        );
+        context.showAppToast('Đã đánh dấu hoàn thành!');
       }
       // Reload course to update sidebar progress
       await _loadCourseOnly();
@@ -200,10 +229,11 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     context.go(path);
   }
 
-  void _onLogout() {
+  void _handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
     context.go('/login');
   }
-
   // Build content area: video player (VIDEO) hoặc text content (TEXT/LINK)
   Widget buildContentArea() {
     if (_lessonContent == null) return const SizedBox.shrink();
@@ -420,16 +450,13 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                 tabContent: buildTabContent(),
                 resourcesSidebar: buildResourcesSidebar(),
                 onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                onLogout: _handleLogout,
                 breadcrumbs: [
                   const BreadcrumbItem(
                     label: 'Trang chủ',
                     route: '/employee/dashboard',
                   ),
-                  const BreadcrumbItem(
-                    label: 'Danh mục khóa học',
-                    route: '/employee/courses',
-                  ),
+                  _buildBreadcrumbParent(),
                   if (_course != null)
                     BreadcrumbItem(
                       label:
@@ -456,7 +483,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
                 onLessonTap: _onJumpToLesson,
                 onQuizTap: _onQuizTap,
                 onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                onLogout: _handleLogout,
               );
             }
           },

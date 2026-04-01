@@ -251,7 +251,7 @@ class UserManagementApi {
   }
 
   /// ================= FIND USERS FOR DEPARTMENT =================
-  /// Backend: GET /api/users/for-department?keyword=&role=&page=0&size=10
+  /// Backend: GET /api/admin/listUser?keyword=&role=&page=0&size=10
   /// Dùng để lấy danh sách user theo department có phân trang
   Future<Map<String, dynamic>> findUsersForDepartment({
     String? keyword,
@@ -273,7 +273,7 @@ class UserManagementApi {
         queryParams['role'] = role;
       }
 
-      final uri = Uri.parse("$baseUrl/users/for-department").replace(queryParameters: queryParams);
+      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
 
       _logRequest("FIND USERS FOR DEPARTMENT", uri.toString(), headers: _headers(token!));
 
@@ -302,7 +302,7 @@ class UserManagementApi {
   }
 
   /// ================= FIND USERS FOR DEPARTMENT ASSIGN =================
-  /// Backend: GET /api/users/for-department/update?keyword=&role=&page=0&size=10
+  /// Backend: GET /api/admin/listUser?keyword=&role=&page=0&size=10
   /// Dùng để assign user vào department
   Future<Map<String, dynamic>> findUsersForDepartmentAssign({
     String? keyword,
@@ -324,7 +324,7 @@ class UserManagementApi {
         queryParams['role'] = role;
       }
 
-      final uri = Uri.parse("$baseUrl/users/for-department/update").replace(queryParameters: queryParams);
+      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
 
       _logRequest("FIND USERS FOR DEPARTMENT ASSIGN", uri.toString(), headers: _headers(token!));
 

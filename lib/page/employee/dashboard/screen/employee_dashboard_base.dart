@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_web.dart';
 import 'package:smet/page/employee/dashboard/screen/employee_dashboard_mobile.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 class EmployeeDashboardPage extends StatefulWidget {
   const EmployeeDashboardPage({super.key});
@@ -380,7 +381,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                       ElevatedButton(
                         onPressed: () {
                           if (id.isNotEmpty) {
-                            context.go('/employee/learn/$id');
+                            context.go('/employee/learn/$id?from=dashboard');
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -775,7 +776,11 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                 deadlines: buildDeadlines(),
                 liveSessions: buildLiveSessions(),
                 onNavigate: (path) => context.go(path),
-                onLogout: () => context.go('/login'),
+                onLogout: () async {
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  if (context.mounted) context.go('/login');
+                },
               );
             }
           },

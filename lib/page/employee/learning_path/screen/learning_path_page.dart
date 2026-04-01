@@ -198,7 +198,7 @@ class _EmployeeLearningPathPageState extends State<EmployeeLearningPathPage> {
                 try {
                   final detail = await LmsService.getLearningPathDetail(path.id);
                   if (detail != null && detail.courses.isNotEmpty && ctx.mounted) {
-                    ctx.go('/employee/learn/${detail.courses.first.id}?learningPathId=${path.id}');
+                    ctx.go('/employee/learn/${detail.courses.first.id}?learningPathId=${path.id}&from=learning_path');
                   }
                 } catch (e) {
                   debugPrint('Error navigating to learning path: $e');

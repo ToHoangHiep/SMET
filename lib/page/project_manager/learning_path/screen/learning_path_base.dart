@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/page/project_manager/learning_path/screen/learning_path_web.dart';
 import 'package:smet/page/project_manager/learning_path/screen/learning_path_mobile.dart';
 import 'package:smet/service/employee/lms_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 class LearningPathPage extends StatefulWidget {
   const LearningPathPage({super.key});
@@ -182,7 +183,11 @@ class _LearningPathPageState extends State<LearningPathPage> {
     );
   }
 
-  void handleLogout() => context.go('/login');
+  void handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
 
   @override
   Widget build(BuildContext context) {

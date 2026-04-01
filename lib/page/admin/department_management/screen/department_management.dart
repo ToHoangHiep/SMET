@@ -4,7 +4,6 @@ import 'package:smet/model/department_model.dart';
 import 'package:smet/model/user_model.dart' as user_model;
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/service/common/user_selection_service.dart';
-import 'package:smet/page/admin/widgets/admin_sidebar.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/department_management_form_card.dart';
 import '../widgets/shell/department_management_page_header.dart';
@@ -14,6 +13,7 @@ import '../widgets/dialog/user_selection_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'dart:developer';
 
 // --- ĐỊNH NGHĨA MÀU SẮC CHUNG ---
@@ -59,7 +59,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   final TextEditingController _createManagerController =
       TextEditingController();
   bool _createIsActive = true;
-  String _currentUserName = 'Admin';
 
   user_model.UserModel? _selectedManager;
   final List<user_model.UserModel> _selectedEmployees = [];
@@ -71,7 +70,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   void initState() {
     super.initState();
     _fetchDepartments();
-    _loadCurrentUser();
   }
 
   @override
@@ -80,24 +78,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     _createCodeController.dispose();
     _createManagerController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadCurrentUser() async {
-    try {
-      final userData = await AuthService.getMe();
-      setState(() {
-        _currentUserName =
-            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
-                .trim();
-        if (_currentUserName.isEmpty) {
-          _currentUserName = userData['userName'] ?? 'Admin';
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _currentUserName = 'Admin'; // Nếu lỗi thì dùng mặc định
-      });
-    }
   }
 
   Future<void> _pickManager() async {
@@ -109,12 +89,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi lấy danh sách: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      context.showAppToast('Lỗi lấy danh sách: $e', variant: AppToastVariant.error);
       return;
     }
 
@@ -144,12 +119,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi lấy danh sách: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      context.showAppToast('Lỗi lấy danh sách: $e', variant: AppToastVariant.error);
       return;
     }
 
@@ -215,31 +185,11 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: _bgLight,
-      body: SafeArea(
-        child: Row(
-          children: [
-            AdminSidebar(
-              primaryColor: _primaryColor,
-              userDisplayName: _currentUserName,
-              activeRoute: '/department_management',
-              onProfileTap: () => context.go('/profile'),
-              onLogout: () async {
-                print("LOGOUT CLICKED");
-
-                await AuthService.logout();
-
-                print("TOKEN AFTER LOGOUT: ${await AuthService.getToken()}");
-
-                if (!mounted) return;
-                context.go('/login');
-              },
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  DepartmentManagementTopHeader(
+    return ColoredBox(
+      color: _bgLight,
+      child: Column(
+        children: [
+          DepartmentManagementTopHeader(
                     primaryColor: _primaryColor,
                     breadcrumbs: const [
                       BreadcrumbItem(label: 'Quản lý phòng ban'),
@@ -366,10 +316,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -490,12 +436,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     }
 
     if (_selectedManager == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn người quản lý'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      context.showAppToast('Vui lòng chọn người quản lý', variant: AppToastVariant.info);
       return;
     }
 
@@ -532,12 +473,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã tạo bộ phận thành công'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    context.showAppToast('Đã tạo bộ phận thành công');
   }
 
   Future<void> _submitUpdateDepartment() async {
@@ -583,12 +519,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       _editingDepartmentId = null;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã cập nhật bộ phận thành công'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    context.showAppToast('Đã cập nhật bộ phận thành công');
   }
 
   Future<void> _handleDeleteDepartment(DepartmentModel department) async {
@@ -631,12 +562,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       _departments.removeWhere((dept) => dept.id == department.id);
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã xóa phòng ban thành công'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    context.showAppToast('Đã xóa phòng ban thành công');
   }
 
   Future<void> _showDepartmentDetailDialog(DepartmentModel department) async {

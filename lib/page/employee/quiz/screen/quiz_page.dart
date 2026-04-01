@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/Employee_quiz_model.dart';
-import 'package:smet/model/quiz_model.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/service/employee/quiz_service.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_question_card.dart';
@@ -81,9 +81,7 @@ class _QuizBasePageState extends State<QuizBasePage> {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _QuizTopNavBar extends StatelessWidget {
-  final String? quizTitle;
-
-  const _QuizTopNavBar({this.quizTitle});
+  const _QuizTopNavBar();
 
   @override
   Widget build(BuildContext context) {
@@ -98,67 +96,7 @@ class _QuizTopNavBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          // Logo
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [QuizExamTheme.primary, QuizExamTheme.primaryContainer],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.school_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'SMETS Academy',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: QuizExamTheme.primary,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 32),
-          // Nav links
-          _NavLink(label: 'Modules', isActive: false),
-          const SizedBox(width: 4),
-          _NavLink(label: 'Library', isActive: false),
-          const SizedBox(width: 4),
-          _NavLink(label: 'Achievements', isActive: false),
           const Spacer(),
-          // Quiz title
-          if (quizTitle != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: QuizExamTheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: QuizExamTheme.outlineVariant),
-              ),
-              child: Text(
-                quizTitle!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: QuizExamTheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-          ],
-          // Notification
           IconButton(
             onPressed: () {},
             icon: const Icon(
@@ -168,78 +106,7 @@ class _QuizTopNavBar extends StatelessWidget {
             ),
             tooltip: 'Thông báo',
           ),
-          const SizedBox(width: 4),
-          // Profile
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: QuizExamTheme.primaryFixed,
-              shape: BoxShape.circle,
-              border: Border.all(color: QuizExamTheme.primary, width: 1.5),
-            ),
-            child: const Center(
-              child: Text(
-                'NV',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: QuizExamTheme.primary,
-                ),
-              ),
-            ),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _NavLink extends StatefulWidget {
-  final String label;
-  final bool isActive;
-
-  const _NavLink({required this.label, required this.isActive});
-
-  @override
-  State<_NavLink> createState() => _NavLinkState();
-}
-
-class _NavLinkState extends State<_NavLink> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(6),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: widget.isActive
-                ? QuizExamTheme.primaryFixed
-                : _isHovered
-                    ? QuizExamTheme.surfaceContainerHigh
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: widget.isActive ? FontWeight.w600 : FontWeight.w400,
-              color: widget.isActive
-                  ? QuizExamTheme.primary
-                  : _isHovered
-                      ? QuizExamTheme.primary
-                      : QuizExamTheme.onSurfaceVariant,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -260,7 +127,7 @@ class _QuizWebView extends StatelessWidget {
       backgroundColor: QuizExamTheme.background,
       body: Column(
         children: [
-          _QuizTopNavBar(quizTitle: controller.quiz?.title),
+          const _QuizTopNavBar(),
           Expanded(
             child: ListenableBuilder(
               listenable: controller,
@@ -955,21 +822,7 @@ class _QuizSidebar extends StatelessWidget {
   }
 
   void _handleSaveDraft(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 10),
-            Text('Đã lưu bài làm'),
-          ],
-        ),
-        backgroundColor: QuizExamTheme.answeredGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    context.showAppToast('Đã lưu bài làm');
   }
 }
 
@@ -1131,39 +984,18 @@ class _QuizMobileView extends StatelessWidget {
         backgroundColor: QuizExamTheme.surfaceContainerLowest,
         elevation: 0,
         scrolledUnderElevation: 1,
-        title: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [QuizExamTheme.primary, QuizExamTheme.primaryContainer],
-                ),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Icon(Icons.school_rounded, color: Colors.white, size: 16),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'SMETS Academy',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: QuizExamTheme.primary,
-              ),
-            ),
-          ],
-        ),
+        automaticallyImplyLeading: false,
+        title: const SizedBox.shrink(),
         actions: [
-          if (controller.quiz != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: QuizTimer(
-                totalSeconds: controller.quiz!.timeLimitMinutes * 60,
-                onTimeUp: () => controller.submitQuizWithConfirm(context),
-              ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: QuizExamTheme.onSurfaceVariant,
+              size: 22,
             ),
+            tooltip: 'Thông báo',
+          ),
         ],
       ),
       body: ListenableBuilder(
@@ -1219,6 +1051,16 @@ class _QuizMobileView extends StatelessWidget {
                   totalQuestions: controller.quiz!.questions.length,
                   answeredQuestions: controller.answeredQuestions,
                   flaggedQuestions: controller.flaggedQuestions,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: QuizTimer(
+                    totalSeconds: controller.quiz!.timeLimitMinutes * 60,
+                    onTimeUp: () => controller.submitQuizWithConfirm(context),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1475,12 +1317,7 @@ class QuizInternalController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Nộp bài thất bại: $e'),
-            backgroundColor: QuizExamTheme.error,
-          ),
-        );
+        context.showAppToast('Nộp bài thất bại: $e', variant: AppToastVariant.error);
       }
     }
   }

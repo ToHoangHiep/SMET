@@ -6,9 +6,11 @@ import 'package:smet/page/employee/course_catalog/screen/course_catalog_web.dart
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_mobile.dart';
 import 'package:smet/page/employee/course_catalog/widgets/course_card.dart';
 import 'package:smet/page/employee/course_catalog/widgets/search_filters.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/employee/course_service.dart';
 import 'package:smet/service/employee/lms_service.dart' show CatalogCourse;
+import 'package:smet/service/common/auth_service.dart';
 
 class CourseCatalogPage extends StatefulWidget {
   const CourseCatalogPage({super.key});
@@ -329,7 +331,7 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                     onJoin: course.status == 'PUBLISHED'
                         ? () => _enrollCourse(course.id)
                         : null,
-                    onTap: () => context.go('/employee/course/${course.id}'),
+                    onTap: () => context.go('/employee/course/${course.id}?from=catalog'),
                   );
                 },
               ),
@@ -357,22 +359,15 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     try {
       final success = await CourseService.enrollCourse(courseId);
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đăng ký khóa học thành công!'),
-            backgroundColor: Color(0xFF22C55E),
-          ),
-        );
+        context.showAppToast('Đăng ký khóa học thành công!');
         _loadCourses();
       }
     } catch (e) {
       debugPrint('Error enrolling course: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi đăng ký: $e'),
-            backgroundColor: const Color(0xFFEF4444),
-          ),
+        context.showAppToast(
+          'Lỗi đăng ký: $e',
+          variant: AppToastVariant.error,
         );
       }
     }
@@ -413,7 +408,11 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                 searchFilters: buildSearchFilters(),
                 courseGrid: buildCourseGrid(),
                 onNavigate: (path) => context.go(path),
-                onLogout: () => context.go('/login'),
+                onLogout: () async {
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  if (context.mounted) context.go('/login');
+                },
               );
             }
           },

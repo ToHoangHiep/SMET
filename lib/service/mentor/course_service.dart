@@ -318,6 +318,95 @@ class MentorCourseService {
   }
 
   // ============================================
+  // ARCHIVE COURSE
+  // Backend: PUT /api/lms/courses/{id}/archive
+  // ============================================
+  Future<CourseResponse> archiveCourse(Long courseId) async {
+    log("[MentorCourseService] archiveCourse() called — courseId=${courseId.value}");
+
+    try {
+      _logStep("Getting auth token...");
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/lms/courses/${courseId.value}/archive";
+      _logResult("URL", url);
+
+      _logStep("Sending PUT request...");
+      _logRequest("ARCHIVE COURSE", url, headers: _headers(token));
+      final res = await http.put(Uri.parse(url), headers: _headers(token));
+      _logResponse(res);
+
+      if (res.statusCode == 200) {
+        _logStep("Parsing response JSON...");
+        try {
+          final decoded = jsonDecode(res.body);
+          if (decoded == null) throw Exception("Empty response from server");
+          final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+          final result = CourseResponse.fromJson(data);
+          _logResult("Course archived", "id=${result.id.value}");
+          return result;
+        } on FormatException catch (e) {
+          log("  [ERROR] JSON parse failed: $e");
+          throw Exception("Server returned invalid JSON.");
+        }
+      }
+
+      throw Exception("Archive course failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[MentorCourseService] archiveCourse() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // REORDER MODULES
+  // Backend: PUT /api/lms/courses/{courseId}/modules/reorder
+  // Body: List<{id, orderIndex}>
+  // ============================================
+  Future<void> reorderModules(Long courseId, List<Long> moduleIds) async {
+    log("[MentorCourseService] reorderModules() called — courseId=${courseId.value}, moduleIds=$moduleIds");
+
+    try {
+      _logStep("Getting auth token...");
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/lms/courses/${courseId.value}/modules/reorder";
+      _logResult("URL", url);
+
+      final body = List.generate(
+        moduleIds.length,
+        (i) => {"id": moduleIds[i], "orderIndex": i},
+      );
+      _logResult("Body", body);
+
+      _logStep("Sending PUT request...");
+      _logRequest("REORDER MODULES", url, headers: _headers(token), body: body);
+      final res = await http.put(
+        Uri.parse(url),
+        headers: _headers(token),
+        body: jsonEncode(body),
+      );
+      _logResponse(res);
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        _logResult("Modules reordered", moduleIds.toString());
+        return;
+      }
+
+      throw Exception("Reorder modules failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[MentorCourseService] reorderModules() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
   // DELETE COURSE
   // Backend: DELETE /api/lms/courses/{id}
   // ============================================

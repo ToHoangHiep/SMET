@@ -199,6 +199,147 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     }
   }
 
+  // ============================================
+  // ARCHIVE COURSE
+  // ============================================
+  Future<void> _archiveCourse() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.archive_outlined, color: Color(0xFFF59E0B), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text("Lưu trữ khóa học"),
+          ],
+        ),
+        content: const Text(
+          "Bạn có chắc muốn lưu trữ khóa học này? Khóa học sẽ không còn hiển thị với nhân viên nhưng vẫn được giữ lại.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF59E0B),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Lưu trữ"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await _courseService.archiveCourse(_course!.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Lưu trữ thành công"),
+          backgroundColor: Color(0xFF22C55E),
+        ),
+      );
+      context.go(
+        '/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
+    }
+  }
+
+  // ============================================
+  // REORDER MODULES (drag-drop)
+  // ============================================
+  Future<void> _onModulesReorder(int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) newIndex -= 1;
+    final List<ModuleResponse> reordered = List.from(_modules);
+    final item = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, item);
+
+    setState(() => _modules = reordered);
+
+    try {
+      await _courseService.reorderModules(
+        _course!.id,
+        reordered.map((m) => Long(m.id.value)).toList(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Đã sắp xếp lại thứ tự chương"),
+            backgroundColor: Color(0xFF22C55E),
+          ),
+        );
+      }
+    } catch (e) {
+      await _loadModules();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Lỗi sắp xếp: $e"), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
+    }
+  }
+
+  // ============================================
+  // REORDER LESSONS (up / down)
+  // ============================================
+  Future<void> _moveLesson(ModuleResponse module, int lessonIndex, int direction) async {
+    final lessons = List<LessonResponse>.from(module.lessons);
+    final newIndex = lessonIndex + direction;
+    if (newIndex < 0 || newIndex >= lessons.length) return;
+
+    final item = lessons.removeAt(lessonIndex);
+    lessons.insert(newIndex, item);
+
+    setState(() {
+      final idx = _modules.indexWhere((m) => m.id.value == module.id.value);
+      if (idx != -1) {
+        _modules[idx] = ModuleResponse(
+          id: module.id,
+          title: module.title,
+          orderIndex: module.orderIndex,
+          lessons: lessons,
+          quizId: module.quizId,
+        );
+      }
+    });
+
+    try {
+      await _lessonService.reorderLessons(
+        module.id,
+        lessons.map((l) => Long(l.id.value)).toList(),
+      );
+    } catch (e) {
+      await _loadModules();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Lỗi sắp xếp: $e"), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
+    }
+  }
+
   Future<void> _publishCourse() async {
     try {
       await _courseService.publishCourse(_course!.id);
@@ -1048,6 +1189,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   ),
                 ),
                 const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: _archiveCourse,
+                  icon: const Icon(Icons.archive_outlined, size: 18),
+                  label: const Text("Lưu trữ"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFF59E0B),
+                    side: const BorderSide(color: Color(0xFFF59E0B)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 if (!_course!.isPublished) ...[
                   OutlinedButton.icon(
                     onPressed: _publishCourse,
@@ -1367,14 +1520,37 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           if (_modules.isEmpty)
             _buildEmptyState()
           else
-            ...List.generate(_modules.length, (i) => _buildModuleCard(_modules[i], i)),
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: _modules.length,
+              onReorder: _onModulesReorder,
+              proxyDecorator: (child, index, animation) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, child) {
+                    return Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(16),
+                      child: child,
+                    );
+                  },
+                  child: child,
+                );
+              },
+              itemBuilder: (context, index) {
+                return _buildModuleCard(_modules[index], index, ValueKey(_modules[index].id));
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildModuleCard(ModuleResponse module, int index) {
+  Widget _buildModuleCard(ModuleResponse module, int index, ValueKey itemKey) {
     return Container(
+      key: itemKey,
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1421,6 +1597,11 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ReorderDragHandle(
+              index: index,
+              onReorder: _onModulesReorder,
+            ),
+            const SizedBox(width: 4),
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               tooltip: "Sửa chương",
@@ -1496,7 +1677,10 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
               ),
             )
           else
-            ...module.lessons.map((lesson) => _buildLessonTile(module, lesson)),
+            ...List.generate(
+              module.lessons.length,
+              (i) => _buildLessonTile(module, module.lessons[i], i),
+            ),
 
           // Quiz section
           const SizedBox(height: 8),
@@ -1571,21 +1755,51 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     );
   }
 
-  Widget _buildLessonTile(ModuleResponse module, LessonResponse lesson) {
+  Widget _buildLessonTile(ModuleResponse module, LessonResponse lesson, int lessonIndex) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          _lessonIcon(lesson.contentType),
-          size: 16,
-          color: const Color(0xFF64748B),
-        ),
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_upward, size: 16),
+            tooltip: "Di chuyển lên",
+            onPressed: lessonIndex > 0
+                ? () => _moveLesson(module, lessonIndex, -1)
+                : null,
+            style: IconButton.styleFrom(
+              foregroundColor: lessonIndex > 0
+                  ? const Color(0xFF64748B)
+                  : const Color(0xFFE5E7EB),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_downward, size: 16),
+            tooltip: "Di chuyển xuống",
+            onPressed: lessonIndex < module.lessons.length - 1
+                ? () => _moveLesson(module, lessonIndex, 1)
+                : null,
+            style: IconButton.styleFrom(
+              foregroundColor: lessonIndex < module.lessons.length - 1
+                  ? const Color(0xFF64748B)
+                  : const Color(0xFFE5E7EB),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              _lessonIcon(lesson.contentType),
+              size: 16,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+        ],
       ),
       title: Text(
         lesson.title,
@@ -1754,6 +1968,33 @@ class _DeadlineOption extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class ReorderDragHandle extends StatelessWidget {
+  final int index;
+  final void Function(int, int) onReorder;
+
+  const ReorderDragHandle({
+    super.key,
+    required this.index,
+    required this.onReorder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableDragStartListener(
+      index: index,
+      child: const MouseRegion(
+        cursor: SystemMouseCursors.grab,
+        child: Icon(
+          Icons.drag_indicator,
+          size: 20,
+          color: Color(0xFF94A3B8),
         ),
       ),
     );
