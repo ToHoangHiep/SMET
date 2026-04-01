@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:smet/model/notification_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/notification/widgets/shell/notification_sidebar.dart';
 import 'package:smet/page/notification/widgets/shell/notification_top_header.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
@@ -144,12 +145,7 @@ class _NotificationPageState extends State<NotificationPage> {
               _notifications.map((n) => n.copyWith(isRead: true)).toList();
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã đánh dấu tất cả là đã đọc'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          context.showAppToast('Đã đánh dấu tất cả là đã đọc');
         }
       }
     } catch (e) {
@@ -175,12 +171,7 @@ class _NotificationPageState extends State<NotificationPage> {
           _notifications.removeWhere((n) => n.id == notificationId);
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã xóa thông báo'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          context.showAppToast('Đã xóa thông báo');
         }
       }
     } catch (e) {
@@ -241,7 +232,11 @@ class _NotificationPageState extends State<NotificationPage> {
             NotificationSidebar(
               primaryColor: _primaryColor,
               userDisplayName: 'User',
-              onLogout: () => context.go('/login'),
+              onLogout: () async {
+                await AuthService.logout();
+                if (!mounted) return;
+                if (context.mounted) context.go('/login');
+              },
             ),
             Expanded(
               child: Column(

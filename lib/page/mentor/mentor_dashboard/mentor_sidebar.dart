@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:smet/page/mentor/mentor_course/mentor_course.dart';
+import 'package:smet/page/mentor/mentor_course_report/mentor_course_report.dart';
 import 'package:smet/page/mentor/mentor_dashboard/mentor_dashboard.dart';
 import 'package:smet/page/mentor/mentor_learning_path/mentor_learning_path.dart';
+import 'package:smet/page/mentor/mentor_live_session/screen/mentor_live_session.dart';
+import 'package:smet/page/mentor/mentor_review_assignment/mentor_review_assignment.dart';
 
 /// Mentor Sidebar - Dùng chung cho cả web và mobile
 class MentorSidebar extends StatelessWidget {
@@ -55,9 +58,11 @@ class MentorSidebar extends StatelessWidget {
           _menuItem(context, Icons.grid_view_rounded, "Tổng quan", 0),
           _menuItem(context, Icons.menu_book_rounded, "Khóa học", 1),
           _menuItem(context, Icons.account_tree_rounded, "Lộ trình", 2),
-          _menuItem(context, Icons.people_rounded, "Học viên", 3),
-          _menuItem(context, Icons.chat_bubble_rounded, "Tin nhắn", 4),
-          _menuItem(context, Icons.settings_rounded, "Cài đặt", 5),
+          _menuItem(context, Icons.assessment_rounded, "Báo cáo", 3),
+          _menuItem(context, Icons.calendar_month_rounded, "Lịch mentor", 4),
+          _menuItem(context, Icons.rate_review_rounded, "Chấm bài", 5),
+          _menuItem(context, Icons.people_rounded, "Học viên", 6),
+          _menuItem(context, Icons.chat_bubble_rounded, "Tin nhắn", 7),
 
           const Spacer(),
 
@@ -175,10 +180,17 @@ class MentorSidebar extends StatelessWidget {
       case "Lộ trình":
         targetPage = const MentorLearningPath();
         break;
+      case "Báo cáo":
+        targetPage = const MentorCourseReport();
+        break;
+      case "Lịch mentor":
+        targetPage = const MentorLiveSession();
+        break;
+      case "Chấm bài":
+        targetPage = const MentorReviewAssignment();
+        break;
       case "Học viên":
       case "Tin nhắn":
-      case "Cài đặt":
-        // Chưa có trang - hiện thông báo
         Future.delayed(const Duration(milliseconds: 300), () {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('$title - Đang phát triển')),

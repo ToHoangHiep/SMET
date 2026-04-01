@@ -291,6 +291,12 @@ class _ProjectMemberPageState extends State<ProjectMemberPage> {
     }
   }
 
+  void handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -305,7 +311,7 @@ class _ProjectMemberPageState extends State<ProjectMemberPage> {
                 tableSection: buildTableSection(),
                 showForm: _isCreateMode || _isUpdateMode,
                 userName: 'PM User',
-                onLogout: () => context.go('/login'),
+                onLogout: handleLogout,
               );
             } else {
               return ProjectMemberMobile(
@@ -328,7 +334,7 @@ class _ProjectMemberPageState extends State<ProjectMemberPage> {
                 ),
                 showForm: _isCreateMode || _isUpdateMode,
                 userName: 'PM User',
-                onLogout: () => context.go('/login'),
+                onLogout: handleLogout,
               );
             }
           },

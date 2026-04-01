@@ -47,8 +47,7 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
     return t.isEmpty ? 'Khóa học' : t;
   }
 
-  double get _progress =>
-      widget.course.progressPercent.clamp(0, 100) / 100.0;
+  double get _progress => widget.course.progressPercent.clamp(0, 100) / 100.0;
 
   @override
   Widget build(BuildContext context) {
@@ -100,8 +99,7 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,8 +124,10 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
               const SizedBox(width: 8),
               // Progress pill
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -188,7 +188,10 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isLocked ? null : () => widget.onQuizTap(widget.course.finalQuizId!),
+          onTap:
+              isLocked
+                  ? null
+                  : () => widget.onQuizTap(widget.course.finalQuizId!),
           borderRadius: BorderRadius.circular(10),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -207,17 +210,23 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isActive
-                        ? _primary.withValues(alpha: 0.1)
-                        : isLocked
+                    color:
+                        isActive
+                            ? _primary.withValues(alpha: 0.1)
+                            : isLocked
                             ? const Color(0xFFF1F5F9)
                             : const Color(0xFF22C55E).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    isLocked ? Icons.lock_outline : Icons.workspace_premium_outlined,
+                    isLocked
+                        ? Icons.lock_outline
+                        : Icons.workspace_premium_outlined,
                     size: 22,
-                    color: isActive ? _primary : (isLocked ? const Color(0xFFCBD5E1) : _success),
+                    color:
+                        isActive
+                            ? _primary
+                            : (isLocked ? const Color(0xFFCBD5E1) : _success),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -365,7 +374,8 @@ class _ModuleSectionState extends State<_ModuleSection>
   @override
   void initState() {
     super.initState();
-    _expanded = widget.module.isExpanded ||
+    _expanded =
+        widget.module.isExpanded ||
         widget.module.lessons.any((l) => l.isCurrent) ||
         widget.module.lessons.any((l) => l.id == widget.currentLessonId);
     _animController = AnimationController(
@@ -381,7 +391,8 @@ class _ModuleSectionState extends State<_ModuleSection>
   @override
   void didUpdateWidget(_ModuleSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final shouldExpand = widget.module.isExpanded ||
+    final shouldExpand =
+        widget.module.isExpanded ||
         widget.module.lessons.any((l) => l.isCurrent) ||
         widget.module.lessons.any((l) => l.id == widget.currentLessonId);
     if (shouldExpand != _expanded) {
@@ -417,8 +428,7 @@ class _ModuleSectionState extends State<_ModuleSection>
     if (widget.module.isLocked) return _buildLockedModule();
 
     // Calculate module progress
-    final completed =
-        widget.module.lessons.where((l) => l.isCompleted).length;
+    final completed = widget.module.lessons.where((l) => l.isCompleted).length;
     final total = widget.module.lessons.length;
     final progress = total > 0 ? completed / total : 0.0;
 
@@ -432,9 +442,7 @@ class _ModuleSectionState extends State<_ModuleSection>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
-              color: _isHovered
-                  ? const Color(0xFFF8FAFC)
-                  : Colors.transparent,
+              color: _isHovered ? const Color(0xFFF8FAFC) : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Material(
@@ -450,8 +458,10 @@ class _ModuleSectionState extends State<_ModuleSection>
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       // Folder icon
@@ -481,12 +491,18 @@ class _ModuleSectionState extends State<_ModuleSection>
                                 // Progress pill
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 2),
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: progress >= 1.0
-                                        ? const Color(0xFF22C55E)
-                                            .withValues(alpha: 0.1)
-                                        : const Color(0xFF137FEC).withValues(alpha: 0.08),
+                                    color:
+                                        progress >= 1.0
+                                            ? const Color(
+                                              0xFF22C55E,
+                                            ).withValues(alpha: 0.1)
+                                            : const Color(
+                                              0xFF137FEC,
+                                            ).withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
@@ -494,9 +510,10 @@ class _ModuleSectionState extends State<_ModuleSection>
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
-                                      color: progress >= 1.0
-                                          ? const Color(0xFF22C55E)
-                                          : const Color(0xFF137FEC),
+                                      color:
+                                          progress >= 1.0
+                                              ? const Color(0xFF22C55E)
+                                              : const Color(0xFF137FEC),
                                     ),
                                   ),
                                 ),
@@ -663,20 +680,19 @@ class _LessonRowState extends State<_LessonRow> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            color: _isActive
-                ? const Color(0xFF137FEC).withValues(alpha: 0.08)
-                : (_isHovered
-                    ? const Color(0xFFF8FAFC)
-                    : Colors.transparent),
+            color:
+                _isActive
+                    ? const Color(0xFF137FEC).withValues(alpha: 0.08)
+                    : (_isHovered
+                        ? const Color(0xFFF8FAFC)
+                        : Colors.transparent),
             borderRadius: BorderRadius.circular(6),
-            border: _isActive
-                ? const Border(
-                    left: BorderSide(
-                      color: Color(0xFF137FEC),
-                      width: 3,
-                    ),
-                  )
-                : null,
+            border:
+                _isActive
+                    ? const Border(
+                      left: BorderSide(color: Color(0xFF137FEC), width: 3),
+                    )
+                    : null,
           ),
           child: Material(
             color: Colors.transparent,
@@ -684,8 +700,10 @@ class _LessonRowState extends State<_LessonRow> {
               onTap: widget.onTap,
               borderRadius: BorderRadius.circular(6),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
                     Icon(_icon, size: 20, color: _iconColor),
@@ -699,11 +717,12 @@ class _LessonRowState extends State<_LessonRow> {
                           fontSize: 12,
                           fontWeight:
                               _isActive ? FontWeight.w600 : FontWeight.w500,
-                          color: _isActive
-                              ? const Color(0xFF137FEC)
-                              : (widget.lesson.isCompleted
-                                  ? const Color(0xFF22C55E)
-                                  : const Color(0xFF475569)),
+                          color:
+                              _isActive
+                                  ? const Color(0xFF137FEC)
+                                  : (widget.lesson.isCompleted
+                                      ? const Color(0xFF22C55E)
+                                      : const Color(0xFF475569)),
                           height: 1.35,
                         ),
                       ),
@@ -758,11 +777,12 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            color: widget.isActive
-                ? const Color(0xFF137FEC).withValues(alpha: 0.08)
-                : (_isHovered && !_isLocked
-                    ? const Color(0xFFF8FAFC)
-                    : Colors.transparent),
+            color:
+                widget.isActive
+                    ? const Color(0xFF137FEC).withValues(alpha: 0.08)
+                    : (_isHovered && !_isLocked
+                        ? const Color(0xFFF8FAFC)
+                        : Colors.transparent),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Material(
@@ -771,8 +791,10 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
               onTap: _isLocked ? null : () => widget.onTap(widget.quizId),
               borderRadius: BorderRadius.circular(6),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
                     Icon(
@@ -782,11 +804,12 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
                               ? Icons.lock_outline
                               : Icons.quiz_outlined),
                       size: 20,
-                      color: widget.isCompleted
-                          ? const Color(0xFF22C55E)
-                          : (_isLocked
-                              ? const Color(0xFFCBD5E1)
-                              : const Color(0xFF137FEC)),
+                      color:
+                          widget.isCompleted
+                              ? const Color(0xFF22C55E)
+                              : (_isLocked
+                                  ? const Color(0xFFCBD5E1)
+                                  : const Color(0xFF137FEC)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -801,12 +824,15 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight:
-                              widget.isActive ? FontWeight.w600 : FontWeight.w500,
-                          color: widget.isCompleted
-                              ? const Color(0xFF22C55E)
-                              : (_isLocked
-                                  ? const Color(0xFF94A3B8)
-                                  : const Color(0xFF475569)),
+                              widget.isActive
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                          color:
+                              widget.isCompleted
+                                  ? const Color(0xFF22C55E)
+                                  : (_isLocked
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF475569)),
                           height: 1.35,
                         ),
                       ),
@@ -814,8 +840,11 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
                     if (_isLocked)
                       Tooltip(
                         message: 'Hoàn thành 80% bài học để mở',
-                        child: const Icon(Icons.help_outline,
-                            size: 15, color: Color(0xFFCBD5E1)),
+                        child: const Icon(
+                          Icons.help_outline,
+                          size: 15,
+                          color: Color(0xFFCBD5E1),
+                        ),
                       ),
                   ],
                 ),

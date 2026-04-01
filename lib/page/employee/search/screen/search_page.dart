@@ -52,7 +52,7 @@ class _SearchPageState extends State<SearchPage> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => context.go('/employee/course/${course.id}'),
+          onTap: () => context.go('/employee/course/${course.id}?from=search'),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(

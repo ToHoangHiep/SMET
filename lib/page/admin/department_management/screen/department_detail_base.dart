@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
-import 'package:smet/service/common/auth_service.dart';
-import 'package:smet/page/admin/widgets/admin_sidebar.dart';
 import 'package:smet/page/admin/department_management/widgets/shell/department_info_header.dart';
 import 'package:smet/page/admin/department_management/widgets/department_courses_tab.dart';
 import 'package:smet/page/admin/department_management/widgets/department_learning_paths_tab.dart';
@@ -25,7 +22,6 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
   DepartmentModel? _department;
   bool _isLoading = true;
   String? _error;
-  String _currentUserName = 'Admin';
   int _selectedTabIndex = 0;
 
   final Color _primaryColor = const Color(0xFF6366F1);
@@ -35,21 +31,6 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
   void initState() {
     super.initState();
     _loadData();
-    _loadCurrentUser();
-  }
-
-  Future<void> _loadCurrentUser() async {
-    try {
-      final userData = await AuthService.getMe();
-      setState(() {
-        _currentUserName =
-            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
-                .trim();
-        if (_currentUserName.isEmpty) {
-          _currentUserName = userData['userName'] ?? 'Admin';
-        }
-      });
-    } catch (_) {}
   }
 
   Future<void> _loadData() async {
@@ -85,28 +66,9 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
       );
     }
 
-    return Scaffold(
-      backgroundColor: _bgLight,
-      body: SafeArea(
-        child: Row(
-          children: [
-            AdminSidebar(
-              primaryColor: _primaryColor,
-              userDisplayName: _currentUserName,
-              activeRoute: '/department_management',
-              onProfileTap: () => context.go('/profile'),
-              onLogout: () async {
-                await AuthService.logout();
-                if (!mounted) return;
-                context.go('/login');
-              },
-            ),
-            Expanded(
-              child: _buildContent(),
-            ),
-          ],
-        ),
-      ),
+    return ColoredBox(
+      color: _bgLight,
+      child: _buildContent(),
     );
   }
 

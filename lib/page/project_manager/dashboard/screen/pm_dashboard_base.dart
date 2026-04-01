@@ -507,7 +507,9 @@ class _ProjectManagerDashboardPageState
     );
   }
 
-  void _handleLogout() {
+  void _handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
     context.go('/login');
   }
 

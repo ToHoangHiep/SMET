@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 class BreadcrumbItem {
   final String label;
   final String? route;
+  final VoidCallback? onTap;
 
   const BreadcrumbItem({
     required this.label,
     this.route,
+    this.onTap,
   });
 }
 
@@ -72,12 +74,20 @@ class SharedBreadcrumb extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (item.route != null)
+        if (item.route != null && item.onTap == null)
           _BreadcrumbLink(
             label: item.label,
             route: item.route!,
             fontSize: fontSize,
             color: color,
+          )
+        else if (item.onTap != null)
+          _BreadcrumbLink(
+            label: item.label,
+            route: '',
+            fontSize: fontSize,
+            color: color,
+            onTap: item.onTap,
           )
         else
           Text(
@@ -105,12 +115,14 @@ class _BreadcrumbLink extends StatefulWidget {
   final String route;
   final double fontSize;
   final Color color;
+  final VoidCallback? onTap;
 
   const _BreadcrumbLink({
     required this.label,
     required this.route,
     required this.fontSize,
     required this.color,
+    this.onTap,
   });
 
   @override
@@ -126,7 +138,13 @@ class _BreadcrumbLinkState extends State<_BreadcrumbLink> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: InkWell(
-        onTap: () => context.go(widget.route),
+        onTap: () {
+          if (widget.onTap != null) {
+            widget.onTap!();
+          } else {
+            context.go(widget.route);
+          }
+        },
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

@@ -21,6 +21,12 @@ class RequirePasswordChangeException implements Exception {
 }
 
 class AuthService {
+  /// Cached user — set sau khi getMe() được gọi thành công
+  static UserModel? _cachedUser;
+
+  /// Get cached user (sync, trả về null nếu chưa được cache)
+  static UserModel? get currentUserCached => _cachedUser;
+
   /// LOGIN - trả về Map chứa:
   /// - accessToken: nếu login thành công (không có 2FA)
   /// - twoFactorRequired: true + email + rememberMe: nếu cần xác thực 2FA
@@ -131,7 +137,8 @@ class AuthService {
   /// GET CURRENT USER (typed UserModel)
   static Future<UserModel> getCurrentUser() async {
     final data = await getMe();
-    return UserModel.fromJson(data);
+    _cachedUser = UserModel.fromJson(data);
+    return _cachedUser!;
   }
 
   /// SAVE TOKEN
@@ -152,12 +159,33 @@ class AuthService {
     return token != null;
   }
 
-  /// LOGOUT
+  /// LOGOUT - gọi API backend rồi xóa local token
   static Future<void> logout() async {
-    print("LOGOUT CALLED");
+    log("LOGOUT CALLED");
+    final token = await getToken();
+
+    // Gọi API logout phía server để invalidate token
+    if (token != null) {
+      try {
+        final url = Uri.parse("$baseUrl/auth/logout");
+        await http.post(
+          url,
+          headers: {
+            "Authorization": "Bearer $token",
+            "Content-Type": "application/json",
+          },
+        );
+        log("LOGOUT API SUCCESS");
+      } catch (e) {
+        log("LOGOUT API FAILED: $e — vẫn xóa local token");
+      }
+    }
+
+    // Xóa token local
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("token");
-    print("TOKEN REMOVED");
+    _cachedUser = null;
+    log("TOKEN REMOVED");
   }
 
   /// CHANGE PASSWORD (First Login - cần old password tạm thời)

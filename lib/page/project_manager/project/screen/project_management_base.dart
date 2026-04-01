@@ -219,7 +219,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     super.dispose();
   }
 
-  void handleLogout() => context.go('/login');
+  void handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
 
   void handleProfileTap() => context.go('/profile');
 

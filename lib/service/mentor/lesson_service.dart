@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -179,6 +179,51 @@ class MentorLessonService {
       throw Exception("Delete lesson failed: HTTP ${res.statusCode} â€” ${res.body}");
     } catch (e) {
       log("[MentorLessonService] deleteLesson() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // REORDER LESSONS
+  // Backend: PUT /api/lms/lessons/modules/{moduleId}/lessons/reorder
+  // Body: List<{id, orderIndex}>
+  // ============================================
+  Future<void> reorderLessons(Long moduleId, List<Long> lessonIds) async {
+    log("[MentorLessonService] reorderLessons() called — moduleId=${moduleId.value}, lessonIds=$lessonIds");
+
+    try {
+      _logStep("Getting auth token...");
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/lms/lessons/modules/${moduleId.value}/lessons/reorder";
+      _logResult("URL", url);
+
+      final body = List.generate(
+        lessonIds.length,
+        (i) => {"id": lessonIds[i], "orderIndex": i},
+      );
+      _logResult("Body", body);
+
+      _logStep("Sending PUT request...");
+      _logRequest("REORDER LESSONS", url, headers: _headers(token), body: body);
+      final res = await http.put(
+        Uri.parse(url),
+        headers: _headers(token),
+        body: jsonEncode(body),
+      );
+      _logResponse(res);
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        _logResult("Lessons reordered", lessonIds.toString());
+        return;
+      }
+
+      throw Exception("Reorder lessons failed: HTTP ${res.statusCode} — ${res.body}");
+    } catch (e) {
+      log("[MentorLessonService] reorderLessons() FAILED: $e");
       rethrow;
     }
   }

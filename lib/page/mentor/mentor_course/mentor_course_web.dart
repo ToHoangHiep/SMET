@@ -37,12 +37,14 @@ class _MentorCourseWebState extends State<MentorCourseWeb> {
   @override
 void didChangeDependencies() {
   super.didChangeDependencies();
-
-  final uri = GoRouterState.of(context).uri;
-
-  if (uri.queryParameters.containsKey('refresh')) {
-    _loadCourses(page: _currentPage);
-  }
+  // Safe: guard setState inside post-frame callback
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+    final uri = GoRouterState.of(context).uri;
+    if (uri.queryParameters.containsKey('refresh')) {
+      _loadCourses(page: _currentPage);
+    }
+  });
 }
 
   @override

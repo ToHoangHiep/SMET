@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
 
 /// Widget mới — Hiển thị deadline info + share.
 /// Nằm bên dưới EnrollCard trong cột phải.
@@ -99,12 +100,7 @@ class CourseInfoCard extends StatelessWidget {
                     ClipboardData(text: courseTitle!),
                   );
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Đã sao chép tên khóa học!'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
+                    context.showAppToast('Đã sao chép tên khóa học!');
                   }
                 }
               },

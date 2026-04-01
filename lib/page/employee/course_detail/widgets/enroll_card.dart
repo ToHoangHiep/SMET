@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// - Full-width pill button
 /// - Clean "Course includes" list
 class EnrollCard extends StatelessWidget {
-  final VoidCallback onEnroll;
+  final VoidCallback? onEnroll;
   final VoidCallback? onStartLearning;
   final int videoHours;
   final int resources;
@@ -21,7 +21,7 @@ class EnrollCard extends StatelessWidget {
 
   const EnrollCard({
     super.key,
-    required this.onEnroll,
+    this.onEnroll,
     this.onStartLearning,
     this.videoHours = 0,
     this.resources = 0,

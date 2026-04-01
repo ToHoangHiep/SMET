@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_web.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_mobile.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 class ProjectProgressPage extends StatefulWidget {
   const ProjectProgressPage({super.key});
@@ -72,7 +73,11 @@ class _ProjectProgressPageState extends State<ProjectProgressPage> {
     ),
   );
 
-  void handleLogout() => context.go('/login');
+  void handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
 
   @override
   Widget build(BuildContext context) {

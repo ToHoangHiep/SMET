@@ -66,66 +66,65 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
   }
 
   Widget _buildLoading() {
-    return Container(
-      padding: const EdgeInsets.all(48),
-      child: const Center(
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(0, 24, 24, 24),
+      child: Align(
+        alignment: Alignment.centerLeft,
         child: CircularProgressIndicator(),
       ),
     );
   }
 
   Widget _buildError() {
-    return Container(
-      padding: const EdgeInsets.all(48),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: TextStyle(color: Colors.red[600]),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: _loadCourses,
-              child: const Text('Thử lại'),
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 24, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+          const SizedBox(height: 12),
+          Text(
+            _error!,
+            style: TextStyle(color: Colors.red[600]),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: _loadCourses,
+            child: const Text('Thử lại'),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmpty() {
-    return Container(
-      padding: const EdgeInsets.all(48),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.school_outlined,
-              size: 64,
-              color: Colors.grey[300],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 24, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.school_outlined,
+            size: 64,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Chưa có khóa học nào',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Chưa có khóa học nào',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Phòng ban này chưa được gán khóa học nào.',
-              style: TextStyle(color: Colors.grey[400]),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Phòng ban này chưa được gán khóa học nào.',
+            style: TextStyle(color: Colors.grey[400]),
+          ),
+        ],
       ),
     );
   }
@@ -157,7 +156,7 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
               onTap: () {
                 final courseId = course['id']?.toString();
                 if (courseId != null) {
-                  context.push('/employee/course/$courseId');
+                  context.go('/admin/course/$courseId');
                 }
               },
             );
