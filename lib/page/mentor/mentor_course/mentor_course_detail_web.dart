@@ -1970,6 +1970,7 @@ class _DeadlineOption extends StatelessWidget {
           ],
         ),
       ),
+      child: child,
     );
   }
 }

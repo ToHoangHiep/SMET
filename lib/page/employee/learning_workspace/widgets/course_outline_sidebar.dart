@@ -47,7 +47,8 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
     return t.isEmpty ? 'Khóa học' : t;
   }
 
-  double get _progress => widget.course.progressPercent.clamp(0, 100) / 100.0;
+  double get _progress =>
+      widget.course.progressPercent.clamp(0, 100) / 100.0;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +100,8 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,8 +376,7 @@ class _ModuleSectionState extends State<_ModuleSection>
   @override
   void initState() {
     super.initState();
-    _expanded =
-        widget.module.isExpanded ||
+    _expanded = widget.module.isExpanded ||
         widget.module.lessons.any((l) => l.isCurrent) ||
         widget.module.lessons.any((l) => l.id == widget.currentLessonId);
     _animController = AnimationController(
