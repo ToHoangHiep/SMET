@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:developer';
 
 class LiveSessionPage extends StatefulWidget {
   final String? courseId;
@@ -57,6 +59,49 @@ class _LiveSessionPageState extends State<LiveSessionPage> {
     return now.isAfter(start) && now.isBefore(end);
   }
 
+  Future<void> _openJoinDialog(LiveSessionInfo session) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Đang kết nối buổi live...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final meetingUrl = await LmsService.joinSession(session.id);
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      final uri = Uri.parse(meetingUrl);
+      final canLaunch = await canLaunchUrl(uri);
+      if (canLaunch) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể mở link: $meetingUrl')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Widget _buildSessionCard(LiveSessionInfo session) {
     final isUpcoming = _isUpcoming(session.startTime);
     final isLive = _isLive(session.startTime, session.endTime);
@@ -98,7 +143,7 @@ class _LiveSessionPageState extends State<LiveSessionPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: isLive && session.meetingUrl.isNotEmpty
-              ? () {}
+              ? () => _openJoinDialog(session)
               : null,
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -160,19 +205,7 @@ class _LiveSessionPageState extends State<LiveSessionPage> {
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.video_call),
-                      label: const Text('Tham gia ngay'),
-                    ),
+                    child: _JoinButton(session: session),
                   ),
                 ],
               ],
@@ -268,6 +301,52 @@ class _LiveSessionPageState extends State<LiveSessionPage> {
                       itemCount: _sessions.length,
                       itemBuilder: (ctx, i) => _buildSessionCard(_sessions[i]),
                     ),
+    );
+  }
+}
+
+class _JoinButton extends StatefulWidget {
+  final LiveSessionInfo session;
+
+  const _JoinButton({required this.session});
+
+  @override
+  State<_JoinButton> createState() => _JoinButtonState();
+}
+
+class _JoinButtonState extends State<_JoinButton> {
+  bool _isLoading = false;
+
+  Future<void> _join() async {
+    final state = context.findAncestorStateOfType<_LiveSessionPageState>();
+    if (state != null) {
+      state._openJoinDialog(widget.session);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: _join,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.red,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      icon: _isLoading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.video_call),
+      label: const Text('Tham gia ngay'),
     );
   }
 }

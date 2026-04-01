@@ -17,7 +17,7 @@ import 'package:smet/page/employee/quiz/screen/quiz_history_page.dart';
 import 'package:smet/page/employee/learning_path/screen/learning_path_page.dart';
 import 'package:smet/page/employee/my_courses/screen/my_courses_base.dart';
 import 'package:smet/page/employee/certificate/screen/certificate_page.dart';
-import 'package:smet/page/employee/live_session/screen/live_session_page.dart';
+import 'package:smet/page/employee/live_session/screen/employee_live_session.dart';
 import 'package:smet/page/employee/search/screen/search_page.dart';
 import 'package:smet/page/employee/widgets/shell/employee_shell.dart';
 import 'package:smet/page/home/home.dart';
@@ -472,13 +472,21 @@ class AppPages {
           ),
           GoRoute(
             path: '/employee/live-sessions',
-            pageBuilder:
-                (context, state) {
-                  final courseId = state.uri.queryParameters['courseId'];
-                  return NoTransitionPage(
-                    child: LiveSessionPage(courseId: courseId),
-                  );
-                },
+            pageBuilder: (context, state) {
+              final courseId = state.uri.queryParameters['courseId'];
+              return NoTransitionPage(
+                child: EmployeeLiveSession(courseId: courseId),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/employee/live-sessions-hub',
+            pageBuilder: (context, state) {
+              final courseId = state.uri.queryParameters['courseId'];
+              return NoTransitionPage(
+                child: EmployeeLiveSession(courseId: courseId),
+              );
+            },
           ),
           GoRoute(
             path: '/search',

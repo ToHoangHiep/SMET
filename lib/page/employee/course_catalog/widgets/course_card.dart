@@ -57,6 +57,9 @@ class CourseCard extends StatefulWidget {
   final String status;
   final String? deadlineStatus;
   final String? fixedDeadline;
+  final String? deadlineType;
+  final int? defaultDeadlineDays;
+  final bool? isEnrolled;
   final int moduleCount;
   final int lessonCount;
   final String? mentorName;
@@ -71,6 +74,9 @@ class CourseCard extends StatefulWidget {
     required this.status,
     this.deadlineStatus,
     this.fixedDeadline,
+    this.deadlineType,
+    this.defaultDeadlineDays,
+    this.isEnrolled,
     required this.moduleCount,
     required this.lessonCount,
     this.mentorName,
@@ -85,6 +91,9 @@ class CourseCard extends StatefulWidget {
 
 class _CourseCardState extends State<CourseCard> {
   bool _isHovered = false;
+
+  bool get _hasDeadline =>
+      widget.deadlineType != null && widget.deadlineType!.isNotEmpty;
 
   Color get _levelColor {
     switch (widget.level?.toLowerCase()) {
@@ -385,25 +394,29 @@ class _CourseCardState extends State<CourseCard> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Deadline chip
-                        if (widget.deadlineStatus != null) ...[
+                        // Deadline chip — hiện khi khóa có cấu hình deadline (FIXED hoặc RELATIVE)
+                        if (_hasDeadline) ...[
                           _DeadlineChip(
-                            status: widget.deadlineStatus!,
+                            deadlineType: widget.deadlineType,
+                            deadlineStatus: widget.deadlineStatus,
                             fixedDeadline: widget.fixedDeadline,
+                            defaultDeadlineDays: widget.defaultDeadlineDays,
                           ),
                           const SizedBox(height: 10),
                         ],
 
                         // Action button — taller pill
-                        if (widget.onJoin != null)
-                          SizedBox(
-                            width: double.infinity,
-                            height: 36,
-                            child: _JoinButton(
-                              status: widget.status,
-                              onTap: widget.onJoin!,
-                            ),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 36,
+                          child: _JoinButton(
+                            status: widget.status,
+                            isEnrolled: widget.isEnrolled,
+                            onTap: (widget.isEnrolled != true && widget.status == 'PUBLISHED')
+                                ? widget.onJoin
+                                : null,
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -445,9 +458,14 @@ class _MetaChip extends StatelessWidget {
 
 class _JoinButton extends StatefulWidget {
   final String status;
-  final VoidCallback onTap;
+  final bool? isEnrolled;
+  final VoidCallback? onTap;
 
-  const _JoinButton({required this.status, required this.onTap});
+  const _JoinButton({
+    required this.status,
+    this.isEnrolled,
+    this.onTap,
+  });
 
   @override
   State<_JoinButton> createState() => _JoinButtonState();
@@ -459,32 +477,49 @@ class _JoinButtonState extends State<_JoinButton> {
   @override
   Widget build(BuildContext context) {
     final isPublished = widget.status == 'PUBLISHED';
+    final isEnrolled = widget.isEnrolled == true;
+
+    final bool enabled = isEnrolled
+        ? false
+        : (isPublished && widget.onTap != null);
+
+    final String label;
+    final Color bgColor;
+    final Color hoverBgColor;
+
+    if (isEnrolled) {
+      label = 'Đã tham gia';
+      bgColor = const Color(0xFFE2E8F0);
+      hoverBgColor = const Color(0xFFCBD5E1);
+    } else if (isPublished) {
+      label = 'Tham gia';
+      bgColor = const Color(0xFF137FEC);
+      hoverBgColor = const Color(0xFF0B5FC5);
+    } else {
+      label = 'Xem chi tiết';
+      bgColor = const Color(0xFF94A3B8);
+      hoverBgColor = const Color(0xFF64748B);
+    }
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: enabled ? widget.onTap : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: _isHovered
-                ? (isPublished
-                    ? const Color(0xFF0B5FC5)
-                    : const Color(0xFF64748B))
-                : (isPublished
-                    ? const Color(0xFF137FEC)
-                    : const Color(0xFF94A3B8)),
+            color: _isHovered ? hoverBgColor : bgColor,
             borderRadius: BorderRadius.circular(24),
           ),
           alignment: Alignment.center,
           child: Text(
-            isPublished ? 'Tham gia' : 'Xem chi tiết',
-            style: const TextStyle(
+            label,
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: isEnrolled ? const Color(0xFF64748B) : Colors.white,
               letterSpacing: -0.1,
             ),
           ),
@@ -555,18 +590,41 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _DeadlineChip extends StatelessWidget {
-  final String status;
+  final String? deadlineType;
+  final String? deadlineStatus;
   final String? fixedDeadline;
+  final int? defaultDeadlineDays;
 
-  const _DeadlineChip({required this.status, this.fixedDeadline});
+  const _DeadlineChip({
+    this.deadlineType,
+    this.deadlineStatus,
+    this.fixedDeadline,
+    this.defaultDeadlineDays,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final type = deadlineType?.toUpperCase();
+    final status = deadlineStatus?.toUpperCase();
+
+    // RELATIVE deadline → hiện "Có hạn" (không tính được ngày cụ thể ở mức catalog)
+    if (type == 'RELATIVE') {
+      return _buildChip(
+        color: const Color(0xFF15803D),
+        bgColor: const Color(0xFFDCFCE7),
+        icon: Icons.schedule,
+        text: defaultDeadlineDays != null
+            ? 'Hạn: $defaultDeadlineDays ngày sau khi đăng ký'
+            : 'Có hạn hoàn thành',
+      );
+    }
+
+    // FIXED deadline — dùng deadlineStatus đã được backend tính
     Color color;
     Color bgColor;
     IconData icon;
 
-    switch (status.toUpperCase()) {
+    switch (status) {
       case 'OVERDUE':
         color = const Color(0xFFDC2626);
         bgColor = const Color(0xFFFEE2E2);
@@ -583,9 +641,38 @@ class _DeadlineChip extends StatelessWidget {
         icon = Icons.schedule;
         break;
       default:
+        // FIXED nhưng backend chưa compute status → vẫn hiện với fixedDeadline
+        if (type == 'FIXED' && fixedDeadline != null && fixedDeadline!.isNotEmpty) {
+          return _buildChip(
+            color: const Color(0xFF15803D),
+            bgColor: const Color(0xFFDCFCE7),
+            icon: Icons.schedule,
+            text: 'Hạn: ${_formatDate(fixedDeadline)}',
+          );
+        }
         return const SizedBox.shrink();
     }
 
+    return _buildChip(
+      color: color,
+      bgColor: bgColor,
+      icon: icon,
+      text: fixedDeadline != null && fixedDeadline!.isNotEmpty
+          ? 'Hạn: ${_formatDate(fixedDeadline)}'
+          : status == 'OVERDUE'
+              ? 'Đã quá hạn'
+              : status == 'DUE_SOON'
+                  ? 'Sắp hết hạn'
+                  : 'Còn thời gian',
+    );
+  }
+
+  Widget _buildChip({
+    required Color color,
+    required Color bgColor,
+    required IconData icon,
+    required String text,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -599,13 +686,7 @@ class _DeadlineChip extends StatelessWidget {
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
           Text(
-            fixedDeadline != null && fixedDeadline!.isNotEmpty
-                ? 'Hạn: ${_formatDate(fixedDeadline)}'
-                : status == 'OVERDUE'
-                    ? 'Đã quá hạn'
-                    : status == 'DUE_SOON'
-                        ? 'Sắp hết hạn'
-                        : 'Còn thời gian',
+            text,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

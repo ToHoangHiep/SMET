@@ -1797,6 +1797,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               setState(() {
                 _selectedLeaderId = idInt;
                 _selectedLeaderName = fullName;
+                // Xóa leader mới khỏi danh sách thành viên nếu đang có
+                _selectedMembers.removeWhere((m) {
+                  final mid = int.tryParse(m['id']?.toString() ?? '') ?? 0;
+                  return mid == idInt;
+                });
               });
             },
           ),
@@ -2369,7 +2374,6 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
 
   static const List<Map<String, String?>> _roleOptions = [
     {'label': 'Tất cả', 'value': null},
-    {'label': 'Mentor', 'value': 'MENTOR'},
     {'label': 'Nhân viên', 'value': 'USER'},
   ];
 
@@ -2440,8 +2444,6 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
         return 'Quản trị';
       case 'PROJECT_MANAGER':
         return 'Quản lý dự án';
-      case 'MENTOR':
-        return 'Hướng dẫn';
       default:
         return 'Nhân viên';
     }
@@ -2890,8 +2892,6 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
         return 'Quản trị';
       case 'PROJECT_MANAGER':
         return 'Quản lý dự án';
-      case 'MENTOR':
-        return 'Hướng dẫn';
       default:
         return 'Nhân viên';
     }
@@ -2907,7 +2907,6 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
 
   static const List<Map<String, String?>> _roleOptions = [
     {'label': 'Tất cả', 'value': null},
-    {'label': 'Mentor', 'value': 'MENTOR'},
     {'label': 'Nhân viên', 'value': 'USER'},
   ];
 

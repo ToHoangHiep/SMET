@@ -14,6 +14,7 @@ import 'package:smet/service/common/base_url.dart';
 ///   POST   /api/lms/live-sessions
 ///   PUT    /api/lms/live-sessions/{sessionId}
 ///   DELETE /api/lms/live-sessions/{sessionId}
+///   GET    /api/lms/live-sessions/{sessionId}/join
 ///   GET    /api/lms/courses  (for dropdown)
 /// ============================================================
 
@@ -282,6 +283,52 @@ class MentorLiveSessionService {
   }
 
   // ============================================
+  // JOIN LIVE SESSION
+  // Backend: GET /api/lms/live-sessions/{sessionId}/join
+  // NOTE: @PreAuthorize("hasRole('USER')") on backend.
+  // Mentor may get 403 if they are not enrolled in the course.
+  // ============================================
+  Future<String> joinSession(Long sessionId) async {
+    log("[MentorLiveSessionService] joinSession() — sessionId=${sessionId.value}");
+
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/lms/live-sessions/${sessionId.value}/join";
+      _logRequest("JOIN LIVE SESSION", url, headers: _headers(token));
+      final res = await http.get(Uri.parse(url), headers: _headers(token));
+      _logResponse(res);
+
+      if (res.statusCode == 200) {
+        final body = res.body.trim();
+        if (body.startsWith('"') && body.endsWith('"')) {
+          return jsonDecode(body) as String;
+        }
+        return body;
+      }
+
+      String errorMsg = 'Không thể tham gia buổi live';
+      try {
+        final decoded = jsonDecode(res.body);
+        errorMsg = decoded['message'] ?? decoded['error'] ?? res.body;
+      } catch (_) {
+        errorMsg = res.body.isNotEmpty ? res.body : errorMsg;
+      }
+
+      if (res.statusCode == 403) {
+        throw Exception('Bạn chưa đăng ký khóa học này. Vui lòng đăng ký trước để tham gia.');
+      }
+      throw Exception(errorMsg);
+    } catch (e) {
+      log("[MentorLiveSessionService] joinSession() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
   // GET MY COURSES (for dropdown)
   // Backend: GET /api/lms/courses?page=&size=
   // ============================================
@@ -328,6 +375,62 @@ class MentorLiveSessionService {
       throw Exception("Get my courses failed: HTTP ${res.statusCode}");
     } catch (e) {
       log("[MentorLiveSessionService] getMyCourses() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // CHECK GOOGLE OAUTH STATUS
+  // Backend: GET /api/users/me/google-status
+  // ============================================
+  Future<bool> checkGoogleStatus() async {
+    log("[MentorLiveSessionService] checkGoogleStatus()");
+
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/users/me/google-status";
+      _logRequest("CHECK GOOGLE STATUS", url, headers: _headers(token));
+      final res = await http.get(Uri.parse(url), headers: _headers(token));
+      _logResponse(res);
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final connected = decoded['googleConnected'] == true;
+        _logResult("Google status", connected ? "CONNECTED" : "NOT CONNECTED");
+        return connected;
+      }
+
+      throw Exception("Check google status failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[MentorLiveSessionService] checkGoogleStatus() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // INITIATE GOOGLE OAUTH
+  // Returns the authorization URL with token as query param
+  // so backend can identify the user when opened in external browser.
+  // Backend: GET /api/oauth/google?token={jwt}
+  // ============================================
+  Future<String> getGoogleOAuthUrl() async {
+    log("[MentorLiveSessionService] getGoogleOAuthUrl()");
+
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/oauth/google?token=$token";
+      _logRequest("GET GOOGLE OAUTH URL", url);
+      return url;
+    } catch (e) {
+      log("[MentorLiveSessionService] getGoogleOAuthUrl() FAILED: $e");
       rethrow;
     }
   }

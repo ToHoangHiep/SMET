@@ -325,10 +325,13 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                     status: course.status,
                     deadlineStatus: course.deadlineStatus,
                     fixedDeadline: course.fixedDeadline,
+                    deadlineType: course.deadlineType,
+                    defaultDeadlineDays: course.defaultDeadlineDays,
+                    isEnrolled: course.enrolled,
                     moduleCount: course.moduleCount,
                     lessonCount: course.lessonCount,
                     mentorName: course.mentorName,
-                    onJoin: course.status == 'PUBLISHED'
+                    onJoin: course.status == 'PUBLISHED' && !course.enrolled
                         ? () => _enrollCourse(course.id)
                         : null,
                     onTap: () => context.go('/employee/course/${course.id}?from=catalog'),

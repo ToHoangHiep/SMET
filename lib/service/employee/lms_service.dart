@@ -693,6 +693,7 @@ class LmsService {
       deadlineType: c['deadlineType'],
       defaultDeadlineDays: c['defaultDeadlineDays'],
       fixedDeadline: c['fixedDeadline'],
+      enrolled: c['enrolled'] ?? false,
     );
   }
 
@@ -863,6 +864,57 @@ class LmsService {
     } catch (e) {
       log("LmsService.getLiveSessions: $e");
       return [];
+    }
+  }
+
+  // ============================================================
+  // JOIN LIVE SESSION
+  // Backend: GET /api/lms/live-sessions/{sessionId}/join
+  // Returns the Google Meet URL if session is live and user is enrolled.
+  // Throws on error (403 = not enrolled, 400 = session not started/ended).
+  // ============================================================
+  static Future<String> joinSession(String sessionId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/live-sessions/$sessionId/join");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Backend returns raw string (the meeting URL)
+        final body = response.body.trim();
+        // Remove surrounding quotes if present (some servers return quoted strings)
+        if (body.startsWith('"') && body.endsWith('"')) {
+          return jsonDecode(body) as String;
+        }
+        return body;
+      }
+
+      // Parse error message from response body
+      String errorMsg = 'Không thể tham gia buổi live';
+      try {
+        final body = jsonDecode(response.body);
+        errorMsg = body['message'] ?? body['error'] ?? response.body;
+      } catch (_) {
+        errorMsg = response.body.isNotEmpty ? response.body : errorMsg;
+      }
+
+      if (response.statusCode == 403) {
+        throw Exception('Bạn chưa đăng ký khóa học này. Vui lòng đăng ký trước.');
+      }
+      if (response.statusCode == 400) {
+        throw Exception(errorMsg);
+      }
+      throw Exception(errorMsg);
+    } catch (e) {
+      log("LmsService.joinSession: $e");
+      rethrow;
     }
   }
 
@@ -1427,6 +1479,7 @@ class CatalogCourse {
   final String? deadlineType;
   final int? defaultDeadlineDays;
   final String? fixedDeadline;
+  final bool enrolled;
 
   CatalogCourse({
     required this.id,
@@ -1443,5 +1496,6 @@ class CatalogCourse {
     this.deadlineType,
     this.defaultDeadlineDays,
     this.fixedDeadline,
+    this.enrolled = false,
   });
 }

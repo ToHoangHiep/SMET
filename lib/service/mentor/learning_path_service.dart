@@ -313,22 +313,51 @@ class LearningPathService {
     }
   }
 
+  // ============================================
+  // REORDER COURSES IN LEARNING PATH
+  // Backend: PUT /api/lms/learning-paths/{pathId}/reorder
+  // Body: [{"relationId": 1, "orderIndex": 0}, ...]
+  // ============================================
   Future<void> reorderCourses(
     Long pathId,
     List<Map<String, dynamic>> orders,
   ) async {
-    final token = await _getToken();
+    log("[LearningPathService] reorderCourses() called - pathId=${pathId.value}");
 
-    final url = "$baseUrl/lms/learning-paths/${pathId.value}/reorder";
+    try {
+      _logStep("Getting auth token...");
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
 
-    final res = await http.put(
-      Uri.parse(url),
-      headers: _headers(token!),
-      body: jsonEncode(orders),
-    );
+      final url = "$baseUrl/lms/learning-paths/${pathId.value}/reorder";
+      _logResult("URL", url);
+      _logResult("Body", orders);
 
-    if (res.statusCode != 200) {
-      throw Exception("Reorder failed: ${res.body}");
+      _logStep("Sending PUT request...");
+      _logRequest(
+        "REORDER COURSES IN LEARNING PATH",
+        url,
+        headers: _headers(token),
+        body: orders,
+      );
+      final res = await http.put(
+        Uri.parse(url),
+        headers: _headers(token),
+        body: jsonEncode(orders),
+      );
+      _logResponse(res);
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        _logResult("Courses reordered", "pathId=${pathId.value}");
+        return;
+      }
+
+      throw Exception("Reorder courses failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[LearningPathService] reorderCourses() FAILED: $e");
+      rethrow;
     }
   }
 
@@ -479,8 +508,9 @@ class LearningPathService {
   }
 
   // ============================================
-  // REORDER COURSE IN LEARNING PATH
-  // Backend: PUT /api/lms/learning-paths/{pathId}/courses/reorder?relationId=&newOrderIndex=
+  // REORDER SINGLE COURSE (helper - calls batch reorder)
+  // Backend: PUT /api/lms/learning-paths/{pathId}/reorder
+  // Body: [{"relationId": <id>, "orderIndex": <index>}]
   // ============================================
   Future<void> reorderCourse(
     Long pathId,
@@ -498,20 +528,28 @@ class LearningPathService {
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url =
-          "$baseUrl/lms/learning-paths/$pathId/courses/reorder?relationId=$relationId&newOrderIndex=$newOrderIndex";
+      final url = "$baseUrl/lms/learning-paths/${pathId.value}/reorder";
+      final body = [
+        {"relationId": relationId.value, "orderIndex": newOrderIndex}
+      ];
       _logResult("URL", url);
+      _logResult("Body", body);
 
       _logStep("Sending PUT request...");
       _logRequest(
-        "REORDER COURSE IN LEARNING PATH",
+        "REORDER SINGLE COURSE IN LEARNING PATH",
         url,
         headers: _headers(token),
+        body: body,
       );
-      final res = await http.put(Uri.parse(url), headers: _headers(token));
+      final res = await http.put(
+        Uri.parse(url),
+        headers: _headers(token),
+        body: jsonEncode(body),
+      );
       _logResponse(res);
 
-      if (res.statusCode == 200) {
+      if (res.statusCode == 200 || res.statusCode == 204) {
         _logResult(
           "Course reordered",
           "pathId=${pathId.value}, relationId=${relationId.value}, newOrderIndex=$newOrderIndex",

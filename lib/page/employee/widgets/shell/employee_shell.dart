@@ -49,6 +49,12 @@ class EmployeeShell extends StatefulWidget {
       route: '/employee/certificates',
       tooltip: 'Chứng chỉ của tôi',
     ),
+    SidebarMenuItem(
+      icon: Icons.live_tv_rounded,
+      title: 'Buổi học trực tuyến',
+      route: '/employee/live-sessions',
+      tooltip: 'Buổi học trực tuyến',
+    ),
   ];
 
   @override

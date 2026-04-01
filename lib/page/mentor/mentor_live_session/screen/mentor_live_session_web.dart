@@ -5,6 +5,7 @@ import 'package:smet/model/mentor_live_session_model.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer';
 
 /// Mentor Live Session - Web Layout
@@ -27,6 +28,8 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
   bool _isLoadingCourses = false;
   bool _isLoadingSessions = false;
   bool _isAdmin = false;
+  bool _isGoogleConnected = false;
+  bool _isGoogleLoading = false;
   String? _errorMessage;
 
   @override
@@ -34,6 +37,7 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
     super.initState();
     _loadMyCourses();
     _checkUserRole();
+    _checkGoogleStatus();
   }
 
   Future<void> _loadMyCourses() async {
@@ -66,6 +70,43 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
     }
   }
 
+  Future<void> _checkGoogleStatus() async {
+    try {
+      final connected = await _service.checkGoogleStatus();
+      if (!mounted) return;
+      setState(() => _isGoogleConnected = connected);
+    } catch (e) {
+      if (!mounted) return;
+      log("[LiveSession] checkGoogleStatus failed: $e");
+      // Non-blocking: show a subtle indicator instead of crashing
+      setState(() => _isGoogleConnected = false);
+    }
+  }
+
+  Future<void> _connectGoogle() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final url = await _service.getGoogleOAuthUrl();
+      if (!mounted) return;
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
+      // Poll for status change after user returns from OAuth flow
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      await _checkGoogleStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể kết nối Google: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
   Future<void> _loadSessions(CourseResponse course) async {
     setState(() {
       _selectedCourse = course;
@@ -93,156 +134,177 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
   Future<void> _showEditSessionDialog(LiveSessionInfo session) async {
     final titleController = TextEditingController(text: session.title);
     DateTime startDate = session.startTime ?? DateTime.now();
-    TimeOfDay startTime = session.startTime != null
-        ? TimeOfDay.fromDateTime(session.startTime!)
-        : const TimeOfDay(hour: 9, minute: 0);
-    TimeOfDay endTime = session.endTime != null
-        ? TimeOfDay.fromDateTime(session.endTime!)
-        : const TimeOfDay(hour: 11, minute: 0);
+    TimeOfDay startTime =
+        session.startTime != null
+            ? TimeOfDay.fromDateTime(session.startTime!)
+            : const TimeOfDay(hour: 9, minute: 0);
+    TimeOfDay endTime =
+        session.endTime != null
+            ? TimeOfDay.fromDateTime(session.endTime!)
+            : const TimeOfDay(hour: 11, minute: 0);
 
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          String fmt(TimeOfDay t) =>
-              '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      builder:
+          (ctx) => StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              String fmt(TimeOfDay t) =>
+                  '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-          DateTime buildDt(TimeOfDay t) => DateTime(
-                startDate.year, startDate.month, startDate.day, t.hour, t.minute);
+              DateTime buildDt(TimeOfDay t) => DateTime(
+                startDate.year,
+                startDate.month,
+                startDate.day,
+                t.hour,
+                t.minute,
+              );
 
-          return AlertDialog(
-            title: const Text('Sửa buổi Live'),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tiêu đề buổi live',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    title: const Text('Ngày'),
-                    subtitle: Text('${startDate.day}/${startDate.month}/${startDate.year}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: startDate,
-                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) setDialogState(() => startDate = picked);
-                      },
-                    ),
-                  ),
-                  Row(
+              return AlertDialog(
+                title: const Text('Sửa buổi Live'),
+                content: SizedBox(
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: ListTile(
-                          title: const Text('Bắt đầu'),
-                          subtitle: Text(fmt(startTime)),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.access_time),
-                            onPressed: () async {
-                              final picked = await showTimePicker(
-                                context: ctx,
-                                initialTime: startTime,
-                              );
-                              if (picked != null) setDialogState(() => startTime = picked);
-                            },
-                          ),
+                      TextField(
+                        controller: titleController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tiêu đề buổi live',
                         ),
                       ),
-                      Expanded(
-                        child: ListTile(
-                          title: const Text('Kết thúc'),
-                          subtitle: Text(fmt(endTime)),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.access_time),
-                            onPressed: () async {
-                              final picked = await showTimePicker(
-                                context: ctx,
-                                initialTime: endTime,
-                              );
-                              if (picked != null) setDialogState(() => endTime = picked);
-                            },
-                          ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        title: const Text('Ngày'),
+                        subtitle: Text(
+                          '${startDate.day}/${startDate.month}/${startDate.year}',
                         ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: ctx,
+                              initialDate: startDate,
+                              firstDate: DateTime.now().subtract(
+                                const Duration(days: 365),
+                              ),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (picked != null)
+                              setDialogState(() => startDate = picked);
+                          },
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ListTile(
+                              title: const Text('Bắt đầu'),
+                              subtitle: Text(fmt(startTime)),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.access_time),
+                                onPressed: () async {
+                                  final picked = await showTimePicker(
+                                    context: ctx,
+                                    initialTime: startTime,
+                                  );
+                                  if (picked != null)
+                                    setDialogState(() => startTime = picked);
+                                },
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: ListTile(
+                              title: const Text('Kết thúc'),
+                              subtitle: Text(fmt(endTime)),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.access_time),
+                                onPressed: () async {
+                                  final picked = await showTimePicker(
+                                    context: ctx,
+                                    initialTime: endTime,
+                                  );
+                                  if (picked != null)
+                                    setDialogState(() => endTime = picked);
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Hủy'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (titleController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Vui lòng nhập tiêu đề'),
+                          ),
+                        );
+                        return;
+                      }
+                      final start = buildDt(startTime);
+                      final end = buildDt(endTime);
+                      try {
+                        await _service.updateSession(
+                          session.id,
+                          UpdateLiveSessionRequest(
+                            title: titleController.text.trim(),
+                            startTime: start.toIso8601String(),
+                            endTime: end.toIso8601String(),
+                          ),
+                        );
+                        if (!mounted) return;
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Cập nhật thành công!')),
+                        );
+                        if (_selectedCourse != null)
+                          _loadSessions(_selectedCourse!);
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          SnackBar(content: Text('Cập nhật thất bại: $e')),
+                        );
+                      }
+                    },
+                    child: const Text('Cập nhật'),
+                  ),
                 ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (titleController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng nhập tiêu đề')),
-                    );
-                    return;
-                  }
-                  final start = buildDt(startTime);
-                  final end = buildDt(endTime);
-                  try {
-                    await _service.updateSession(
-                      session.id,
-                      UpdateLiveSessionRequest(
-                        title: titleController.text.trim(),
-                        startTime: start.toIso8601String(),
-                        endTime: end.toIso8601String(),
-                      ),
-                    );
-                    if (!mounted) return;
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cập nhật thành công!')),
-                    );
-                    if (_selectedCourse != null) _loadSessions(_selectedCourse!);
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(content: Text('Cập nhật thất bại: $e')),
-                    );
-                  }
-                },
-                child: const Text('Cập nhật'),
-              ),
-            ],
-          );
-        },
-      ),
+              );
+            },
+          ),
     );
   }
 
   Future<void> _deleteSession(LiveSessionInfo session) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xóa buổi Live'),
-        content: Text('Bạn có chắc muốn xóa "${session.title}" không?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Xóa buổi Live'),
+            content: Text('Bạn có chắc muốn xóa "${session.title}" không?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
     );
 
     if (confirmed != true) return;
@@ -250,9 +312,9 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
     try {
       await _service.deleteSession(session.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xóa thành công!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Xóa thành công!')));
       if (_selectedCourse != null) _loadSessions(_selectedCourse!);
     } catch (e) {
       if (!mounted) return;
@@ -260,11 +322,61 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
       final isForbidden = msg.contains('403') || msg.contains('không có quyền');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isForbidden
-              ? 'Bạn không có quyền xóa buổi live. Chỉ Admin mới được phép xóa.'
-              : 'Xóa thất bại: $e'),
+          content: Text(
+            isForbidden
+                ? 'Bạn không có quyền xóa buổi live. Chỉ Admin mới được phép xóa.'
+                : 'Xóa thất bại: $e',
+          ),
           backgroundColor: isForbidden ? Colors.orange : null,
         ),
+      );
+    }
+  }
+
+  Future<void> _joinSession(LiveSessionInfo session) async {
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    String? directUrl;
+    if (session.meetingUrl != null && session.meetingUrl!.isNotEmpty) {
+      directUrl = session.meetingUrl;
+    }
+
+    String meetingUrl;
+    if (directUrl != null) {
+      // Mentor can join directly via stored meetingUrl (no time restriction)
+      meetingUrl = directUrl;
+    } else {
+      // Fallback: call backend to get the link (backend may enforce time check)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đang kết nối buổi live...')),
+      );
+      try {
+        meetingUrl = await _service.joinSession(session.id);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Open the meeting URL
+    final uri = Uri.parse(meetingUrl);
+    final canLaunch = await canLaunchUrl(uri);
+    if (canLaunch) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể mở link: $meetingUrl')),
       );
     }
   }
@@ -284,125 +396,144 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
 
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          String fmt(TimeOfDay t) =>
-              '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      builder:
+          (ctx) => StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              String fmt(TimeOfDay t) =>
+                  '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-          DateTime buildDt(TimeOfDay t) => DateTime(
-                startDate.year, startDate.month, startDate.day, t.hour, t.minute);
+              DateTime buildDt(TimeOfDay t) => DateTime(
+                startDate.year,
+                startDate.month,
+                startDate.day,
+                t.hour,
+                t.minute,
+              );
 
-          return AlertDialog(
-            title: const Text('Tạo buổi Live mới'),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tiêu đề buổi live',
-                      hintText: 'VD: Kỹ năng Quản lý Đội ngũ',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    title: const Text('Ngày'),
-                    subtitle: Text('${startDate.day}/${startDate.month}/${startDate.year}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: startDate,
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) setDialogState(() => startDate = picked);
-                      },
-                    ),
-                  ),
-                  Row(
+              return AlertDialog(
+                title: const Text('Tạo buổi Live mới'),
+                content: SizedBox(
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: ListTile(
-                          title: const Text('Bắt đầu'),
-                          subtitle: Text(fmt(startTime)),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.access_time),
-                            onPressed: () async {
-                              final picked = await showTimePicker(
-                                context: ctx,
-                                initialTime: startTime,
-                              );
-                              if (picked != null) setDialogState(() => startTime = picked);
-                            },
-                          ),
+                      TextField(
+                        controller: titleController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tiêu đề buổi live',
+                          hintText: 'VD: Kỹ năng Quản lý Đội ngũ',
                         ),
                       ),
-                      Expanded(
-                        child: ListTile(
-                          title: const Text('Kết thúc'),
-                          subtitle: Text(fmt(endTime)),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.access_time),
-                            onPressed: () async {
-                              final picked = await showTimePicker(
-                                context: ctx,
-                                initialTime: endTime,
-                              );
-                              if (picked != null) setDialogState(() => endTime = picked);
-                            },
-                          ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        title: const Text('Ngày'),
+                        subtitle: Text(
+                          '${startDate.day}/${startDate.month}/${startDate.year}',
                         ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: ctx,
+                              initialDate: startDate,
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (picked != null)
+                              setDialogState(() => startDate = picked);
+                          },
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ListTile(
+                              title: const Text('Bắt đầu'),
+                              subtitle: Text(fmt(startTime)),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.access_time),
+                                onPressed: () async {
+                                  final picked = await showTimePicker(
+                                    context: ctx,
+                                    initialTime: startTime,
+                                  );
+                                  if (picked != null)
+                                    setDialogState(() => startTime = picked);
+                                },
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: ListTile(
+                              title: const Text('Kết thúc'),
+                              subtitle: Text(fmt(endTime)),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.access_time),
+                                onPressed: () async {
+                                  final picked = await showTimePicker(
+                                    context: ctx,
+                                    initialTime: endTime,
+                                  );
+                                  if (picked != null)
+                                    setDialogState(() => endTime = picked);
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Hủy'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (titleController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Vui lòng nhập tiêu đề'),
+                          ),
+                        );
+                        return;
+                      }
+                      final start = buildDt(startTime);
+                      final end = buildDt(endTime);
+                      try {
+                        await _service.createSession(
+                          CreateLiveSessionRequest(
+                            courseId: _selectedCourse!.id,
+                            title: titleController.text.trim(),
+                            startTime: start.toIso8601String(),
+                            endTime: end.toIso8601String(),
+                          ),
+                        );
+                        if (!mounted) return;
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Tạo buổi live thành công!'),
+                          ),
+                        );
+                        _loadSessions(_selectedCourse!);
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          SnackBar(content: Text('Tạo thất bại: $e')),
+                        );
+                      }
+                    },
+                    child: const Text('Tạo'),
+                  ),
                 ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (titleController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng nhập tiêu đề')),
-                    );
-                    return;
-                  }
-                  final start = buildDt(startTime);
-                  final end = buildDt(endTime);
-                  try {
-                    await _service.createSession(CreateLiveSessionRequest(
-                      courseId: _selectedCourse!.id,
-                      title: titleController.text.trim(),
-                      startTime: start.toIso8601String(),
-                      endTime: end.toIso8601String(),
-                    ));
-                    if (!mounted) return;
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Tạo buổi live thành công!')),
-                    );
-                    _loadSessions(_selectedCourse!);
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(content: Text('Tạo thất bại: $e')),
-                    );
-                  }
-                },
-                child: const Text('Tạo'),
-              ),
-            ],
-          );
-        },
-      ),
+              );
+            },
+          ),
     );
   }
 
@@ -431,28 +562,37 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.symmetric(horizontal: 24),
               color: Colors.red.shade50,
-              child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
           Expanded(
-            child: _isLoadingCourses
-                ? const Center(child: CircularProgressIndicator())
-                : _viewMode == 0
+            child:
+                _isLoadingCourses
+                    ? const Center(child: CircularProgressIndicator())
+                    : _viewMode == 0
                     ? _DayView(
-                        sessions: _sessions,
-                        isLoading: _isLoadingSessions,
-                        onEditSession: _showEditSessionDialog,
-                        onDeleteSession: _deleteSession,
-                        isAdmin: _isAdmin,
-                      )
+                      sessions: _sessions,
+                      isLoading: _isLoadingSessions,
+                      onEditSession: _showEditSessionDialog,
+                      onDeleteSession: _deleteSession,
+                      onJoinSession: _joinSession,
+                      isAdmin: _isAdmin,
+                    )
                     : _viewMode == 1
-                        ? _WeekView(
-                            sessions: _sessions,
-                            isLoading: _isLoadingSessions,
-                            onEditSession: _showEditSessionDialog,
-                            onDeleteSession: _deleteSession,
-                            isAdmin: _isAdmin,
-                          )
-                        : _MonthView(sessions: _sessions, isLoading: _isLoadingSessions),
+                    ? _WeekView(
+                      sessions: _sessions,
+                      isLoading: _isLoadingSessions,
+                      onEditSession: _showEditSessionDialog,
+                      onDeleteSession: _deleteSession,
+                      onJoinSession: _joinSession,
+                      isAdmin: _isAdmin,
+                    )
+                    : _MonthView(
+                      sessions: _sessions,
+                      isLoading: _isLoadingSessions,
+                    ),
           ),
         ],
       ),
@@ -474,35 +614,44 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
           const SizedBox(width: 20),
           SizedBox(
             width: 280,
-            child: _isLoadingCourses
-                ? const LinearProgressIndicator()
-                : DropdownButtonFormField<CourseResponse>(
-                    value: _selectedCourse,
-                    decoration: InputDecoration(
-                      hintText: 'Chọn khóa học',
-                      filled: true,
-                      fillColor: const Color(0xffF1F3FD),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: BorderSide.none,
+            child:
+                _isLoadingCourses
+                    ? const LinearProgressIndicator()
+                    : DropdownButtonFormField<CourseResponse>(
+                      value: _selectedCourse,
+                      decoration: InputDecoration(
+                        hintText: 'Chọn khóa học',
+                        filled: true,
+                        fillColor: const Color(0xffF1F3FD),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 0,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(999),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
+                      isExpanded: true,
+                      items:
+                          _courses.map((course) {
+                            return DropdownMenuItem(
+                              value: course,
+                              child: Text(
+                                course.title,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                      onChanged: (course) {
+                        if (course != null) _loadSessions(course);
+                      },
                     ),
-                    isExpanded: true,
-                    items: _courses.map((course) {
-                      return DropdownMenuItem(
-                        value: course,
-                        child: Text(course.title, overflow: TextOverflow.ellipsis),
-                      );
-                    }).toList(),
-                    onChanged: (course) {
-                      if (course != null) _loadSessions(course);
-                    },
-                  ),
           ),
           const SizedBox(width: 12),
           ElevatedButton.icon(
-            onPressed: _selectedCourse != null ? _showCreateSessionDialog : null,
+            onPressed:
+                _selectedCourse != null ? _showCreateSessionDialog : null,
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Tạo buổi live'),
             style: ElevatedButton.styleFrom(
@@ -538,13 +687,94 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
             ),
             child: Row(
               children: [
-                _ViewModeButton(label: 'Ngày', selected: _selectedViewMode == 0, onTap: () => setState(() => _selectedViewMode = 0)),
-                _ViewModeButton(label: 'Tuần', selected: _selectedViewMode == 1, onTap: () => setState(() => _selectedViewMode = 1)),
-                _ViewModeButton(label: 'Tháng', selected: _selectedViewMode == 2, onTap: () => setState(() => _selectedViewMode = 2)),
+                _ViewModeButton(
+                  label: 'Ngày',
+                  selected: _selectedViewMode == 0,
+                  onTap: () => setState(() => _selectedViewMode = 0),
+                ),
+                _ViewModeButton(
+                  label: 'Tuần',
+                  selected: _selectedViewMode == 1,
+                  onTap: () => setState(() => _selectedViewMode = 1),
+                ),
+                _ViewModeButton(
+                  label: 'Tháng',
+                  selected: _selectedViewMode == 2,
+                  onTap: () => setState(() => _selectedViewMode = 2),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _isGoogleLoading ? null : _connectGoogle,
+            child: MouseRegion(
+              cursor: _isGoogleLoading
+                  ? SystemMouseCursors.forbidden
+                  : SystemMouseCursors.click,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      _isGoogleConnected
+                          ? Colors.green.shade50
+                          : Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color:
+                        _isGoogleConnected
+                            ? Colors.green.shade300
+                            : Colors.orange.shade300,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _isGoogleLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.orange.shade700,
+                            ),
+                          )
+                        : Icon(
+                            _isGoogleConnected
+                                ? Icons.check_circle
+                                : Icons.warning_amber_rounded,
+                            size: 16,
+                            color:
+                                _isGoogleConnected
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade700,
+                          ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isGoogleLoading
+                          ? 'Đang kết nối...'
+                          : _isGoogleConnected
+                              ? 'Google đã kết nối'
+                              : 'Kết nối Google',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            _isGoogleConnected
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.notifications_none),
@@ -561,7 +791,11 @@ class _ViewModeButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _ViewModeButton({required this.label, required this.selected, required this.onTap});
+  const _ViewModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -580,7 +814,10 @@ class _ViewModeButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                color: selected ? const Color(0xff005BAF) : const Color(0xff414753),
+                color:
+                    selected
+                        ? const Color(0xff005BAF)
+                        : const Color(0xff414753),
               ),
             ),
           ),
@@ -597,6 +834,7 @@ class _WeekView extends StatelessWidget {
   final bool isLoading;
   final void Function(LiveSessionInfo)? onEditSession;
   final void Function(LiveSessionInfo)? onDeleteSession;
+  final void Function(LiveSessionInfo)? onJoinSession;
   final bool isAdmin;
 
   const _WeekView({
@@ -604,6 +842,7 @@ class _WeekView extends StatelessWidget {
     required this.isLoading,
     this.onEditSession,
     this.onDeleteSession,
+    this.onJoinSession,
     required this.isAdmin,
   });
 
@@ -632,9 +871,19 @@ class _WeekView extends StatelessWidget {
           children: const [
             Icon(Icons.event_busy, size: 64, color: Color(0xffD1D5DB)),
             SizedBox(height: 16),
-            Text('Chưa có buổi live nào', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xff64748B))),
+            Text(
+              'Chưa có buổi live nào',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xff64748B),
+              ),
+            ),
             SizedBox(height: 8),
-            Text('Chọn khóa học và tạo buổi live đầu tiên', style: TextStyle(color: Color(0xff94A3B8))),
+            Text(
+              'Chọn khóa học và tạo buổi live đầu tiên',
+              style: TextStyle(color: Color(0xff94A3B8)),
+            ),
           ],
         ),
       );
@@ -646,14 +895,25 @@ class _WeekView extends StatelessWidget {
         children: [
           Container(
             height: 82,
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xffE0E2EC)))),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xffE0E2EC))),
+            ),
             child: Row(
               children: [
                 Container(
                   width: timeColumnWidth,
                   alignment: Alignment.center,
-                  decoration: const BoxDecoration(border: Border(right: BorderSide(color: Color(0xffE0E2EC)))),
-                  child: const Text('GMT+7', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xff717785))),
+                  decoration: const BoxDecoration(
+                    border: Border(right: BorderSide(color: Color(0xffE0E2EC))),
+                  ),
+                  child: const Text(
+                    'GMT+7',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xff717785),
+                    ),
+                  ),
                 ),
                 ...List.generate(days.length, (index) {
                   final day = days[index];
@@ -661,17 +921,44 @@ class _WeekView extends StatelessWidget {
                   return Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: selected ? const Color(0xff0074DB).withOpacity(0.05) : null,
+                        color:
+                            selected
+                                ? const Color(0xff0074DB).withOpacity(0.05)
+                                : null,
                         border: Border(
-                          right: index != days.length - 1 ? const BorderSide(color: Color(0xffE0E2EC)) : BorderSide.none,
+                          right:
+                              index != days.length - 1
+                                  ? const BorderSide(color: Color(0xffE0E2EC))
+                                  : BorderSide.none,
                         ),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(day['name'] as String, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: selected ? const Color(0xff005BAF) : const Color(0xff717785))),
+                          Text(
+                            day['name'] as String,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  selected
+                                      ? const Color(0xff005BAF)
+                                      : const Color(0xff717785),
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text(day['date'] as String, style: TextStyle(fontSize: 26, fontWeight: selected ? FontWeight.bold : FontWeight.w600, color: selected ? const Color(0xff005BAF) : const Color(0xff181C22))),
+                          Text(
+                            day['date'] as String,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight:
+                                  selected ? FontWeight.bold : FontWeight.w600,
+                              color:
+                                  selected
+                                      ? const Color(0xff005BAF)
+                                      : const Color(0xff181C22),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -697,16 +984,32 @@ class _WeekView extends StatelessWidget {
                             children: [
                               Container(
                                 width: timeColumnWidth,
-                                decoration: const BoxDecoration(border: Border(right: BorderSide(color: Color(0xffE0E2EC)))),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    right: BorderSide(color: Color(0xffE0E2EC)),
+                                  ),
+                                ),
                               ),
                               ...List.generate(7, (index) {
                                 final isSelectedDay = index == 1;
                                 return Container(
                                   width: dayWidth,
                                   decoration: BoxDecoration(
-                                    color: isSelectedDay ? const Color(0xff0074DB).withOpacity(0.02) : Colors.transparent,
+                                    color:
+                                        isSelectedDay
+                                            ? const Color(
+                                              0xff0074DB,
+                                            ).withOpacity(0.02)
+                                            : Colors.transparent,
                                     border: Border(
-                                      right: index != 6 ? BorderSide(color: const Color(0xffE0E2EC).withOpacity(0.8)) : BorderSide.none,
+                                      right:
+                                          index != 6
+                                              ? BorderSide(
+                                                color: const Color(
+                                                  0xffE0E2EC,
+                                                ).withOpacity(0.8),
+                                              )
+                                              : BorderSide.none,
                                     ),
                                   ),
                                 );
@@ -722,16 +1025,29 @@ class _WeekView extends StatelessWidget {
                             child: Container(
                               height: hourRowHeight,
                               decoration: BoxDecoration(
-                                border: Border(bottom: BorderSide(color: const Color(0xffE0E2EC).withOpacity(0.5))),
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: const Color(
+                                      0xffE0E2EC,
+                                    ).withOpacity(0.5),
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 children: [
                                   Container(
                                     width: timeColumnWidth,
-                                    padding: const EdgeInsets.only(left: 10, top: 4),
+                                    padding: const EdgeInsets.only(
+                                      left: 10,
+                                      top: 4,
+                                    ),
                                     child: Text(
                                       '${hours[index].toString().padLeft(2, '0')}:00',
-                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xff717785)),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xff717785),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -741,14 +1057,20 @@ class _WeekView extends StatelessWidget {
                         }),
                         ...sessions.asMap().entries.map((entry) {
                           final session = entry.value;
-                          if (session.startTime == null) return const SizedBox.shrink();
+                          if (session.startTime == null)
+                            return const SizedBox.shrink();
                           final dayOfWeek = session.startTime!.weekday;
                           final hour = session.startTime!.hour;
-                          final durationMinutes = session.endTime != null
-                              ? session.endTime!.difference(session.startTime!).inMinutes : 60;
+                          final durationMinutes =
+                              session.endTime != null
+                                  ? session.endTime!
+                                      .difference(session.startTime!)
+                                      .inMinutes
+                                  : 60;
                           final height = (durationMinutes / 60) * hourRowHeight;
                           final dayIndex = dayOfWeek - 1;
-                          if (dayIndex < 0 || dayIndex >= 7) return const SizedBox.shrink();
+                          if (dayIndex < 0 || dayIndex >= 7)
+                            return const SizedBox.shrink();
                           return Positioned(
                             top: (hour - 7) * hourRowHeight + 4,
                             left: timeColumnWidth + (dayIndex * dayWidth) + 4,
@@ -756,8 +1078,18 @@ class _WeekView extends StatelessWidget {
                             height: height - 8,
                             child: _WeekEventCard(
                               session: session,
-                              onEdit: onEditSession != null ? () => onEditSession!(session) : null,
-                              onDelete: onDeleteSession != null ? () => onDeleteSession!(session) : null,
+                              onEdit:
+                                  onEditSession != null
+                                      ? () => onEditSession!(session)
+                                      : null,
+                              onDelete:
+                                  onDeleteSession != null
+                                      ? () => onDeleteSession!(session)
+                                      : null,
+                              onJoin:
+                                  onJoinSession != null
+                                      ? () => onJoinSession!(session)
+                                      : null,
                               isAdmin: isAdmin,
                             ),
                           );
@@ -793,11 +1125,15 @@ class _WeekEventActionsButton extends StatelessWidget {
     if (!hasEdit && !hasDelete) return;
 
     final box = context.findRenderObject() as RenderBox?;
-    final overlay = Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
+    final overlay =
+        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
     if (box == null || overlay == null || !box.hasSize) return;
 
     final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final bottomRight = box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay);
+    final bottomRight = box.localToGlobal(
+      box.size.bottomRight(Offset.zero),
+      ancestor: overlay,
+    );
     final rect = Rect.fromPoints(topLeft, bottomRight);
 
     final chosen = await showMenu<String>(
@@ -858,12 +1194,14 @@ class _WeekEventCard extends StatelessWidget {
   final LiveSessionInfo session;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onJoin;
   final bool isAdmin;
 
   const _WeekEventCard({
     required this.session,
     this.onEdit,
     this.onDelete,
+    this.onJoin,
     required this.isAdmin,
   });
 
@@ -878,16 +1216,25 @@ class _WeekEventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = session.isOngoing
-        ? const Color(0xff0074DB)
-        : session.isPast ? const Color(0xff717785) : const Color(0xff00875A);
+    final color =
+        session.isOngoing
+            ? const Color(0xff0074DB)
+            : session.isPast
+            ? const Color(0xff717785)
+            : const Color(0xff00875A);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 5, 4, 5),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(10),
-        boxShadow: [BoxShadow(color: color.withAlpha(64), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+            color: color.withAlpha(64),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -900,15 +1247,25 @@ class _WeekEventCard extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 22),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withAlpha(51),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    session.isOngoing ? 'ĐANG DIỄN RA'
-                        : session.isUpcoming ? 'SẮP DIỄN RA' : 'ĐÃ KẾT THÚC',
-                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                    session.isOngoing
+                        ? 'ĐANG DIỄN RA'
+                        : session.isUpcoming
+                        ? 'SẮP DIỄN RA'
+                        : 'ĐÃ KẾT THÚC',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -932,7 +1289,11 @@ class _WeekEventCard extends StatelessWidget {
                   if (session.meetingUrl != null)
                     const Padding(
                       padding: EdgeInsets.only(left: 2),
-                      child: Icon(Icons.videocam, color: Colors.white70, size: 11),
+                      child: Icon(
+                        Icons.videocam,
+                        color: Colors.white70,
+                        size: 11,
+                      ),
                     ),
                 ],
               ),
@@ -952,6 +1313,33 @@ class _WeekEventCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (session.meetingUrl != null && !session.isPast && onJoin != null)
+                Material(
+                  color: Colors.white.withAlpha(51),
+                  borderRadius: BorderRadius.circular(4),
+                  child: InkWell(
+                    onTap: onJoin,
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.video_call, color: Colors.white, size: 9),
+                          SizedBox(width: 2),
+                          Text(
+                            'Vào học',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 7,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           Positioned(
@@ -976,6 +1364,7 @@ class _DayView extends StatelessWidget {
   final bool isLoading;
   final void Function(LiveSessionInfo)? onEditSession;
   final void Function(LiveSessionInfo)? onDeleteSession;
+  final void Function(LiveSessionInfo)? onJoinSession;
   final bool isAdmin;
 
   const _DayView({
@@ -983,6 +1372,7 @@ class _DayView extends StatelessWidget {
     required this.isLoading,
     this.onEditSession,
     this.onDeleteSession,
+    this.onJoinSession,
     required this.isAdmin,
   });
 
@@ -1000,7 +1390,14 @@ class _DayView extends StatelessWidget {
             children: [
               const Icon(Icons.calendar_today, color: Color(0xff005BAF)),
               const SizedBox(width: 12),
-              const Text('Thứ 3, 28/03/2026', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff181C22))),
+              const Text(
+                'Thứ 3, 28/03/2026',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xff181C22),
+                ),
+              ),
               const Spacer(),
               OutlinedButton.icon(
                 onPressed: () {},
@@ -1017,20 +1414,31 @@ class _DayView extends StatelessWidget {
           const Divider(color: Color(0xffE0E2EC)),
           const SizedBox(height: 16),
           Expanded(
-            child: sessions.isEmpty
-                ? const Center(child: Text('Không có buổi live nào'))
-                : ListView.builder(
-                    itemCount: sessions.length,
-                  itemBuilder: (context, index) {
-                    final session = sessions[index];
-                    return _DaySessionCard(
-                      session: session,
-                      onEdit: onEditSession != null ? () => onEditSession!(session) : null,
-                      onDelete: onDeleteSession != null ? () => onDeleteSession!(session) : null,
-                      isAdmin: isAdmin,
-                    );
-                  },
-                  ),
+            child:
+                sessions.isEmpty
+                    ? const Center(child: Text('Không có buổi live nào'))
+                    : ListView.builder(
+                      itemCount: sessions.length,
+                      itemBuilder: (context, index) {
+                        final session = sessions[index];
+                        return _DaySessionCard(
+                          session: session,
+                          onEdit:
+                              onEditSession != null
+                                  ? () => onEditSession!(session)
+                                  : null,
+                          onDelete:
+                              onDeleteSession != null
+                                  ? () => onDeleteSession!(session)
+                                  : null,
+                          onJoin:
+                              onJoinSession != null
+                                  ? () => onJoinSession!(session)
+                                  : null,
+                          isAdmin: isAdmin,
+                        );
+                      },
+                    ),
           ),
         ],
       ),
@@ -1042,12 +1450,14 @@ class _DaySessionCard extends StatelessWidget {
   final LiveSessionInfo session;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onJoin;
   final bool isAdmin;
 
   const _DaySessionCard({
     required this.session,
     this.onEdit,
     this.onDelete,
+    this.onJoin,
     required this.isAdmin,
   });
 
@@ -1066,7 +1476,10 @@ class _DaySessionCard extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: const Color(0xff717785)),
           const SizedBox(width: 6),
-          Text(text, style: const TextStyle(fontSize: 12, color: Color(0xff414753))),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 12, color: Color(0xff414753)),
+          ),
         ],
       ),
     );
@@ -1074,12 +1487,18 @@ class _DaySessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = session.isOngoing
-        ? const Color(0xff0074DB)
-        : session.isPast ? const Color(0xff717785) : const Color(0xff00875A);
-    final statusColor = session.isOngoing
-        ? Colors.red
-        : session.isPast ? const Color(0xff717785) : const Color(0xff00875A);
+    final color =
+        session.isOngoing
+            ? const Color(0xff0074DB)
+            : session.isPast
+            ? const Color(0xff717785)
+            : const Color(0xff00875A);
+    final statusColor =
+        session.isOngoing
+            ? Colors.red
+            : session.isPast
+            ? const Color(0xff717785)
+            : const Color(0xff00875A);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1087,7 +1506,13 @@ class _DaySessionCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xffE0E2EC)),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(13), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(13),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1096,7 +1521,9 @@ class _DaySessionCard extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
             ),
           ),
           Padding(
@@ -1107,7 +1534,10 @@ class _DaySessionCard extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withAlpha(26),
                         borderRadius: BorderRadius.circular(20),
@@ -1115,15 +1545,32 @@ class _DaySessionCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: statusColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                           const SizedBox(width: 6),
-                          Text(session.statusLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
+                          Text(
+                            session.statusLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: statusColor,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: color.withAlpha(26),
                         borderRadius: BorderRadius.circular(20),
@@ -1133,7 +1580,14 @@ class _DaySessionCard extends StatelessWidget {
                         children: [
                           Icon(Icons.live_tv, size: 14, color: color),
                           const SizedBox(width: 4),
-                          Text('LIVE SESSION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+                          Text(
+                            'LIVE SESSION',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: color,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1143,8 +1597,55 @@ class _DaySessionCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(session.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xff181C22))),
+                      child: Text(
+                        session.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff181C22),
+                        ),
+                      ),
                     ),
+                    if (session.meetingUrl != null && !session.isPast && onJoin != null)
+                      Tooltip(
+                        message: 'Tham gia buổi live',
+                        child: InkWell(
+                          onTap: onJoin,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withAlpha(13),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.red.withAlpha(51),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.video_call,
+                                  size: 16,
+                                  color: Colors.red,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Vào học',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     if (onEdit != null)
                       _ActionButton(
                         icon: Icons.edit_outlined,
@@ -1169,9 +1670,12 @@ class _DaySessionCard extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     if (session.startTime != null)
-                      _chip(Icons.access_time,
-                          '${_fmt(session.startTime!)} - ${_fmt(session.endTime ?? session.startTime!)}'),
-                    if (session.meetingUrl != null) _chip(Icons.videocam_outlined, 'Google Meet'),
+                      _chip(
+                        Icons.access_time,
+                        '${_fmt(session.startTime!)} - ${_fmt(session.endTime ?? session.startTime!)}',
+                      ),
+                    if (session.meetingUrl != null)
+                      _chip(Icons.videocam_outlined, 'Google Meet'),
                   ],
                 ),
               ],
@@ -1235,7 +1739,14 @@ class _MonthView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Tháng 3, 2026', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xff181C22))),
+          const Text(
+            'Tháng 3, 2026',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xff181C22),
+            ),
+          ),
           const SizedBox(height: 24),
           Expanded(
             child: Column(
@@ -1257,11 +1768,23 @@ class _MonthView extends StatelessWidget {
                     children: [
                       _monthWeekRow([
                         _monthDayCell(27, false, [
-                          _monthEventItem(const Color(0xff0074DB), 'Live Session', Icons.live_tv),
-                          _monthEventItem(const Color(0xff455F89), 'Workshop', Icons.groups),
+                          _monthEventItem(
+                            const Color(0xff0074DB),
+                            'Live Session',
+                            Icons.live_tv,
+                          ),
+                          _monthEventItem(
+                            const Color(0xff455F89),
+                            'Workshop',
+                            Icons.groups,
+                          ),
                         ]),
                         _monthDayCell(28, true, [
-                          _monthEventItem(const Color(0xff0074DB), 'Live Session', Icons.live_tv),
+                          _monthEventItem(
+                            const Color(0xff0074DB),
+                            'Live Session',
+                            Icons.live_tv,
+                          ),
                         ]),
                         _monthDayCell(29, false, []),
                         _monthDayCell(30, false, []),
@@ -1269,7 +1792,14 @@ class _MonthView extends StatelessWidget {
                         _monthDayCell(1, false, []),
                         _monthDayCell(2, false, []),
                       ]),
-                      Expanded(child: Row(children: List.generate(7, (i) => const Expanded(child: SizedBox())))),
+                      Expanded(
+                        child: Row(
+                          children: List.generate(
+                            7,
+                            (i) => const Expanded(child: SizedBox()),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1286,7 +1816,13 @@ class _MonthView extends StatelessWidget {
               children: [
                 const Icon(Icons.insights, color: Color(0xff005BAF)),
                 const SizedBox(width: 12),
-                Text('Tháng này: ${sessions.length} buổi live', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xff414753))),
+                Text(
+                  'Tháng này: ${sessions.length} buổi live',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xff414753),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1298,14 +1834,17 @@ class _MonthView extends StatelessWidget {
   Widget _monthWeekRow(List<Widget> cells) {
     return Expanded(
       child: Row(
-        children: cells.asMap().entries.map((entry) {
-          return Expanded(
-            child: Container(
-              margin: EdgeInsets.only(right: entry.key < cells.length - 1 ? 4 : 0),
-              child: entry.value,
-            ),
-          );
-        }).toList(),
+        children:
+            cells.asMap().entries.map((entry) {
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(
+                    right: entry.key < cells.length - 1 ? 4 : 0,
+                  ),
+                  child: entry.value,
+                ),
+              );
+            }).toList(),
       ),
     );
   }
@@ -1314,7 +1853,10 @@ class _MonthView extends StatelessWidget {
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
-          color: selected ? const Color(0xff005BAF).withAlpha(13) : Colors.transparent,
+          color:
+              selected
+                  ? const Color(0xff005BAF).withAlpha(13)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: selected ? Border.all(color: const Color(0xff005BAF)) : null,
         ),
@@ -1322,11 +1864,17 @@ class _MonthView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(day.toString(), style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-              color: selected ? const Color(0xff005BAF) : const Color(0xff181C22),
-            )),
+            Text(
+              day.toString(),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                color:
+                    selected
+                        ? const Color(0xff005BAF)
+                        : const Color(0xff181C22),
+              ),
+            ),
             if (events.isNotEmpty) ...[
               const SizedBox(height: 4),
               ...events.take(3),
@@ -1352,7 +1900,15 @@ class _MonthView extends StatelessWidget {
           Icon(icon, size: 8, color: color),
           const SizedBox(width: 2),
           Flexible(
-            child: Text(text, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 9,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -1369,7 +1925,15 @@ class _MonthDayHeader extends StatelessWidget {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xff717785))),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xff717785),
+          ),
+        ),
       ),
     );
   }
