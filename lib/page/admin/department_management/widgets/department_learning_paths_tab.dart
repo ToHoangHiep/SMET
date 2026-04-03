@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/service/admin/lms_assignment/lms_assignment_service.dart';
+import 'package:smet/page/admin/assignment/widgets/dialog/assignable_user_dialog.dart';
+import 'package:smet/page/admin/assignment/widgets/dialog/assignment_result_dialog.dart';
 
 class DepartmentLearningPathsTab extends StatefulWidget {
   final int departmentId;
@@ -20,6 +23,7 @@ class DepartmentLearningPathsTab extends StatefulWidget {
 class _DepartmentLearningPathsTabState
     extends State<DepartmentLearningPathsTab> {
   final DepartmentService _service = DepartmentService();
+  final LmsAssignmentService _assignmentService = LmsAssignmentService();
   List<Map<String, dynamic>> _learningPaths = [];
   bool _isLoading = true;
   String? _error;
@@ -133,24 +137,147 @@ class _DepartmentLearningPathsTabState
   }
 
   Widget _buildLearningPathList() {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _learningPaths.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final path = _learningPaths[index];
-        return _LearningPathCard(
-          path: path,
-          primaryColor: widget.primaryColor,
-          onTap: () {
-            final pathId = path['id']?.toString();
-            if (pathId != null) {
-              context.push('/pm/learning_path?pathId=$pathId');
-            }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '${_learningPaths.length} Learning Path',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => _handleAssignLearningPath(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Gán Learning Path'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _learningPaths.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final path = _learningPaths[index];
+            return _LearningPathCard(
+              path: path,
+              primaryColor: widget.primaryColor,
+              onTap: () {
+                final pathId = path['id']?.toString();
+                if (pathId != null) {
+                  context.push('/pm/learning_path?pathId=$pathId');
+                }
+              },
+            );
           },
-        );
-      },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleAssignLearningPath(BuildContext context) async {
+    final selectedPath = await _showLearningPathSelectDialog(context);
+    if (selectedPath == null) return;
+
+    final users = await AssignableUserDialog.show(
+      context: context,
+      primaryColor: widget.primaryColor,
+      title: 'Chọn người được gán Learning Path',
+      roleFilter: 'USER',
+    );
+    if (users == null || users.isEmpty) return;
+
+    if (!context.mounted) return;
+    _showLoadingDialog(context);
+
+    try {
+      final result = await _assignmentService.assignLearningPaths(
+        userIds: users.map((u) => u.userId).toList(),
+        learningPathIds: [selectedPath['id'] as int],
+      );
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+
+      await AssignmentResultDialog.show(
+        context: context,
+        result: result,
+        primaryColor: widget.primaryColor,
+        assignmentType: 'Learning Path',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> _showLearningPathSelectDialog(BuildContext context) async {
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Chọn Learning Path'),
+        content: SizedBox(
+          width: 400,
+          height: 300,
+          child: ListView.separated(
+            itemCount: _learningPaths.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (ctx, index) {
+              final path = _learningPaths[index];
+              final title = path['title'] ?? path['name'] ?? 'Learning Path';
+              return ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.route_outlined, color: widget.primaryColor, size: 20),
+                ),
+                title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.pop(ctx, path),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLoadingDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
   }
 }

@@ -119,7 +119,6 @@ class CreateLessonRequest {
 class CreateCourseRequest {
   final String title;
   final String description;
-  final Long? departmentId;
   final String? deadlineType;
   final int? defaultDeadlineDays;
   final String? fixedDeadline;
@@ -127,7 +126,6 @@ class CreateCourseRequest {
   CreateCourseRequest({
     required this.title,
     required this.description,
-    this.departmentId,
     this.deadlineType,
     this.defaultDeadlineDays,
     this.fixedDeadline,
@@ -135,7 +133,6 @@ class CreateCourseRequest {
 
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{'title': title, 'description': description};
-    if (departmentId != null) map['departmentId'] = departmentId!.value;
     if (deadlineType != null) map['deadlineType'] = deadlineType;
     if (defaultDeadlineDays != null)
       map['defaultDeadlineDays'] = defaultDeadlineDays;
@@ -182,6 +179,7 @@ class CourseResponse {
   final String title;
   final String description;
   final String? departmentName;
+  final Long mentorId; // ID của mentor đã tạo khóa học
   final String mentorName;
   final bool published;
   final CourseStatus status;
@@ -195,6 +193,7 @@ class CourseResponse {
     required this.title,
     required this.description,
     this.departmentName,
+    required this.mentorId,
     required this.mentorName,
     required this.published,
     required this.status,
@@ -215,6 +214,7 @@ class CourseResponse {
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       departmentName: json['departmentName'],
+      mentorId: _parseLong(json['mentorId'] ?? json['mentor']?['id']),
       mentorName: json['mentorName'] ?? json['mentor']?['name'] ?? 'Mentor',
       published: json['published'] ?? false,
       status: CourseStatusExtension.fromString(json['status']),

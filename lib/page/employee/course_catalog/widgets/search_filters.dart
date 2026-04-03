@@ -1,21 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:smet/page/employee/course_catalog/widgets/course_card.dart';
+
+/// Enrollment filter — lọc khóa học theo trạng thái đăng ký của user
+enum EnrollmentFilter { all, inProgress, completed }
+
+extension EnrollmentFilterExtension on EnrollmentFilter {
+  String get label {
+    switch (this) {
+      case EnrollmentFilter.all:
+        return 'Tất cả';
+      case EnrollmentFilter.inProgress:
+        return 'Đang học';
+      case EnrollmentFilter.completed:
+        return 'Đã hoàn thành';
+    }
+  }
+
+  String? get apiValue {
+    switch (this) {
+      case EnrollmentFilter.all:
+        return null;
+      case EnrollmentFilter.inProgress:
+        return 'IN_PROGRESS';
+      case EnrollmentFilter.completed:
+        return 'COMPLETED';
+    }
+  }
+}
 
 /// Search Filters — Coursera-style:
 /// - Rounded search bar with icon + clear button
-/// - Pill-style category filter tabs
+/// - Pill-style enrollment filter row
 class SearchFilters extends StatelessWidget {
-  final String selectedCategory;
   final String searchQuery;
-  final ValueChanged<CourseCategory> onCategoryChanged;
+  final EnrollmentFilter selectedEnrollment;
   final ValueChanged<String> onSearchChanged;
+  final ValueChanged<EnrollmentFilter> onEnrollmentChanged;
 
   const SearchFilters({
     super.key,
-    required this.selectedCategory,
     required this.searchQuery,
-    required this.onCategoryChanged,
+    required this.selectedEnrollment,
     required this.onSearchChanged,
+    required this.onEnrollmentChanged,
   });
 
   @override
@@ -30,20 +56,18 @@ class SearchFilters extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        // Category filter chips
+        // Enrollment filter pills
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: CourseCategory.values.map((category) {
-              final isSelected = (selectedCategory == 'all' &&
-                      category == CourseCategory.all) ||
-                  selectedCategory == category.name;
+            children: EnrollmentFilter.values.map((filter) {
+              final isSelected = selectedEnrollment == filter;
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: _CategoryPill(
-                  category: category,
+                child: _EnrollmentPill(
+                  filter: filter,
                   isSelected: isSelected,
-                  onTap: () => onCategoryChanged(category),
+                  onTap: () => onEnrollmentChanged(filter),
                 ),
               );
             }).toList(),
@@ -146,24 +170,35 @@ class _CourseraSearchBarState extends State<_CourseraSearchBar> {
   }
 }
 
-/// Pill-style category chip with animated state.
-class _CategoryPill extends StatefulWidget {
-  final CourseCategory category;
+/// Pill-style enrollment filter chip with animated state.
+class _EnrollmentPill extends StatefulWidget {
+  final EnrollmentFilter filter;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _CategoryPill({
-    required this.category,
+  const _EnrollmentPill({
+    required this.filter,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
-  State<_CategoryPill> createState() => _CategoryPillState();
+  State<_EnrollmentPill> createState() => _EnrollmentPillState();
 }
 
-class _CategoryPillState extends State<_CategoryPill> {
+class _EnrollmentPillState extends State<_EnrollmentPill> {
   bool _isHovered = false;
+
+  Color get _activeColor {
+    switch (widget.filter) {
+      case EnrollmentFilter.inProgress:
+        return const Color(0xFFF59E0B);
+      case EnrollmentFilter.completed:
+        return const Color(0xFF22C55E);
+      case EnrollmentFilter.all:
+        return const Color(0xFF137FEC);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,26 +212,26 @@ class _CategoryPillState extends State<_CategoryPill> {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           decoration: BoxDecoration(
             color: widget.isSelected
-                ? const Color(0xFF137FEC)
+                ? _activeColor
                 : (_isHovered
                     ? const Color(0xFFF8FAFC)
                     : Colors.white),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: widget.isSelected
-                  ? const Color(0xFF137FEC)
+                  ? _activeColor
                   : const Color(0xFFE5E7EB),
             ),
           ),
           child: Text(
-            widget.category.label,
+            widget.filter.label,
             style: TextStyle(
               fontSize: 13,
               fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.w600,
               color: widget.isSelected
                   ? Colors.white
                   : (_isHovered
-                      ? const Color(0xFF137FEC)
+                      ? _activeColor
                       : const Color(0xFF64748B)),
             ),
           ),

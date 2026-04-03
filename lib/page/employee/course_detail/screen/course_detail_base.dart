@@ -3,14 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_web.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_mobile.dart';
-import 'package:smet/page/employee/course_detail/widgets/hero_section.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_stats_section.dart';
-import 'package:smet/page/employee/course_detail/widgets/syllabus_section.dart';
-import 'package:smet/page/employee/course_detail/widgets/instructor_section.dart';
-import 'package:smet/page/employee/course_detail/widgets/reviews_section.dart';
-import 'package:smet/page/employee/course_detail/widgets/offered_by_section.dart';
-import 'package:smet/page/employee/course_detail/widgets/enroll_card.dart';
-import 'package:smet/page/employee/course_detail/widgets/course_info_card.dart';
 import 'package:smet/service/employee/course_service.dart';
 import 'package:smet/model/Employee_course_model.dart';
 import 'package:smet/model/user_model.dart';
@@ -32,12 +24,8 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   CourseDetail? _course;
   bool _isLoading = true;
   String? _error;
-  bool _isEnrolled = false;
   bool _isEnrolling = false;
-  double _progressPercent = 0;
-  bool _isPreviewMode = false; // true khi admin/mentor đang xem
-
-  // Track expanded modules
+  bool _isPreviewMode = false;
   final Map<int, bool> _expandedModules = {};
 
   @override
@@ -53,7 +41,6 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     });
 
     try {
-      // Check user role để xác định có phải preview mode không
       try {
         final user = await AuthService.getCurrentUser();
         _isPreviewMode = user.role != UserRole.USER;
@@ -62,38 +49,25 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       }
 
       final course = await CourseService.getCourseDetail(widget.courseId);
-      final enrolled = await CourseService.isEnrolled(widget.courseId);
 
-      // Initialize expanded state for modules
       for (var i = 0; i < course.modules.length; i++) {
-        _expandedModules[i] = course.modules[i].isExpanded;
+        _expandedModules[i] = false;
       }
 
-      // Load progress if enrolled
-      double progress = 0;
-      if (enrolled) {
-        try {
-          final learningCourse = await CourseService.getCourseProgress(widget.courseId);
-          if (learningCourse != null) {
-            progress = learningCourse.progressPercent;
-          }
-        } catch (_) {
-          // Progress API may not be available, ignore
-        }
+      if (mounted) {
+        setState(() {
+          _course = course;
+          _isLoading = false;
+        });
       }
-
-      setState(() {
-        _course = course;
-        _isEnrolled = enrolled;
-        _progressPercent = progress;
-        _isLoading = false;
-      });
     } catch (e) {
       debugPrint('Error loading course detail: $e');
-      setState(() {
-        _error = 'Không thể tải thông tin khóa học';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Không thể tải thông tin khóa học';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -105,11 +79,11 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
 
   Future<void> _onEnroll() async {
     setState(() => _isEnrolling = true);
-
     try {
       final success = await CourseService.enrollCourse(widget.courseId);
       if (success) {
-        setState(() => _isEnrolled = true);
+        // Reload course to get updated enrollment data (enrolled, progress, etc.)
+        await _loadCourseDetail();
         if (mounted) {
           context.showAppToast('Đăng ký thành công!');
         }
@@ -119,7 +93,9 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         context.showAppToast('Đăng ký thất bại: $e', variant: AppToastVariant.error);
       }
     } finally {
-      if (mounted) setState(() => _isEnrolling = false);
+      if (mounted) {
+        setState(() => _isEnrolling = false);
+      }
     }
   }
 
@@ -140,180 +116,28 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   BreadcrumbItem _buildBreadcrumbParent() {
     switch (widget.from) {
       case 'my_courses':
-        return const BreadcrumbItem(
-          label: 'Khóa học của tôi',
-          route: '/employee/my-courses',
-        );
+        return const BreadcrumbItem(label: 'Khóa học của tôi', route: '/employee/my-courses');
       case 'dashboard':
-        return const BreadcrumbItem(
-          label: 'Trang chủ',
-          route: '/employee/dashboard',
-        );
+        return const BreadcrumbItem(label: 'Trang chủ', route: '/employee/dashboard');
       case 'search':
-        return const BreadcrumbItem(
-          label: 'Tìm kiếm',
-          route: '/employee/search',
-        );
+        return const BreadcrumbItem(label: 'Tìm kiếm', route: '/employee/search');
       case 'learning_path':
-        return const BreadcrumbItem(
-          label: 'Lộ trình học tập',
-          route: '/employee/learning-paths',
-        );
+        return const BreadcrumbItem(label: 'Lộ trình học tập', route: '/employee/my-learning-paths');
       default:
-        return const BreadcrumbItem(
-          label: 'Danh mục khóa học',
-          route: '/employee/courses',
-        );
+        return const BreadcrumbItem(label: 'Danh mục khóa học', route: '/employee/courses');
     }
   }
 
   void _onShare() {
-      if (mounted) {
-        context.showAppToast('Đã sao chép liên kết khóa học!');
-      }
+    if (mounted) {
+      context.showAppToast('Đã sao chép liên kết khóa học!');
+    }
   }
 
   void _onBookmark() {
-      if (mounted) {
-        context.showAppToast('Đã lưu khóa học!');
-      }
-  }
-
-  // ─── Build Hero ───
-  Widget buildHero() {
-    if (_course == null) return const SizedBox.shrink();
-
-    return HeroSection(
-      title: _course!.title,
-      description: _course!.description,
-      imageUrl: _course!.imageUrl,
-      duration: _course!.duration,
-      level: _course!.level,
-      rating: _course!.rating,
-      studentsCount: _course!.studentsCount,
-      isBestSeller: _course!.isBestSeller,
-      category: _course!.category,
-      instructorName: _course!.instructor.name,
-      instructorAvatar: _course!.instructor.avatarUrl,
-    );
-  }
-
-  // ─── Build Course Stats ───
-  Widget buildCourseStats() {
-    if (_course == null) return const SizedBox.shrink();
-
-    return CourseStatsSection(
-      videoHours: _course!.videoHours,
-      resources: _course!.resources,
-      hasCertificate: _course!.hasCertificate,
-    );
-  }
-
-  // ─── Build Syllabus ───
-  Widget buildSyllabus() {
-    if (_course == null) return const SizedBox.shrink();
-
-    final modulesWithState = _course!.modules.asMap().entries.map((entry) {
-      final index = entry.key;
-      final module = entry.value;
-      return SyllabusModule(
-        title: module.title,
-        lessonCount: module.lessonCount,
-        lessons: module.lessons
-            .map((l) => SyllabusLesson(title: l, type: SyllabusLessonType.video))
-            .toList(),
-        isExpanded: _expandedModules[index] ?? false,
-        onToggle: () => _toggleModule(index),
-      );
-    }).toList();
-
-    return SyllabusSection(
-      modules: modulesWithState,
-      onLessonTap: (moduleIdx, lessonIdx) {
-        // TODO: Navigate to specific lesson
-        debugPrint('Tap lesson $lessonIdx in module $moduleIdx');
-      },
-    );
-  }
-
-  // ─── Build Instructor ───
-  Widget buildInstructor() {
-    if (_course == null) return const SizedBox.shrink();
-
-    return InstructorSection(
-      name: _course!.instructor.name,
-      title: _course!.instructor.title,
-      avatarUrl: _course!.instructor.avatarUrl,
-      bio: _course!.instructor.bio,
-      linkedInUrl: _course!.instructor.linkedInUrl,
-      websiteUrl: _course!.instructor.websiteUrl,
-      isTopInstructor: _course!.rating >= 4.5,
-    );
-  }
-
-  // ─── Build Reviews ───
-  Widget buildReviews() {
-    if (_course == null) return const SizedBox.shrink();
-
-    final reviewItems = _course!.reviews
-        .map((r) => ReviewItem(
-              rating: r.rating,
-              comment: r.comment,
-              userName: r.userName,
-              avatarUrl: r.avatarUrl,
-            ))
-        .toList();
-
-    return ReviewsSection(
-      reviews: reviewItems,
-      averageRating: _course!.rating,
-      onSeeAll: () {
-        // TODO: Navigate to all reviews page
-      },
-    );
-  }
-
-  // ─── Build Offered By ───
-  Widget buildOfferedBy() {
-    if (_course == null) return const SizedBox.shrink();
-
-    return OfferedBySection(
-      departmentName: _course!.departmentName,
-      mentorName: _course!.instructor.name,
-    );
-  }
-
-  // ─── Build Enroll Card ───
-  Widget buildEnrollCard() {
-    if (_course == null) return const SizedBox.shrink();
-
-    return EnrollCard(
-      onEnroll: _isPreviewMode ? null : _onEnroll,
-      onStartLearning: _onStartLearning,
-      videoHours: _course!.videoHours,
-      resources: _course!.resources,
-      hasCertificate: _course!.hasCertificate,
-      enrolledCount: _course!.enrolledCount,
-      isEnrolled: _isEnrolled,
-      isLoading: _isEnrolling,
-      progressPercent: _isEnrolled ? _progressPercent : null,
-      imageUrl: _course!.imageUrl,
-      onShare: _onShare,
-      onBookmark: _onBookmark,
-    );
-  }
-
-  // ─── Build Course Info Card ───
-  Widget buildCourseInfoCard() {
-    if (_course == null) return const SizedBox.shrink();
-
-    return CourseInfoCard(
-      deadlineType: _course!.deadlineType,
-      defaultDeadlineDays: _course!.defaultDeadlineDays,
-      fixedDeadline: _course!.fixedDeadline,
-      onShare: _onShare,
-      courseTitle: _course!.title,
-    );
+    if (mounted) {
+      context.showAppToast('Đã lưu khóa học!');
+    }
   }
 
   @override
@@ -332,21 +156,11 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Color(0xFFEF4444),
-              ),
+              const Icon(Icons.error_outline, size: 64, color: Color(0xFFEF4444)),
               const SizedBox(height: 16),
-              Text(
-                _error!,
-                style: const TextStyle(fontSize: 16, color: Color(0xFF64748B)),
-              ),
+              Text(_error!, style: const TextStyle(fontSize: 16, color: Color(0xFF64748B))),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadCourseDetail,
-                child: const Text('Thử lại'),
-              ),
+              ElevatedButton(onPressed: _loadCourseDetail, child: const Text('Thử lại')),
             ],
           ),
         ),
@@ -384,54 +198,50 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: Text(
-                        'Quay về',
-                        style: TextStyle(color: Colors.amber.shade900, fontSize: 12),
-                      ),
+                      child: Text('Quay về', style: TextStyle(color: Colors.amber.shade900, fontSize: 12)),
                     ),
                   ],
                 ),
               ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (kIsWeb || constraints.maxWidth > 850) {
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (kIsWeb || constraints.maxWidth > 850) {
                   return CourseDetailWeb(
-                    hero: buildHero(),
-                    courseStats: buildCourseStats(),
-                    syllabus: buildSyllabus(),
-                    instructor: buildInstructor(),
-                    reviews: buildReviews(),
-                    enrollCard: buildEnrollCard(),
-                    offeredBy: buildOfferedBy(),
-                    courseInfoCard: buildCourseInfoCard(),
+                    course: _course!,
+                    expandedModules: _expandedModules,
+                    onToggleModule: _toggleModule,
+                    isEnrolling: _isEnrolling,
+                    isPreviewMode: _isPreviewMode,
+                    onEnroll: _onEnroll,
+                    onStartLearning: _onStartLearning,
+                    onShare: _onShare,
+                    onBookmark: _onBookmark,
                     breadcrumbs: [
-                      const BreadcrumbItem(
-                        label: 'Trang chủ',
-                        route: '/employee/dashboard',
-                      ),
+                      const BreadcrumbItem(label: 'Trang chủ', route: '/employee/dashboard'),
                       _buildBreadcrumbParent(),
                       BreadcrumbItem(label: _course?.title ?? 'Chi tiết khóa học'),
                     ],
                   );
-                } else {
+                  } else {
                   return CourseDetailMobile(
-                    hero: buildHero(),
-                    courseStats: buildCourseStats(),
-                    syllabus: buildSyllabus(),
-                    instructor: buildInstructor(),
-                    reviews: buildReviews(),
-                    enrollCard: buildEnrollCard(),
-                    courseInfoCard: buildCourseInfoCard(),
+                    course: _course!,
+                    expandedModules: _expandedModules,
+                    onToggleModule: _toggleModule,
+                    isEnrolling: _isEnrolling,
+                    isPreviewMode: _isPreviewMode,
+                    onEnroll: _onEnroll,
+                    onStartLearning: _onStartLearning,
                     onNavigate: _onNavigateTo,
                     onLogout: _handleLogout,
                   );
-                }
-              },
+                  }
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 }

@@ -1,10 +1,24 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:smet/page/employee/dashboard/screen/employee_dashboard_web.dart';
-import 'package:smet/page/employee/dashboard/screen/employee_dashboard_mobile.dart';
-import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/service/common/auth_service.dart';
+
+class EmployeeDashboardStats {
+  final int completedCourses;
+  final int inProgressCourses;
+  final double learningHours;
+  final double avgScore;
+  final List<EnrolledCourse> recentCourses;
+  final List<LiveSessionInfo> liveSessions;
+
+  EmployeeDashboardStats({
+    required this.completedCourses,
+    required this.inProgressCourses,
+    required this.learningHours,
+    required this.avgScore,
+    required this.recentCourses,
+    required this.liveSessions,
+  });
+}
 
 class EmployeeDashboardPage extends StatefulWidget {
   const EmployeeDashboardPage({super.key});
@@ -14,23 +28,16 @@ class EmployeeDashboardPage extends StatefulWidget {
 }
 
 class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
-
-  // Dashboard data - sẽ được load từ API sau
-  int _completedCourses = 0;
-  int _badgesEarned = 0;
-  double _learningHours = 0.0;
-  double _avgScore = 0.0;
-
-  // Courses data - sẽ được load từ API sau
-  List<Map<String, dynamic>> _inProgressCourses = [];
-
-  // Deadlines data - sẽ được load từ API sau
-  List<Map<String, dynamic>> _upcomingDeadlines = [];
-
-  // Live sessions data - sẽ được load từ API sau
-  List<Map<String, dynamic>> _liveSessions = [];
-
-  bool _isLoading = true; // TODO: Sử dụng để hiển thị loading indicator
+  EmployeeDashboardStats _stats = EmployeeDashboardStats(
+    completedCourses: 0,
+    inProgressCourses: 0,
+    learningHours: 0,
+    avgScore: 0,
+    recentCourses: [],
+    liveSessions: [],
+  );
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -38,21 +45,78 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     _loadDashboardData();
   }
 
-  // Placeholder methods - sẽ gọi API thật sau
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
+
     try {
-      // TODO: Gọi API lấy dữ liệu dashboard
-      // final data = await DashboardService.getEmployeeDashboard();
-      // setState(() {
-      //   _userName = data['userName'];
-      //   _completedCourses = data['completedCourses'];
-      //   ...
-      // });
+      await AuthService.getCurrentUser();
+      final myCoursesResult = await LmsService.getMyCourses(page: 0, size: 10);
+
+      int completed = 0;
+      int inProgress = 0;
+      double totalHours = 0;
+      double totalProgress = 0;
+      int progressedCount = 0;
+
+      final courses = myCoursesResult.content;
+
+      for (var course in courses) {
+        final progress = course.progressPercent;
+
+        if (course.status == EnrollmentStatus.completed) {
+          completed++;
+          inProgress++;
+        } else if (progress > 0) {
+          inProgress++;
+        }
+
+        totalHours += (progress / 100) * 10;
+
+        if (progress > 0) {
+          totalProgress += progress;
+          progressedCount++;
+        }
+      }
+
+      if (progressedCount > 0) {
+        totalProgress = totalProgress / progressedCount;
+      }
+
+      final List<LiveSessionInfo> allLiveSessions = [];
+      final futures = courses.map((c) => LmsService.getLiveSessions(c.id));
+      final results = await Future.wait(futures);
+      for (var sessions in results) {
+        allLiveSessions.addAll(sessions);
+      }
+      allLiveSessions.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      final now = DateTime.now();
+      final upcomingSessions = allLiveSessions
+          .where((s) => s.startTime.isAfter(now))
+          .take(5)
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _stats = EmployeeDashboardStats(
+          completedCourses: completed,
+          inProgressCourses: inProgress,
+          learningHours: totalHours,
+          avgScore: totalProgress,
+          recentCourses: courses.take(3).toList(),
+          liveSessions: upcomingSessions,
+        );
+        _isLoading = false;
+        _error = null;
+      });
     } catch (e) {
       debugPrint('Error loading dashboard data: $e');
-    } finally {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Không thể tải dữ liệu dashboard';
+      });
     }
   }
 
@@ -63,125 +127,206 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     return 'Chào buổi tối';
   }
 
-  // Navigation methods
-
-  // Welcome section widget
-  Widget buildWelcomeSection() {
+  Widget buildWelcomeSection(String userName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          greetingMessage,
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF0F172A),
-          ),
+        Row(
+          children: [
+            Text(
+              greetingMessage,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if (userName.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(
+                userName,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF137FEC),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Bạn có khóa học cần hoàn thành và deadline sắp tới.',
-          style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+        Text(
+          'Tiếp tục hành trình học tập của bạn hôm nay!',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
         ),
       ],
     );
   }
 
-  // Stats cards widget
   Widget buildStatsCards() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            'Khóa học hoàn thành',
-            '$_completedCourses',
-            Icons.task_alt,
-            const Color(0xFF22C55E),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            'Huy hiệu đạt được',
-            '$_badgesEarned'.padLeft(2, '0'),
-            Icons.stars,
-            const Color(0xFF137FEC),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            'Giờ học',
-            _learningHours > 0 ? '$_learningHours' : '0',
-            Icons.schedule,
-            const Color(0xFFF97316),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            'Điểm trung bình',
-            _avgScore > 0 ? '${_avgScore.toInt()}%' : '0%',
-            Icons.percent,
-            const Color(0xFF8B5CF6),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+        if (isNarrow) {
+          return GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.4,
+            children: [
+              _buildStatCard(
+                'Hoàn thành',
+                '${_stats.completedCourses}',
+                Icons.check_circle_outline_rounded,
+                const Color(0xFF22C55E),
+                'Khóa học',
+              ),
+              _buildStatCard(
+                'Đang học',
+                '${_stats.inProgressCourses}',
+                Icons.play_circle_outline_rounded,
+                const Color(0xFF137FEC),
+                'Khóa học',
+              ),
+              _buildStatCard(
+                'Giờ học',
+                '${_stats.learningHours.toStringAsFixed(1)}',
+                Icons.schedule_rounded,
+                const Color(0xFFF97316),
+                'Giờ',
+              ),
+              _buildStatCard(
+                'Tiến độ TB',
+                '${_stats.avgScore.toStringAsFixed(0)}%',
+                Icons.trending_up_rounded,
+                const Color(0xFF8B5CF6),
+                'Hoàn thành',
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Hoàn thành',
+                '${_stats.completedCourses}',
+                Icons.check_circle_outline_rounded,
+                const Color(0xFF22C55E),
+                'Khóa học',
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                'Đang học',
+                '${_stats.inProgressCourses}',
+                Icons.play_circle_outline_rounded,
+                const Color(0xFF137FEC),
+                'Khóa học',
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                'Giờ học',
+                '${_stats.learningHours.toStringAsFixed(1)}',
+                Icons.schedule_rounded,
+                const Color(0xFFF97316),
+                'Giờ',
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                'Tiến độ TB',
+                '${_stats.avgScore.toStringAsFixed(0)}%',
+                Icons.trending_up_rounded,
+                const Color(0xFF8B5CF6),
+                'Hoàn thành',
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildStatCard(
-    String title,
+    String label,
     String value,
     IconData icon,
     Color color,
+    String unit,
   ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 16),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -189,19 +334,18 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  // Course list widget
   Widget buildCourseList() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -211,20 +355,26 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'KHÓA HỌC ĐANG HỌC',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF64748B),
-                ),
+              const Row(
+                children: [
+                  Icon(Icons.library_books_rounded, color: Color(0xFF137FEC), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Khóa học của tôi',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
               ),
               TextButton(
-                onPressed: () => context.go('/employee/my-courses'),
+                onPressed: () {},
                 child: const Text(
                   'Xem tất cả',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF137FEC),
                   ),
@@ -233,34 +383,20 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_inProgressCourses.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.school_outlined,
-                      size: 48,
-                      color: Color(0xFFE5E7EB),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Chưa có khóa học nào',
-                      style: TextStyle(color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-              ),
+          if (_stats.recentCourses.isEmpty)
+            _buildEmptyState(
+              icon: Icons.school_outlined,
+              message: 'Bạn chưa đăng ký khóa học nào',
+              subMessage: 'Khám phá danh mục để bắt đầu học ngay!',
             )
           else
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _inProgressCourses.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemCount: _stats.recentCourses.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final course = _inProgressCourses[index];
+                final course = _stats.recentCourses[index];
                 return _buildCourseCard(course);
               },
             ),
@@ -269,144 +405,114 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  Widget _buildCourseCard(Map<String, dynamic> course) {
-    final id = course['id']?.toString() ?? '';
-    final title = course['title'] ?? '';
-    final progress = course['progress'] ?? 0;
-    final completedLessons = course['completedLessons'] ?? 0;
-    final totalLessons = course['totalLessons'] ?? 0;
-    final imageUrl = course['imageUrl'];
-    final currentSection = course['currentSection'] ?? '';
+  Widget _buildCourseCard(EnrolledCourse course) {
+    final progress = course.progressPercent.toInt();
+    final statusColor = _getStatusColor(course.status);
+    final statusLabel = _getStatusLabel(course.status);
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
         children: [
-          // Course image
           Container(
-            width: 120,
-            height: 100,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                bottomLeft: Radius.circular(12),
-              ),
-              image:
-                  imageUrl != null
-                      ? DecorationImage(
-                        image: NetworkImage(imageUrl),
-                        fit: BoxFit.cover,
-                      )
-                      : null,
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child:
-                imageUrl == null
-                    ? const Icon(
-                      Icons.laptop_mac,
-                      size: 40,
-                      color: Color(0xFFCBD5E1),
-                    )
-                    : null,
+            child: const Icon(
+              Icons.school_rounded,
+              color: Color(0xFF94A3B8),
+              size: 28,
+            ),
           ),
-          // Course info
+          const SizedBox(width: 16),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        course.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    currentSection,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF64748B),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '$progress% hoàn thành',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (course.deadline != null)
                                 Text(
-                                  '$progress% Hoàn thành',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                                  _formatDeadline(course.deadline!),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: course.deadlineStatus == DeadlineStatus.overdue
+                                        ? const Color(0xFFEF4444)
+                                        : const Color(0xFF64748B),
                                   ),
                                 ),
-                                Text(
-                                  '$completedLessons/$totalLessons Bài học',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            LinearProgressIndicator(
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
                               value: progress / 100,
                               backgroundColor: const Color(0xFFE5E7EB),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Color(0xFF137FEC),
-                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                               minHeight: 6,
-                              borderRadius: BorderRadius.circular(3),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          if (id.isNotEmpty) {
-                            context.go('/employee/learn/$id?from=dashboard');
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF137FEC),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Tiếp tục',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -414,19 +520,18 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  // Deadlines widget
   Widget buildDeadlines() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -435,38 +540,33 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
         children: [
           const Row(
             children: [
-              Icon(Icons.event_busy, color: Color(0xFFEF4444), size: 20),
+              Icon(Icons.calendar_today_rounded, color: Color(0xFFEF4444), size: 18),
               SizedBox(width: 8),
               Text(
                 'Deadline sắp tới',
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF0F172A),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (_upcomingDeadlines.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Không có deadline nào',
-                  style: TextStyle(color: Color(0xFF64748B)),
-                ),
-              ),
+          if (_stats.recentCourses.isEmpty)
+            _buildEmptyState(
+              icon: Icons.event_available_rounded,
+              message: 'Không có deadline',
+              subMessage: 'Bạn không có deadline nào trong thời gian tới',
             )
           else
-            ListView.separated(
+            ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _upcomingDeadlines.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemCount: _stats.recentCourses.length > 3 ? 3 : _stats.recentCourses.length,
               itemBuilder: (context, index) {
-                final deadline = _upcomingDeadlines[index];
-                return _buildDeadlineItem(deadline);
+                final course = _stats.recentCourses[index];
+                return _buildDeadlineItem(course);
               },
             ),
         ],
@@ -474,28 +574,35 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  Widget _buildDeadlineItem(Map<String, dynamic> deadline) {
-    final title = deadline['title'] ?? '';
-    // final date = deadline['date'] ?? ''; // TODO: Sử dụng cho date formatting sau
-    final month = deadline['month'] ?? '';
-    final day = deadline['day'] ?? '';
-    final isUrgent = deadline['isUrgent'] ?? false;
-    final time = deadline['time'] ?? '';
-    final isMandatory = deadline['isMandatory'] ?? false;
+  Widget _buildDeadlineItem(EnrolledCourse course) {
+    if (course.deadline == null) return const SizedBox.shrink();
+
+    final deadline = course.deadline!;
+    final isOverdue = course.deadlineStatus == DeadlineStatus.overdue;
+    final isDueSoon = course.deadlineStatus == DeadlineStatus.dueSoon;
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isUrgent ? const Color(0xFFFEF2F2) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        color: isOverdue
+            ? const Color(0xFFFEF2F2)
+            : isDueSoon
+                ? const Color(0xFFFFF7ED)
+                : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isUrgent ? const Color(0xFFFEE2E2) : const Color(0xFFE5E7EB),
+          color: isOverdue
+              ? const Color(0xFFFEE2E2)
+              : isDueSoon
+                  ? const Color(0xFFFED7AA)
+                  : const Color(0xFFE5E7EB),
         ),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
@@ -503,19 +610,19 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
             child: Column(
               children: [
                 Text(
-                  month.toString().toUpperCase(),
-                  style: const TextStyle(
+                  _getMonthName(deadline.month),
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFEF4444),
+                    color: isOverdue ? const Color(0xFFEF4444) : const Color(0xFF64748B),
                   ),
                 ),
                 Text(
-                  day.toString(),
-                  style: const TextStyle(
-                    fontSize: 18,
+                  '${deadline.day}',
+                  style: TextStyle(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
+                    color: isOverdue ? const Color(0xFFEF4444) : const Color(0xFF0F172A),
                   ),
                 ),
               ],
@@ -527,9 +634,9 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  course.title,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF0F172A),
                   ),
@@ -537,15 +644,29 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  isMandatory ? '$time • Bắt buộc' : time,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color:
-                        isUrgent
+                Row(
+                  children: [
+                    Text(
+                      course.deadlineStatus.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isOverdue
                             ? const Color(0xFFEF4444)
-                            : const Color(0xFF64748B),
-                  ),
+                            : isDueSoon
+                                ? const Color(0xFFF97316)
+                                : const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${course.progressPercent.toInt()}% hoàn thành',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -555,19 +676,18 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  // Live sessions widget
   Widget buildLiveSessions() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -576,38 +696,33 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
         children: [
           const Row(
             children: [
-              Icon(Icons.videocam, color: Color(0xFF137FEC), size: 20),
+              Icon(Icons.live_tv_rounded, color: Color(0xFF137FEC), size: 18),
               SizedBox(width: 8),
               Text(
                 'Phiên học trực tiếp',
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF0F172A),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (_liveSessions.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Không có phiên học nào',
-                  style: TextStyle(color: Color(0xFF64748B)),
-                ),
-              ),
+          if (_stats.liveSessions.isEmpty)
+            _buildEmptyState(
+              icon: Icons.videocam_off_rounded,
+              message: 'Không có phiên học',
+              subMessage: 'Các buổi học trực tiếp sẽ xuất hiện khi có lịch',
             )
           else
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _liveSessions.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemCount: _stats.liveSessions.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
-                final session = _liveSessions[index];
-                return _buildLiveSessionItem(session);
+                return _buildLiveSessionItem(_stats.liveSessions[index]);
               },
             ),
         ],
@@ -615,176 +730,320 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage> {
     );
   }
 
-  Widget _buildLiveSessionItem(Map<String, dynamic> session) {
-    final title = session['title'] ?? '';
-    final timeLabel = session['timeLabel'] ?? '';
-    final isLive = session['isLive'] ?? false;
-    final hostName = session['hostName'] ?? '';
-    final attendeeCount = session['attendeeCount'] ?? 0;
+  Widget _buildLiveSessionItem(LiveSessionInfo session) {
+    final now = DateTime.now();
+    final diff = session.startTime.difference(now);
+    String timeLabel;
+    Color badgeColor;
+
+    if (diff.isNegative) {
+      timeLabel = 'Đã diễn ra';
+      badgeColor = const Color(0xFF64748B);
+    } else if (diff.inMinutes < 60) {
+      timeLabel = 'Bắt đầu sau ${diff.inMinutes} phút';
+      badgeColor = const Color(0xFFEF4444);
+    } else if (diff.inHours < 24) {
+      timeLabel = 'Hôm nay, ${_formatTime(session.startTime)}';
+      badgeColor = const Color(0xFFF97316);
+    } else {
+      timeLabel = '${_formatDate(session.startTime)}, ${_formatTime(session.startTime)}';
+      badgeColor = const Color(0xFF137FEC);
+    }
 
     return Container(
-      padding: const EdgeInsets.only(left: 12),
-      decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: Color(0xFF137FEC), width: 3)),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color:
-                      isLive
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFF64748B),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  isLive ? 'SẮP DIỄN RA' : timeLabel,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFDBEAFE),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.live_tv_rounded,
+              color: Color(0xFF137FEC),
+              size: 22,
             ),
           ),
-          if (hostName.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Người hướng dẫn: $hostName',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-            ),
-          ],
-          if (isLive) ...[
-            const SizedBox(height: 12),
-            Row(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Attendee avatars
-                const SizedBox(width: 8),
                 Text(
-                  '+$attendeeCount người tham gia',
+                  session.title,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.videocam, size: 16),
-                  label: const Text('Tham gia'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4285F4),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.access_time_rounded, size: 12, color: badgeColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      timeLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: badgeColor,
+                      ),
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
+          if (session.meetingUrl.isNotEmpty && !diff.isNegative)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF137FEC),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'Tham gia',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  // Stats grid for mobile
-  Widget buildStatsGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.5,
-      children: [
-        _buildStatCard(
-          'Khóa học hoàn thành',
-          '$_completedCourses',
-          Icons.task_alt,
-          const Color(0xFF22C55E),
+  String _formatDate(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
+  String _formatTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+    required String subMessage,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 32,
+                color: const Color(0xFFCBD5E1),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subMessage,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF94A3B8),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        _buildStatCard(
-          'Huy hiệu',
-          '$_badgesEarned'.padLeft(2, '0'),
-          Icons.stars,
-          const Color(0xFF137FEC),
-        ),
-        _buildStatCard(
-          'Giờ học',
-          _learningHours > 0 ? '$_learningHours' : '0',
-          Icons.schedule,
-          const Color(0xFFF97316),
-        ),
-        _buildStatCard(
-          'Điểm TB',
-          _avgScore > 0 ? '${_avgScore.toInt()}%' : '0%',
-          Icons.percent,
-          const Color(0xFF8B5CF6),
-        ),
-      ],
+      ),
     );
+  }
+
+  Color _getStatusColor(EnrollmentStatus status) {
+    switch (status) {
+      case EnrollmentStatus.completed:
+        return const Color(0xFF22C55E);
+      case EnrollmentStatus.inProgress:
+        return const Color(0xFF137FEC);
+      case EnrollmentStatus.notStarted:
+        return const Color(0xFF64748B);
+      default:
+        return const Color(0xFF94A3B8);
+    }
+  }
+
+  String _getStatusLabel(EnrollmentStatus status) {
+    switch (status) {
+      case EnrollmentStatus.completed:
+        return 'Hoàn thành';
+      case EnrollmentStatus.inProgress:
+        return 'Đang học';
+      case EnrollmentStatus.notStarted:
+        return 'Chưa bắt đầu';
+      default:
+        return 'Không xác định';
+    }
+  }
+
+  String _formatDeadline(DateTime deadline) {
+    final now = DateTime.now();
+    final difference = deadline.difference(now);
+
+    if (difference.isNegative) {
+      return 'Đã quá hạn';
+    } else if (difference.inDays == 0) {
+      return 'Hôm nay';
+    } else if (difference.inDays == 1) {
+      return 'Ngày mai';
+    } else if (difference.inDays < 7) {
+      return 'Còn ${difference.inDays} ngày';
+    } else {
+      return 'Còn ${(difference.inDays / 7).ceil()} tuần';
+    }
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
   }
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F6FC),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF137FEC),
         ),
       );
     }
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F6FC),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (kIsWeb || constraints.maxWidth > 850) {
-              return EmployeeDashboardWeb(
-                welcomeSection: buildWelcomeSection(),
-                statsCards: buildStatsCards(),
-                courseList: buildCourseList(),
-                deadlines: buildDeadlines(),
-                liveSessions: buildLiveSessions(),
-                breadcrumbs: const [BreadcrumbItem(label: 'Trang chủ')],
-              );
-            } else {
-              return EmployeeDashboardMobile(
-                welcomeSection: buildWelcomeSection(),
-                statsGrid: buildStatsGrid(),
-                courseList: buildCourseList(),
-                deadlines: buildDeadlines(),
-                liveSessions: buildLiveSessions(),
-                onNavigate: (path) => context.go(path),
-                onLogout: () async {
-                  await AuthService.logout();
-                  if (!mounted) return;
-                  if (context.mounted) context.go('/login');
-                },
-              );
-            }
-          },
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 64,
+              color: Color(0xFFEF4444),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadDashboardData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF137FEC),
+              ),
+              child: const Text('Thử lại'),
+            ),
+          ],
         ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 900) {
+          return _buildWebLayout();
+        } else {
+          return _buildMobileLayout();
+        }
+      },
+    );
+  }
+
+  Widget _buildWebLayout() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildWelcomeSection(''),
+          const SizedBox(height: 24),
+          buildStatsCards(),
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: buildCourseList(),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  children: [
+                    buildDeadlines(),
+                    const SizedBox(height: 24),
+                    buildLiveSessions(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildWelcomeSection(''),
+          const SizedBox(height: 20),
+          buildStatsCards(),
+          const SizedBox(height: 20),
+          buildCourseList(),
+          const SizedBox(height: 20),
+          buildDeadlines(),
+          const SizedBox(height: 20),
+          buildLiveSessions(),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }

@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:smet/model/notification_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/notification/widgets/shell/notification_sidebar.dart';
 import 'package:smet/page/notification/widgets/shell/notification_top_header.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
@@ -62,7 +61,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/notifications");
+      final url = Uri.parse("$baseUrl/notifications?page=0&size=20");
 
       final response = await http.get(
         url,
@@ -75,10 +74,20 @@ class _NotificationPageState extends State<NotificationPage> {
       log("GET NOTIFICATIONS STATUS: ${response.statusCode}");
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final data = jsonDecode(response.body);
+        List<dynamic> content;
+
+        if (data is Map) {
+          content = data['content'] ?? data['data'] ?? [];
+        } else if (data is List) {
+          content = data;
+        } else {
+          content = [];
+        }
+
         setState(() {
           _notifications =
-              data.map((n) => NotificationModel.fromJson(n)).toList();
+              content.map((n) => NotificationModel.fromJson(n)).toList();
           _isLoading = false;
         });
       } else {
@@ -126,85 +135,6 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
-  Future<void> _markAllAsRead() async {
-    try {
-      final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/notifications/read-all");
-
-      final response = await http.put(
-        url,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _notifications =
-              _notifications.map((n) => n.copyWith(isRead: true)).toList();
-        });
-        if (mounted) {
-          context.showAppToast('Đã đánh dấu tất cả là đã đọc');
-        }
-      }
-    } catch (e) {
-      log("NotificationPage._markAllAsRead: $e");
-    }
-  }
-
-  Future<void> _deleteNotification(String notificationId) async {
-    try {
-      final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/notifications/$notificationId");
-
-      final response = await http.delete(
-        url,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _notifications.removeWhere((n) => n.id == notificationId);
-        });
-        if (mounted) {
-          context.showAppToast('Đã xóa thông báo');
-        }
-      }
-    } catch (e) {
-      log("NotificationPage._deleteNotification: $e");
-    }
-  }
-
-  Color _getNotificationColor(NotificationType type) {
-    switch (type) {
-      case NotificationType.info:
-        return Colors.blue;
-      case NotificationType.warning:
-        return Colors.orange;
-      case NotificationType.success:
-        return Colors.green;
-      case NotificationType.error:
-        return Colors.red;
-    }
-  }
-
-  IconData _getNotificationIcon(NotificationType type) {
-    switch (type) {
-      case NotificationType.info:
-        return Icons.info_outline;
-      case NotificationType.warning:
-        return Icons.warning_amber_outlined;
-      case NotificationType.success:
-        return Icons.check_circle_outline;
-      case NotificationType.error:
-        return Icons.error_outline;
-    }
-  }
-
   String _formatTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
@@ -249,7 +179,6 @@ class _NotificationPageState extends State<NotificationPage> {
                     onFilterChanged: (value) {
                       setState(() => _filterType = value);
                     },
-                    onMarkAllRead: _markAllAsRead,
                     onRefresh: _fetchNotifications,
                     breadcrumbs: const [
                       BreadcrumbItem(label: 'Trang chủ', route: '/home'),
@@ -314,17 +243,10 @@ class _NotificationPageState extends State<NotificationPage> {
                                     _filteredNotifications[index];
                                 return _NotificationCard(
                                   notification: notification,
-                                  color: _getNotificationColor(
-                                    notification.type,
-                                  ),
-                                  icon: _getNotificationIcon(notification.type),
                                   timeAgo: _formatTimeAgo(
                                     notification.createdAt,
                                   ),
                                   onTap: () => _markAsRead(notification.id),
-                                  onDelete:
-                                      () =>
-                                          _deleteNotification(notification.id),
                                 );
                               },
                             ),
@@ -341,23 +263,20 @@ class _NotificationPageState extends State<NotificationPage> {
 
 class _NotificationCard extends StatelessWidget {
   final NotificationModel notification;
-  final Color color;
-  final IconData icon;
   final String timeAgo;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
 
   const _NotificationCard({
     required this.notification,
-    required this.color,
-    required this.icon,
     required this.timeAgo,
     required this.onTap,
-    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = notification.type.color;
+    final icon = notification.type.icon;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: notification.isRead ? 0 : 2,
@@ -440,12 +359,22 @@ class _NotificationCard extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        InkWell(
-                          onTap: onDelete,
-                          child: Icon(
-                            Icons.delete_outline,
-                            size: 20,
-                            color: Colors.grey[400],
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withAlpha(26),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            notification.type.displayName,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: color,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],

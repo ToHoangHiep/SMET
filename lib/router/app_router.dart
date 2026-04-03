@@ -6,6 +6,7 @@ import 'package:smet/page/admin/department_management/screen/department_manageme
 import 'package:smet/page/admin/department_management/screen/department_detail_base.dart';
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
 import 'package:smet/page/admin/course_preview/admin_course_preview_base.dart';
+import 'package:smet/page/admin/assignment/screen/assignment_management_page.dart';
 import 'package:smet/page/admin/widgets/admin_shell.dart';
 import 'package:smet/page/first_login_password/first_login_password_page.dart';
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
@@ -82,6 +83,7 @@ class AppPages {
       }
       if (path.startsWith('/user_management') ||
           path.startsWith('/department_management') ||
+          path.startsWith('/assignment_management') ||
           path.startsWith('/admin')) {
         if (user.role != UserRole.ADMIN) {
           return AuthGuardService.getRedirectPath(user.role);
@@ -300,6 +302,10 @@ class AppPages {
               final courseId = state.pathParameters['id'] ?? '';
               return NoTransitionPage(child: AdminCoursePreviewPage(courseId: courseId));
             },
+          ),
+          GoRoute(
+            path: '/assignment_management',
+            builder: (context, state) => const AssignmentManagementPage(),
           ),
         ],
       ),

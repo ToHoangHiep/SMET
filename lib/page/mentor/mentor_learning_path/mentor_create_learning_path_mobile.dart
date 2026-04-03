@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/core/theme/app_colors.dart';
+import 'package:smet/core/utils/animations.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
 
 /// Mentor Create/Edit Learning Path - Mobile Layout
+/// Nâng cấp UI: Animated header, modern form, course timeline, skeleton loading.
 class MentorCreateLearningPathMobile extends StatefulWidget {
   final String? editId;
 
@@ -15,14 +18,15 @@ class MentorCreateLearningPathMobile extends StatefulWidget {
 }
 
 class _MentorCreateLearningPathMobileState
-    extends State<MentorCreateLearningPathMobile> {
+    extends State<MentorCreateLearningPathMobile>
+    with SingleTickerProviderStateMixin {
   final LearningPathService _service = LearningPathService();
   final _formKey = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _isSaving = false;
   bool _isEditMode = false;
   Long? _editingPathId;
@@ -32,14 +36,36 @@ class _MentorCreateLearningPathMobileState
 
   List<CourseItemDetail> _selectedCourses = [];
 
+  late AnimationController _animController;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
     _isEditMode = widget.editId != null && widget.editId!.isNotEmpty;
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOut,
+    );
+    _animController.forward();
     _loadAvailableCourses();
     if (_isEditMode) {
       _loadExistingPath();
+    } else {
+      setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
   }
 
   int _parseLongFromMap(dynamic value) {
@@ -56,13 +82,6 @@ class _MentorCreateLearningPathMobileState
     if (value is double) return value.toInt();
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadAvailableCourses() async {
@@ -93,9 +112,20 @@ class _MentorCreateLearningPathMobileState
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Lỗi tải lộ trình: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text("Lỗi tải lộ trình: $e")),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
       }
     }
   }
@@ -107,36 +137,30 @@ class _MentorCreateLearningPathMobileState
 
     try {
       if (_isEditMode && _editingPathId != null) {
-        // Cap nhat title va description
         await _service.updateLearningPath(
           _editingPathId!,
           _titleController.text.trim(),
           _descriptionController.text.trim(),
         );
 
-        // Lay chi tiet hien tai de biet courses nao can xoa
         final currentDetail = await _service.getLearningPathDetail(
           _editingPathId!,
         );
 
-        // Lay danh sach courseId hien tai
         final existingCourseIds =
             currentDetail.courses.map((c) => c.courseId.value).toSet();
-        // Lay danh sach courseId da chon
         final selectedCourseIds =
             _selectedCourses.map((c) => c.courseId.value).toSet();
 
-        // Xoa courses khong con trong danh sach da chon
         for (final course in currentDetail.courses) {
           if (!selectedCourseIds.contains(course.courseId.value)) {
             await _service.removeCourseFromLearningPath(
               _editingPathId!,
-              course.relationId, // 👈 CHUẨN
+              course.relationId,
             );
           }
         }
 
-        // Them courses moi chua co
         for (int i = 0; i < _selectedCourses.length; i++) {
           final courseId = _selectedCourses[i].courseId.value;
           if (!existingCourseIds.contains(courseId)) {
@@ -148,7 +172,6 @@ class _MentorCreateLearningPathMobileState
           }
         }
       } else {
-        // CREATE
         final created = await _service.createLearningPath(
           _titleController.text.trim(),
           _descriptionController.text.trim(),
@@ -168,10 +191,18 @@ class _MentorCreateLearningPathMobileState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              _isEditMode ? "Cập nhật thành công!" : "Tạo lộ trình thành công!",
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(_isEditMode
+                    ? "Cập nhật thành công!"
+                    : "Tạo lộ trình thành công!"),
+              ],
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         );
         context.go('/mentor/learning-paths');
@@ -180,7 +211,18 @@ class _MentorCreateLearningPathMobileState
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text("Lỗi: $e")),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
         );
       }
     }
@@ -191,7 +233,7 @@ class _MentorCreateLearningPathMobileState
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder:
           (context) => _MobileCourseSelectorSheet(
@@ -203,7 +245,7 @@ class _MentorCreateLearningPathMobileState
                 _selectedCourses =
                     courses.asMap().entries.map((entry) {
                       return CourseItemDetail(
-                        relationId: Long(0), // 👈 THÊM DÒNG NÀY
+                        relationId: Long(0),
                         courseId: Long(_parseLongFromMap(entry.value['id'])),
                         title: entry.value['title'] ?? 'Khoa hoc',
                         mentorName: entry.value['mentorName'],
@@ -220,28 +262,35 @@ class _MentorCreateLearningPathMobileState
   Future<void> _removeCourse(int index) async {
     final course = _selectedCourses[index];
 
-    // 👉 gọi API nếu đang edit và có relationId
     if (_editingPathId != null && course.relationId.value != 0) {
       try {
         await _service.removeCourseFromLearningPath(
           _editingPathId!,
-          course.relationId, // 👈 CHUẨN
+          course.relationId,
         );
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("Xóa thất bại: $e")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text("Xóa thất bại: $e")),
+                ],
+              ),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
         }
         return;
       }
     }
 
-    // 👉 remove UI
     setState(() {
       _selectedCourses.removeAt(index);
-
-      // reindex
       for (int i = 0; i < _selectedCourses.length; i++) {
         _selectedCourses[i] = CourseItemDetail(
           relationId: _selectedCourses[i].relationId,
@@ -258,248 +307,837 @@ class _MentorCreateLearningPathMobileState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xfff5f6fa),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => context.go('/mentor/learning-paths'),
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-        ),
-        title: Text(
-          _isEditMode ? "Chỉnh sửa lộ trình" : "Tạo lộ trình mới",
-          style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
+      backgroundColor: AppColors.bgPage,
+      body: Column(
+        children: [
+          /// Animated Header
+          FadeTransition(
+            opacity: _fadeAnimation,
+            child: _buildHeader(),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child:
-                _isSaving
-                    ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                    : Text(
-                      _isEditMode ? "Lưu" : "Tạo",
-                      style: const TextStyle(
-                        color: Color(0xff1a90ff),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+
+          /// Content
+          Expanded(
+            child: _isLoading
+                ? _buildLoading()
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          /// Info Card
+                          _buildInfoCard(),
+                          const SizedBox(height: 20),
+
+                          /// Courses Card
+                          _buildCoursesCard(),
+                        ],
                       ),
                     ),
+                  ),
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      /// INFO CARD
-                      _buildCard(
-                        children: [
-                          /// TITLE
-                          TextFormField(
-                            controller: _titleController,
-                            decoration: const InputDecoration(
-                              labelText: "Tiêu đề lộ trình",
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return "Vui lòng nhập tiêu đề";
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          /// DESCRIPTION
-                          TextFormField(
-                            controller: _descriptionController,
-                            decoration: const InputDecoration(
-                              labelText: "Mô tả",
-                              border: OutlineInputBorder(),
-                            ),
-                            maxLines: 3,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      /// COURSES CARD
-                      _buildCard(
-                        title: "Khóa học",
-                        trailing: TextButton.icon(
-                          onPressed:
-                              _loadingCourses ? null : _showCourseSelector,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text("Thêm"),
-                        ),
-                        children: [
-                          if (_loadingCourses)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(),
-                              ),
-                            )
-                          else if (_selectedCourses.isEmpty)
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: const Color(0xfff8f9fc),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.library_books_outlined,
-                                      size: 36,
-                                      color: Colors.grey[400],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      "Chưa có khóa học nào",
-                                      style: TextStyle(color: Colors.grey[600]),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _selectedCourses.length,
-                              itemBuilder: (context, index) {
-                                final course = _selectedCourses[index];
-                                return _buildMobileCourseItem(course, index);
-                              },
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
     );
   }
 
-  Widget _buildMobileCourseItem(CourseItemDetail course, int index) {
+  Widget _buildHeader() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: const Color(0xff1a90ff),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Center(
-              child: Text(
-                "${index + 1}",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  course.title,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (course.mentorName != null)
-                  Text(
-                    course.mentorName!,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => _removeCourse(index),
-            icon: const Icon(Icons.close, size: 18),
-            color: Colors.grey,
+        gradient: AppColors.primaryGradient,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 20, 20),
+          child: Column(
+            children: [
+              /// Top bar
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => context.go('/mentor/learning-paths'),
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.arrow_back,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isEditMode ? 'Chỉnh sửa lộ trình' : 'Tạo lộ trình mới',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          _isEditMode
+                              ? 'Cập nhật thông tin lộ trình'
+                              : 'Xây dựng lộ trình học tập mới',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildSaveButton(),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              /// Stats row
+              if (!_isLoading)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniStat(
+                        icon: Icons.menu_book_rounded,
+                        value: '${_selectedCourses.length}',
+                        label: 'Khóa học',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MiniStat(
+                        icon: Icons.layers_outlined,
+                        value:
+                            '${_selectedCourses.fold(0, (sum, c) => sum + (c.moduleCount ?? 0))}',
+                        label: 'Bài học',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MiniStat(
+                        icon: Icons.linear_scale_rounded,
+                        value: '${(_selectedCourses.length * 33).clamp(0, 100)}%',
+                        label: 'Tiến độ',
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildCard({
-    required List<Widget> children,
-    String? title,
-    Widget? trailing,
-  }) {
+  Widget _buildSaveButton() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _isSaving ? null : _save,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_rounded,
+                          color: AppColors.primary, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isEditMode ? 'Lưu' : 'Tạo',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+      children: [
+        _LoadingCard(),
+        const SizedBox(height: 20),
+        _LoadingCard(),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (title != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+          /// Card header
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.info_outline,
+                      color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  "Thông tin lộ trình",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                /// Title field
+                _ModernTextField(
+                  controller: _titleController,
+                  label: "Tiêu đề lộ trình",
+                  hint: "VD: Lộ trình Java Backend cho người mới",
+                  icon: Icons.title_rounded,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Vui lòng nhập tiêu đề";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                /// Description field
+                _ModernTextField(
+                  controller: _descriptionController,
+                  label: "Mô tả",
+                  hint: "Mô tả ngắn về lộ trình học tập...",
+                  icon: Icons.description_outlined,
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoursesCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// Card header
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentPurple.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.menu_book,
+                      color: AppColors.accentPurple, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Khóa học trong lộ trình",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      if (_selectedCourses.isNotEmpty)
+                        Text(
+                          "Kéo để sắp xếp thứ tự",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: _loadingCourses ? null : _showCourseSelector,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.add,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              "Thêm",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  if (trailing != null) trailing,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          /// Course list
+          if (_loadingCourses)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_selectedCourses.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+              child: Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSlateLight,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.library_books_outlined,
+                        size: 32,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      "Chưa có khóa học nào",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Thêm khóa học để xây dựng lộ trình học tập",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _showCourseSelector,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text("Chọn khóa học"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            _buildCourseTimeline(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseTimeline() {
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+      itemCount: _selectedCourses.length,
+      onReorder: (oldIndex, newIndex) {
+        setState(() {
+          if (newIndex > oldIndex) newIndex -= 1;
+          final item = _selectedCourses.removeAt(oldIndex);
+          _selectedCourses.insert(newIndex, item);
+          for (int i = 0; i < _selectedCourses.length; i++) {
+            _selectedCourses[i] = CourseItemDetail(
+              relationId: _selectedCourses[i].relationId,
+              courseId: _selectedCourses[i].courseId,
+              title: _selectedCourses[i].title,
+              mentorName: _selectedCourses[i].mentorName,
+              moduleCount: _selectedCourses[i].moduleCount,
+              orderIndex: i,
+            );
+          }
+        });
+      },
+      itemBuilder: (context, index) {
+        final course = _selectedCourses[index];
+        return _TimelineCourseItem(
+          key: ValueKey(
+            course.relationId.value != 0
+                ? course.relationId.value
+                : course.courseId.value,
+          ),
+          course: course,
+          index: index,
+          isLast: index == _selectedCourses.length - 1,
+          onRemove: () => _removeCourse(index),
+        );
+      },
+    );
+  }
+}
+
+// ─── Timeline Course Item ────────────────────────────────────────────────────
+
+class _TimelineCourseItem extends StatefulWidget {
+  final CourseItemDetail course;
+  final int index;
+  final bool isLast;
+  final VoidCallback onRemove;
+
+  const _TimelineCourseItem({
+    super.key,
+    required this.course,
+    required this.index,
+    required this.isLast,
+    required this.onRemove,
+  });
+
+  @override
+  State<_TimelineCourseItem> createState() => _TimelineCourseItemState();
+}
+
+class _TimelineCourseItemState extends State<_TimelineCourseItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// Timeline line + dot
+        Column(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
                 ],
               ),
+              child: Center(
+                child: Text(
+                  '${widget.index + 1}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
+            if (!widget.isLast)
+              Container(
+                width: 2,
+                height: 60,
+                color: AppColors.border,
+              ),
+          ],
+        ),
+        const SizedBox(width: 12),
+
+        /// Course card
+        Expanded(
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _isHovered = true),
+            onExit: (_) => setState(() => _isHovered = false),
+            child: AnimatedContainer(
+              duration: AppAnimations.fast,
+              margin: EdgeInsets.only(bottom: widget.isLast ? 0 : 16),
+              decoration: BoxDecoration(
+                color: _isHovered
+                    ? AppColors.primary.withValues(alpha: 0.03)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _isHovered
+                      ? AppColors.primary.withValues(alpha: 0.2)
+                      : AppColors.border,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    /// Course info (chiếm phần lớn chiều ngang)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.course.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AppColors.textDark,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (widget.course.mentorName != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.person_outline,
+                                    size: 13, color: AppColors.textMuted),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    widget.course.mentorName!,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textMuted,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (widget.course.moduleCount != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.layers_outlined,
+                                    size: 13, color: AppColors.textMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "${widget.course.moduleCount} bài học",
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    /// Kéo + X: gom một cụm bên phải, cách nhau rõ ràng (tránh bấm nhầm)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ReorderableDragStartListener(
+                          index: widget.index,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 6,
+                            ),
+                            child: Icon(
+                              Icons.drag_handle,
+                              color: AppColors.textMuted,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        AnimatedContainer(
+                          duration: AppAnimations.fast,
+                          decoration: BoxDecoration(
+                            color: _isHovered
+                                ? AppColors.badgeRedBg
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: widget.onRemove,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 20,
+                                  color: _isHovered
+                                      ? AppColors.error
+                                      : AppColors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Modern TextField ────────────────────────────────────────────────────────
+
+class _ModernTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final IconData icon;
+  final int maxLines;
+  final String? Function(String?)? validator;
+
+  const _ModernTextField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.maxLines = 1,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
+            filled: true,
+            fillColor: AppColors.bgSlateLight,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Mini Stat ────────────────────────────────────────────────────────────────
+
+class _MiniStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+
+  const _MiniStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -507,9 +1145,99 @@ class _MentorCreateLearningPathMobileState
   }
 }
 
-/// ============================================
-/// MOBILE COURSE SELECTOR BOTTOM SHEET
-/// ============================================
+// ─── Loading Card ─────────────────────────────────────────────────────────────
+
+class _LoadingCard extends StatefulWidget {
+  @override
+  State<_LoadingCard> createState() => _LoadingCardState();
+}
+
+class _LoadingCardState extends State<_LoadingCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+    _animation = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: _animation.value),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    height: 14,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: _animation.value),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(2, (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: _animation.value * 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              )),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Mobile Course Selector Bottom Sheet ────────────────────────────────────
+
 class _MobileCourseSelectorSheet extends StatefulWidget {
   final List<Map<String, dynamic>> availableCourses;
   final Set<int> selectedCourseIds;
@@ -553,88 +1281,131 @@ class _MobileCourseSelectorSheetState
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
-        return Column(
-          children: [
-            /// HANDLE
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-
-            /// HEADER
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Text(
-                    "Chọn khóa học",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  if (_selected.isNotEmpty)
-                    TextButton(
-                      onPressed: () {
-                        final selectedCourses =
-                            widget.availableCourses
-                                .where(
-                                  (c) => _selected.contains(
-                                    c['courseId'] ?? c['id'],
-                                  ),
-                                )
-                                .toList();
-                        widget.onCoursesSelected(selectedCourses);
-                        Navigator.pop(context);
-                      },
-                      child: Text(
-                        "Xác nhận (${_selected.length})",
-                        style: const TextStyle(color: Color(0xff1a90ff)),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            /// SEARCH
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: "Tìm kiếm khóa học...",
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              /// Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
 
-            /// LIST
-            Expanded(
-              child:
-                  _filtered.isEmpty
-                      ? Center(
-                        child: Text(
-                          "Không tìm thấy khóa học",
-                          style: TextStyle(color: Colors.grey[600]),
+              /// Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child:
+                          const Icon(Icons.library_books,
+                              color: AppColors.primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Chọn khóa học",
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          if (_selected.isNotEmpty)
+                            Text(
+                              "Đã chọn ${_selected.length} khóa học",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+
+              /// Search
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSlateLight,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: TextField(
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: "Tìm kiếm khóa học...",
+                      hintStyle:
+                          TextStyle(color: AppColors.textMuted, fontSize: 14),
+                      prefixIcon: Icon(Icons.search,
+                          color: AppColors.textMuted, size: 20),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 13),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              /// Course list
+              Expanded(
+                child: _filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search_off_rounded,
+                                size: 48, color: AppColors.textMuted),
+                            const SizedBox(height: 12),
+                            const Text(
+                              "Không tìm thấy khóa học",
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                          ],
                         ),
                       )
-                      : ListView.builder(
+                    : ListView.builder(
                         controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         itemCount: _filtered.length,
                         itemBuilder: (context, index) {
                           final course = _filtered[index];
                           final courseId = course['id'];
                           final isSelected = _selected.contains(courseId);
-                          return CheckboxListTile(
-                            value: isSelected,
+                          return _CourseSelectItem(
+                            course: course,
+                            isSelected: isSelected,
                             onChanged: (value) {
                               setState(() {
                                 if (value == true) {
@@ -644,29 +1415,205 @@ class _MobileCourseSelectorSheetState
                                 }
                               });
                             },
-                            title: Text(
-                              course['title'] ?? 'Khóa học',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            subtitle: Text(
-                              course['mentorName'] != null
-                                  ? "${course['mentorName']} • ${course['moduleCount'] ?? 0} modules"
-                                  : "${course['moduleCount'] ?? 0} modules",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            activeColor: const Color(0xff1a90ff),
                           );
                         },
                       ),
-            ),
-          ],
+              ),
+
+              /// Bottom action
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                    20, 16, 20, 16 + MediaQuery.of(context).padding.bottom),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _selected.isEmpty
+                            ? "Chưa chọn khóa học nào"
+                            : "${_selected.length} khóa học đã chọn",
+                        style: TextStyle(
+                          color: _selected.isEmpty
+                              ? AppColors.textMuted
+                              : AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _selected.isEmpty
+                          ? null
+                          : () {
+                              final selectedCourses =
+                                  widget.availableCourses
+                                      .where(
+                                        (c) =>
+                                            _selected.contains(
+                                                c['courseId'] ?? c['id']),
+                                      )
+                                      .toList();
+                              widget.onCoursesSelected(selectedCourses);
+                              Navigator.pop(context);
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.border,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text("Xác nhận"),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _CourseSelectItem extends StatefulWidget {
+  final Map<String, dynamic> course;
+  final bool isSelected;
+  final ValueChanged<bool?> onChanged;
+
+  const _CourseSelectItem({
+    required this.course,
+    required this.isSelected,
+    required this.onChanged,
+  });
+
+  @override
+  State<_CourseSelectItem> createState() => _CourseSelectItemState();
+}
+
+class _CourseSelectItemState extends State<_CourseSelectItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: AppAnimations.fast,
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: widget.isSelected
+              ? AppColors.primary.withValues(alpha: 0.05)
+              : _isHovered
+                  ? AppColors.bgSlateLight
+                  : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: widget.isSelected
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : AppColors.border,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => widget.onChanged(!widget.isSelected),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: AppAnimations.fast,
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: widget.isSelected
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: widget.isSelected
+                            ? AppColors.primary
+                            : AppColors.border,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: widget.isSelected
+                        ? const Icon(Icons.check,
+                            size: 14, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.course['title'] ?? 'Khóa học',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppColors.textDark,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (widget.course['mentorName'] != null) ...[
+                              const Icon(Icons.person_outline,
+                                  size: 12, color: AppColors.textMuted),
+                              const SizedBox(width: 3),
+                              Expanded(
+                                child: Text(
+                                  widget.course['mentorName']!,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            const Icon(Icons.layers_outlined,
+                                size: 12, color: AppColors.textMuted),
+                            const SizedBox(width: 3),
+                            Text(
+                              "${widget.course['moduleCount'] ?? 0} bài",
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

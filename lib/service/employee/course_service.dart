@@ -32,6 +32,7 @@ class CourseService {
     String? keyword,
     String? departmentId,
     String? status,
+    String? enrollmentStatus,
     int page = 0,
     int size = 12,
   }) async {
@@ -39,6 +40,7 @@ class CourseService {
       keyword: keyword,
       departmentId: departmentId,
       status: status,
+      enrollmentStatus: enrollmentStatus,
       page: page,
       size: size,
     );

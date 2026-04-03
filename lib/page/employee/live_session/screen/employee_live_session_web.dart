@@ -27,6 +27,36 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
   bool _isLoadingSessions = false;
   String? _errorMessage;
 
+  /// Ngày đang xem ở chế độ « Tuần » — lấy thứ Hai đầu tuần.
+  DateTime _weekViewFocusedDate = _calendarDateOnly(_weekStartOf(DateTime.now()));
+
+  /// Trả về thứ Hai của tuần chứa ngày d.
+  static DateTime _weekStartOf(DateTime d) {
+    final diff = d.weekday - 1;
+    return DateTime(d.year, d.month, d.day).subtract(Duration(days: diff));
+  }
+
+  static DateTime _calendarDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  String _monthYearVietnamese(DateTime d) {
+    const months = [
+      '',
+      'Tháng 1',
+      'Tháng 2',
+      'Tháng 3',
+      'Tháng 4',
+      'Tháng 5',
+      'Tháng 6',
+      'Tháng 7',
+      'Tháng 8',
+      'Tháng 9',
+      'Tháng 10',
+      'Tháng 11',
+      'Tháng 12',
+    ];
+    return '${months[d.month]} ${d.year}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -180,6 +210,21 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
                         : _selectedViewMode == 1
                             ? _EmployeeWeekView(
                                 sessions: _sessions,
+                                focusedDate: _weekViewFocusedDate,
+                                monthLabel: _monthYearVietnamese(_weekViewFocusedDate),
+                                onFocusedDateChanged: (d) {
+                                  setState(() => _weekViewFocusedDate = _weekStartOf(d));
+                                },
+                                onPrevWeek: () {
+                                  setState(() {
+                                    _weekViewFocusedDate = _weekViewFocusedDate.subtract(const Duration(days: 7));
+                                  });
+                                },
+                                onNextWeek: () {
+                                  setState(() {
+                                    _weekViewFocusedDate = _weekViewFocusedDate.add(const Duration(days: 7));
+                                  });
+                                },
                                 isLoading: _isLoadingSessions,
                                 onJoin: _joinSession,
                               )
@@ -226,7 +271,7 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
       decoration: BoxDecoration(
         color: const Color(0xffF9F9FF),
         border: Border(
-          bottom: BorderSide(color: const Color(0xffD7DAE3).withOpacity(0.6)),
+          bottom: BorderSide(color: const Color(0xffD7DAE3).withValues(alpha: 0.6)),
         ),
       ),
       child: Row(
@@ -237,7 +282,7 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
             child: _isLoadingCourses
                 ? const LinearProgressIndicator()
                 : DropdownButtonFormField<EnrolledCourse>(
-                    value: _selectedCourse,
+                    initialValue: _selectedCourse,
                     decoration: InputDecoration(
                       hintText: 'Chọn khóa học',
                       filled: true,
@@ -479,11 +524,21 @@ class _SessionCard extends StatelessWidget {
 
 class _EmployeeWeekView extends StatelessWidget {
   final List<LiveSessionInfo> sessions;
+  final DateTime focusedDate;
+  final String monthLabel;
+  final ValueChanged<DateTime> onFocusedDateChanged;
+  final VoidCallback onPrevWeek;
+  final VoidCallback onNextWeek;
   final bool isLoading;
   final void Function(LiveSessionInfo) onJoin;
 
   const _EmployeeWeekView({
     required this.sessions,
+    required this.focusedDate,
+    required this.monthLabel,
+    required this.onFocusedDateChanged,
+    required this.onPrevWeek,
+    required this.onNextWeek,
     required this.isLoading,
     required this.onJoin,
   });
@@ -491,54 +546,93 @@ class _EmployeeWeekView extends StatelessWidget {
   static const double _timeColumnWidth = 80;
   static const double _hourRowHeight = 80;
 
+  static const _weekdayNames = [
+    'THỨ 2',
+    'THỨ 3',
+    'THỨ 4',
+    'THỨ 5',
+    'THỨ 6',
+    'THỨ 7',
+    'CHỦ NHẬT',
+  ];
+
+  List<DateTime> _weekDays() {
+    final monday = DateTime(focusedDate.year, focusedDate.month, focusedDate.day)
+        .subtract(Duration(days: focusedDate.weekday - 1));
+    return List.generate(7, (i) => monday.add(Duration(days: i)));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hours = List.generate(14, (index) => 7 + index);
-    final days = _weekDaysFor(DateTime.now());
-    final startOfWeek = DateTime(days.first.year, days.first.month, days.first.day);
-    final endOfWeekExclusive = startOfWeek.add(const Duration(days: 7));
-    final visibleSessions = sessions.where((s) {
-      final t = s.startTime;
-      return !t.isBefore(startOfWeek) && t.isBefore(endOfWeekExclusive);
-    }).toList();
-
     if (isLoading) return const Center(child: CircularProgressIndicator());
 
-    if (visibleSessions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.event_busy, size: 64, color: Color(0xffD1D5DB)),
-            const SizedBox(height: 16),
-            const Text(
-              'Chưa có buổi live nào',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xff64748B),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                sessions.isEmpty
-                    ? 'Các buổi live sẽ hiển thị tại đây khi mentor đã lên lịch.'
-                    : 'Không có buổi live nào trong tuần này. Xem chế độ Ngày để xem toàn bộ lịch.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xff94A3B8)),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final hours = List.generate(14, (index) => 7 + index);
+    final days = _weekDays();
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final weekStart = days.first;
+    final weekEnd = weekStart.add(const Duration(days: 7));
+
+    final visibleSessions = sessions.where((s) {
+      final loc = s.startTime.toLocal();
+      return !loc.isBefore(weekStart) && loc.isBefore(weekEnd);
+    }).toList();
+
+    final hasContent = visibleSessions.isNotEmpty;
 
     return Container(
       color: Colors.white,
       child: Column(
         children: [
+          // ── Header tháng/năm + prev/next ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xffE0E2EC))),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Tuần trước',
+                  onPressed: onPrevWeek,
+                  icon: const Icon(Icons.chevron_left, color: Color(0xFF137FEC)),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: focusedDate,
+                        firstDate: DateTime(focusedDate.year - 2),
+                        lastDate: DateTime(focusedDate.year + 1, 12, 31),
+                      );
+                      if (picked != null) onFocusedDateChanged(picked);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        monthLabel,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF137FEC),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Tuần sau',
+                  onPressed: onNextWeek,
+                  icon: const Icon(Icons.chevron_right, color: Color(0xFF137FEC)),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Cột ngày trong tuần ──
           Container(
             height: 82,
             decoration: const BoxDecoration(
@@ -563,37 +657,70 @@ class _EmployeeWeekView extends StatelessWidget {
                 ),
                 ...List.generate(days.length, (index) {
                   final d = days[index];
-                  final isToday = d.isToday;
+                  final isToday = d.year == todayOnly.year &&
+                      d.month == todayOnly.month &&
+                      d.day == todayOnly.day;
                   return Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isToday ? const Color(0xff0074DB).withOpacity(0.05) : null,
+                        color:
+                            isToday
+                                ? const Color(0xFF137FEC).withValues(alpha: 0.06)
+                                : null,
                         border: Border(
-                          right: index != days.length - 1
-                              ? const BorderSide(color: Color(0xffE0E2EC))
-                              : BorderSide.none,
+                          right:
+                              index != days.length - 1
+                                  ? const BorderSide(color: Color(0xffE0E2EC))
+                                  : BorderSide.none,
                         ),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            _weekdayLabel(d.weekday),
+                            _weekdayNames[index],
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: isToday ? const Color(0xff005BAF) : const Color(0xff717785),
+                              color:
+                                  isToday
+                                      ? const Color(0xFF137FEC)
+                                      : const Color(0xff717785),
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${d.day}',
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
-                              color: isToday ? const Color(0xff005BAF) : const Color(0xff181C22),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration:
+                                isToday
+                                    ? BoxDecoration(
+                                      color: const Color(0xFF137FEC),
+                                      borderRadius: BorderRadius.circular(999),
+                                    )
+                                    : null,
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${d.day}',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight:
+                                    isToday ? FontWeight.bold : FontWeight.w600,
+                                color:
+                                    isToday
+                                        ? Colors.white
+                                        : const Color(0xff181C22),
+                              ),
                             ),
                           ),
+                          if (d.month != focusedDate.month)
+                            Text(
+                              '${d.day}/${d.month}',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Color(0xffA0A8B3),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -602,131 +729,171 @@ class _EmployeeWeekView extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final fullWidth = constraints.maxWidth;
-                  final dayWidth = (fullWidth - _timeColumnWidth) / 7;
-                  final totalHeight = hours.length * _hourRowHeight;
 
-                  return SizedBox(
-                    height: totalHeight,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Row(
-                            children: [
-                              Container(
-                                width: _timeColumnWidth,
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    right: BorderSide(color: Color(0xffE0E2EC)),
-                                  ),
-                                ),
-                              ),
-                              ...List.generate(7, (index) {
-                                final isToday = days[index].isToday;
-                                return Container(
-                                  width: dayWidth,
-                                  decoration: BoxDecoration(
-                                    color: isToday
-                                        ? const Color(0xff0074DB).withOpacity(0.02)
-                                        : Colors.transparent,
-                                    border: Border(
-                                      right: index != 6
-                                          ? BorderSide(
-                                              color: const Color(0xffE0E2EC).withOpacity(0.8),
-                                            )
-                                          : BorderSide.none,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
+          // ── Lưới giờ + sự kiện ──
+          Expanded(
+            child:
+                !hasContent
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.event_busy, size: 64, color: Color(0xffD1D5DB)),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Chưa có buổi live nào',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xff64748B),
+                            ),
                           ),
-                        ),
-                        ...List.generate(hours.length, (index) {
-                          return Positioned(
-                            top: index * _hourRowHeight,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              height: _hourRowHeight,
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: const Color(0xffE0E2EC).withOpacity(0.5),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              sessions.isEmpty
+                                  ? 'Các buổi live sẽ hiển thị tại đây khi mentor đã lên lịch.'
+                                  : 'Không có buổi live nào trong tuần này. Xem chế độ Ngày để xem toàn bộ lịch.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Color(0xff94A3B8)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    : SingleChildScrollView(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final fullWidth = constraints.maxWidth;
+                          final dayWidth = (fullWidth - _timeColumnWidth) / 7;
+                          final totalHeight = hours.length * _hourRowHeight;
+
+                          return SizedBox(
+                            height: totalHeight,
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: _timeColumnWidth,
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            right: BorderSide(color: Color(0xffE0E2EC)),
+                                          ),
+                                        ),
+                                      ),
+                                      ...List.generate(7, (index) {
+                                        final d = days[index];
+                                        final isToday = d.year == todayOnly.year &&
+                                            d.month == todayOnly.month &&
+                                            d.day == todayOnly.day;
+                                        return Container(
+                                          width: dayWidth,
+                                          decoration: BoxDecoration(
+                                            color:
+                                                isToday
+                                                    ? const Color(
+                                                      0xFF137FEC,
+                                                    ).withValues(alpha: 0.02)
+                                                    : Colors.transparent,
+                                            border: Border(
+                                              right:
+                                                  index != 6
+                                                      ? BorderSide(
+                                                        color: const Color(
+                                                          0xffE0E2EC,
+                                                        ).withValues(alpha: 0.8),
+                                                      )
+                                                      : BorderSide.none,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ],
                                   ),
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: _timeColumnWidth,
-                                    padding: const EdgeInsets.only(left: 10, top: 4),
-                                    child: Text(
-                                      '${hours[index].toString().padLeft(2, '0')}:00',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xff717785),
+                                ...List.generate(hours.length, (index) {
+                                  return Positioned(
+                                    top: index * _hourRowHeight,
+                                    left: 0,
+                                    right: 0,
+                                    child: Container(
+                                      height: _hourRowHeight,
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: const Color(
+                                              0xffE0E2EC,
+                                            ).withValues(alpha: 0.5),
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: _timeColumnWidth,
+                                            padding: const EdgeInsets.only(
+                                              left: 10,
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              '${hours[index].toString().padLeft(2, '0')}:00',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xff717785),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  );
+                                }),
+                                ...visibleSessions.map((session) {
+                                  final local = session.startTime.toLocal();
+                                  final et = session.endTime.toLocal();
+                                  if (local.hour < 7 || local.hour > 20) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final day = DateTime(
+                                    local.year,
+                                    local.month,
+                                    local.day,
+                                  );
+                                  final diff = day.difference(days.first).inDays;
+                                  if (diff < 0 || diff >= 7) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final dayIndex = diff;
+                                  final startMinutes = local.hour * 60 + local.minute;
+                                  final startOffset = (startMinutes / 60) * _hourRowHeight;
+                                  final durationMinutes = et.difference(session.startTime).inMinutes;
+                                  final height = (durationMinutes / 60) * _hourRowHeight;
+
+                                  return Positioned(
+                                    top: startOffset + 4,
+                                    left: _timeColumnWidth + (dayIndex * dayWidth) + 4,
+                                    width: dayWidth - 8,
+                                    height: height - 8,
+                                    child: _WeekSessionChip(
+                                      session: session,
+                                      onJoin: onJoin,
+                                    ),
+                                  );
+                                }),
+                              ],
                             ),
                           );
-                        }),
-                        ...visibleSessions.map((session) {
-                          final start = session.startTime;
-                          final hour = start.hour;
-                          if (hour < 7 || hour > 20) return const SizedBox.shrink();
-                          final durationMinutes = session.endTime.difference(start).inMinutes;
-                          final height = (durationMinutes / 60) * _hourRowHeight;
-                          final dayIndex = start.weekday - 1;
-                          if (dayIndex < 0 || dayIndex >= 7) return const SizedBox.shrink();
-                          return Positioned(
-                            top: (hour - 7) * _hourRowHeight + 4,
-                            left: _timeColumnWidth + (dayIndex * dayWidth) + 4,
-                            width: dayWidth - 8,
-                            height: height - 8,
-                            child: _WeekSessionChip(
-                              session: session,
-                              onJoin: onJoin,
-                            ),
-                          );
-                        }),
-                      ],
+                        },
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
           ),
         ],
       ),
     );
-  }
-
-  /// 7 ngày: thứ 2 → chủ nhật của tuần chứa [anchor].
-  static List<DateTime> _weekDaysFor(DateTime anchor) {
-    final d = DateTime(anchor.year, anchor.month, anchor.day);
-    final monday = d.subtract(Duration(days: d.weekday - 1));
-    return List.generate(7, (i) => monday.add(Duration(days: i)));
-  }
-
-  String _weekdayLabel(int weekday) {
-    const names = ['', 'THỨ 2', 'THỨ 3', 'THỨ 4', 'THỨ 5', 'THỨ 6', 'THỨ 7', 'CN'];
-    return names[weekday];
-  }
-}
-
-extension _DateHelpers on DateTime {
-  bool get isToday {
-    final n = DateTime.now();
-    return year == n.year && month == n.month && day == n.day;
   }
 }
 

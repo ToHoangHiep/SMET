@@ -1,40 +1,5 @@
 import 'package:flutter/material.dart';
 
-enum CourseCategory {
-  all,
-  technical,
-  softSkills,
-  leadership,
-}
-
-extension CourseCategoryExtension on CourseCategory {
-  String get label {
-    switch (this) {
-      case CourseCategory.all:
-        return 'Tất cả';
-      case CourseCategory.technical:
-        return 'Kỹ thuật';
-      case CourseCategory.softSkills:
-        return 'Kỹ năng mềm';
-      case CourseCategory.leadership:
-        return 'Lãnh đạo';
-    }
-  }
-
-  Color get color {
-    switch (this) {
-      case CourseCategory.all:
-        return const Color(0xFF137FEC);
-      case CourseCategory.technical:
-        return const Color(0xFF137FEC);
-      case CourseCategory.softSkills:
-        return const Color(0xFF22C55E);
-      case CourseCategory.leadership:
-        return const Color(0xFF8B5CF6);
-    }
-  }
-}
-
 String _formatDate(String? raw) {
   if (raw == null || raw.isEmpty) return '';
   try {
@@ -45,12 +10,6 @@ String _formatDate(String? raw) {
   }
 }
 
-/// Course Card — Coursera-style:
-/// - Partial gradient header (40% instead of full)
-/// - Instructor avatar + name
-/// - Hover scale effect + shadow
-/// - Rating stars + learner count
-/// - Level chip with color coding
 class CourseCard extends StatefulWidget {
   final String title;
   final String? departmentName;
@@ -138,30 +97,34 @@ class _CourseCardState extends State<CourseCard> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: _isHovered
-                    ? const Color(0xFF137FEC).withValues(alpha: 0.35)
-                    : const Color(0xFFE2E8F0),
+                color:
+                    _isHovered
+                        ? const Color(0xFF137FEC).withValues(alpha: 0.35)
+                        : const Color(0xFFE2E8F0),
               ),
-              boxShadow: _isHovered
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFF137FEC).withValues(alpha: 0.12),
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+              boxShadow:
+                  _isHovered
+                      ? [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF137FEC,
+                          ).withValues(alpha: 0.12),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                      : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,7 +161,9 @@ class _CourseCardState extends State<CourseCard> {
                                   center: const Alignment(0.3, -0.4),
                                   radius: 1.2,
                                   colors: [
-                                    const Color(0xFF137FEC).withValues(alpha: 0.38),
+                                    const Color(
+                                      0xFF137FEC,
+                                    ).withValues(alpha: 0.38),
                                     Colors.transparent,
                                   ],
                                 ),
@@ -246,7 +211,9 @@ class _CourseCardState extends State<CourseCard> {
                         left: 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: 0.52),
                             borderRadius: BorderRadius.circular(20),
@@ -280,7 +247,9 @@ class _CourseCardState extends State<CourseCard> {
                         left: 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: _levelBgColor,
                             borderRadius: BorderRadius.circular(20),
@@ -344,10 +313,12 @@ class _CourseCardState extends State<CourseCard> {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      const Color(0xFF137FEC)
-                                          .withValues(alpha: 0.2),
-                                      const Color(0xFF137FEC)
-                                          .withValues(alpha: 0.08),
+                                      const Color(
+                                        0xFF137FEC,
+                                      ).withValues(alpha: 0.2),
+                                      const Color(
+                                        0xFF137FEC,
+                                      ).withValues(alpha: 0.08),
                                     ],
                                   ),
                                   shape: BoxShape.circle,
@@ -412,9 +383,11 @@ class _CourseCardState extends State<CourseCard> {
                           child: _JoinButton(
                             status: widget.status,
                             isEnrolled: widget.isEnrolled,
-                            onTap: (widget.isEnrolled != true && widget.status == 'PUBLISHED')
-                                ? widget.onJoin
-                                : null,
+                            onTap:
+                                (widget.isEnrolled != true &&
+                                        widget.status == 'PUBLISHED')
+                                    ? widget.onJoin
+                                    : null,
                           ),
                         ),
                       ],
@@ -461,11 +434,7 @@ class _JoinButton extends StatefulWidget {
   final bool? isEnrolled;
   final VoidCallback? onTap;
 
-  const _JoinButton({
-    required this.status,
-    this.isEnrolled,
-    this.onTap,
-  });
+  const _JoinButton({required this.status, this.isEnrolled, this.onTap});
 
   @override
   State<_JoinButton> createState() => _JoinButtonState();
@@ -479,9 +448,8 @@ class _JoinButtonState extends State<_JoinButton> {
     final isPublished = widget.status == 'PUBLISHED';
     final isEnrolled = widget.isEnrolled == true;
 
-    final bool enabled = isEnrolled
-        ? false
-        : (isPublished && widget.onTap != null);
+    final bool enabled =
+        isEnrolled ? false : (isPublished && widget.onTap != null);
 
     final String label;
     final Color bgColor;
@@ -613,9 +581,10 @@ class _DeadlineChip extends StatelessWidget {
         color: const Color(0xFF15803D),
         bgColor: const Color(0xFFDCFCE7),
         icon: Icons.schedule,
-        text: defaultDeadlineDays != null
-            ? 'Hạn: $defaultDeadlineDays ngày sau khi đăng ký'
-            : 'Có hạn hoàn thành',
+        text:
+            defaultDeadlineDays != null
+                ? 'Hạn: $defaultDeadlineDays ngày sau khi đăng ký'
+                : 'Có hạn hoàn thành',
       );
     }
 
@@ -642,7 +611,9 @@ class _DeadlineChip extends StatelessWidget {
         break;
       default:
         // FIXED nhưng backend chưa compute status → vẫn hiện với fixedDeadline
-        if (type == 'FIXED' && fixedDeadline != null && fixedDeadline!.isNotEmpty) {
+        if (type == 'FIXED' &&
+            fixedDeadline != null &&
+            fixedDeadline!.isNotEmpty) {
           return _buildChip(
             color: const Color(0xFF15803D),
             bgColor: const Color(0xFFDCFCE7),
@@ -657,13 +628,14 @@ class _DeadlineChip extends StatelessWidget {
       color: color,
       bgColor: bgColor,
       icon: icon,
-      text: fixedDeadline != null && fixedDeadline!.isNotEmpty
-          ? 'Hạn: ${_formatDate(fixedDeadline)}'
-          : status == 'OVERDUE'
+      text:
+          fixedDeadline != null && fixedDeadline!.isNotEmpty
+              ? 'Hạn: ${_formatDate(fixedDeadline)}'
+              : status == 'OVERDUE'
               ? 'Đã quá hạn'
               : status == 'DUE_SOON'
-                  ? 'Sắp hết hạn'
-                  : 'Còn thời gian',
+              ? 'Sắp hết hạn'
+              : 'Còn thời gian',
     );
   }
 

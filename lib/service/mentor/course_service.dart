@@ -63,15 +63,16 @@ class MentorCourseService {
 
   // ============================================
   // LIST COURSES (paginated)
-  // Backend: GET /api/lms/courses?keyword=&published=&page=&size=
+  // Backend: GET /api/lms/courses?keyword=&status=&page=&size=
   // ============================================
   Future<PageResponse<CourseResponse>> listCourses({
     String? keyword,
-    bool? published,
+    String? status,
+    bool? isMine,
     int page = 0,
     int size = 10,
   }) async {
-    log("[MentorCourseService] listCourses() called — page=$page, size=$size, keyword=$keyword, published=$published");
+    log("[MentorCourseService] listCourses() called — page=$page, size=$size, keyword=$keyword, status=$status, isMine=$isMine");
 
     try {
       _logStep("Getting auth token...");
@@ -87,7 +88,8 @@ class MentorCourseService {
         'size': size.toString(),
       };
       if (keyword != null && keyword.isNotEmpty) params['keyword'] = keyword;
-      if (published != null) params['published'] = published.toString();
+      if (status != null && status.isNotEmpty) params['status'] = status;
+      if (isMine != null) params['isMine'] = isMine.toString();
       final uri = Uri.parse("$baseUrl/lms/courses").replace(queryParameters: params);
       final url = uri.toString();
       _logResult("URL", url);

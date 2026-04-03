@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// Enroll card — modern Coursera-style:
-/// - Light border instead of heavy shadow
-/// - Gradient progress bar (primary → success green)
-/// - Full-width pill button
-/// - Clean "Course includes" list
+/// Enroll card — hiển thị số chương, số bài học, nút đăng ký / tiếp tục học.
 class EnrollCard extends StatelessWidget {
   final VoidCallback? onEnroll;
   final VoidCallback? onStartLearning;
-  final int videoHours;
-  final int resources;
-  final bool hasCertificate;
-  final int enrolledCount;
+  final int moduleCount;
+  final int lessonCount;
   final bool isEnrolled;
+  final int progress;
+  final String enrollmentStatus;
   final bool isLoading;
-  final double? progressPercent;
-  final String? imageUrl;
+  final bool isArchived;
   final VoidCallback? onShare;
   final VoidCallback? onBookmark;
 
@@ -23,17 +18,34 @@ class EnrollCard extends StatelessWidget {
     super.key,
     this.onEnroll,
     this.onStartLearning,
-    this.videoHours = 0,
-    this.resources = 0,
-    this.hasCertificate = true,
-    this.enrolledCount = 0,
+    this.moduleCount = 0,
+    this.lessonCount = 0,
     this.isEnrolled = false,
+    this.progress = 0,
+    this.enrollmentStatus = 'NOT_STARTED',
     this.isLoading = false,
-    this.progressPercent,
-    this.imageUrl,
+    this.isArchived = false,
     this.onShare,
     this.onBookmark,
   });
+
+  String get _buttonText {
+    if (isArchived) return 'Khóa học đã bị ngưng';
+    if (!isEnrolled) return 'Đăng ký ngay';
+    final status = enrollmentStatus.toUpperCase();
+    if (status == 'COMPLETED') return 'Học lại';
+    if (progress > 0) return 'Tiếp tục học';
+    return 'Bắt đầu học';
+  }
+
+  String get _subtitleText {
+    if (isArchived) return 'Khóa học này đã bị ngưng, bạn không thể tham gia';
+    if (!isEnrolled) return 'Tham gia miễn phí — Không phí ẩn';
+    final status = enrollmentStatus.toUpperCase();
+    if (status == 'COMPLETED') return 'Bạn đã hoàn thành khóa học này';
+    if (progress > 0) return 'Tiếp tục học tập ngay';
+    return 'Bắt đầu học ngay hôm nay';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,272 +62,108 @@ class EnrollCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // ─── Thumbnail ────────────────────────────────────────
-          if (imageUrl != null)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Image.network(
-                        imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: const Color(0xFFE2E8F0),
-                          child: const Icon(
-                            Icons.image_outlined,
-                            size: 40,
-                            color: Color(0xFF94A3B8),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Gradient overlay
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.2),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // ─── Button Section ──────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                // Free badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            // ─── Primary Pill Button ───────────────────────────
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isLoading || isArchived
+                    ? null
+                    : (isEnrolled ? onStartLearning : onEnroll),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isArchived
+                      ? const Color(0xFF94A3B8)
+                      : const Color(0xFF137FEC),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  child: const Text(
-                    'MIỄN PHÍ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF22C55E),
-                    ),
-                  ),
+                  elevation: 0,
                 ),
-                const SizedBox(height: 16),
-
-                // ─── Gradient Progress bar (khi đã enroll) ─────────
-                if (isEnrolled && progressPercent != null) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE5E7EB),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(999),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                return Stack(
-                                  children: [
-                                    AnimatedContainer(
-                                      duration: const Duration(milliseconds: 600),
-                                      curve: Curves.easeOutCubic,
-                                      width: constraints.maxWidth *
-                                          (progressPercent! / 100).clamp(0.0, 1.0),
-                                      decoration: BoxDecoration(
-                                        gradient:
-                                            const LinearGradient(
-                                          colors: [
-                                            Color(0xFF137FEC),
-                                            Color(0xFF22C55E),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(999),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${progressPercent!.round()}%',
+                      )
+                    : Text(
+                        _buttonText,
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF22C55E),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                // ─── Primary Pill Button ───────────────────────────
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isLoading
-                        ? null
-                        : (isEnrolled ? onStartLearning : onEnroll),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF137FEC),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            isEnrolled ? 'Bắt đầu học' : 'Đăng ký ngay',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Subtitle text
-                Text(
-                  isEnrolled
-                      ? 'Tiếp tục học tập ngay'
-                      : 'Tham gia miễn phí — Không phí ẩn',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ─── Secondary actions ───────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (onBookmark != null)
-                      _SecondaryButton(
-                        icon: Icons.bookmark_outline,
-                        label: 'Lưu',
-                        onTap: onBookmark!,
-                      ),
-                    if (onShare != null) ...[
-                      if (onBookmark != null)
-                        const SizedBox(width: 16),
-                      _SecondaryButton(
-                        icon: Icons.share_outlined,
-                        label: 'Chia sẻ',
-                        onTap: onShare!,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // ─── Course includes ────────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Khóa học bao gồm:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _FeatureItem(
-                  icon: Icons.videocam_outlined,
-                  text: '$videoHours giờ video bài giảng',
-                ),
-                const SizedBox(height: 12),
-                _FeatureItem(
-                  icon: Icons.download_outlined,
-                  text: '$resources tài liệu tải về',
-                ),
-                const SizedBox(height: 12),
-                _FeatureItem(
-                  icon: Icons.workspace_premium_outlined,
-                  text: hasCertificate
-                      ? 'Chứng chỉ hoàn thành'
-                      : 'Không có chứng chỉ',
-                ),
-                const SizedBox(height: 12),
-                const _FeatureItem(
-                  icon: Icons.all_inclusive,
-                  text: 'Truy cập trọn đời',
-                ),
-              ],
-            ),
-          ),
+            const SizedBox(height: 8),
 
-          // ─── Enrolled count ───────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-            ),
-            child: Text(
-              'Đã có $enrolledCount học viên đăng ký',
-              textAlign: TextAlign.center,
+            // Subtitle text
+            Text(
+              _subtitleText,
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontSize: 12,
                 color: Color(0xFF64748B),
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 16),
+
+            // ─── Course stats inside card ───
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                children: [
+                  _FeatureItem(
+                    icon: Icons.library_books,
+                    text: '$moduleCount chương',
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureItem(
+                    icon: Icons.play_lesson,
+                    text: '$lessonCount bài học',
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ─── Secondary actions ───────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (onBookmark != null)
+                  _SecondaryButton(
+                    icon: Icons.bookmark_outline,
+                    label: 'Lưu',
+                    onTap: onBookmark!,
+                  ),
+                if (onShare != null) ...[
+                  if (onBookmark != null)
+                    const SizedBox(width: 16),
+                  _SecondaryButton(
+                    icon: Icons.share_outlined,
+                    label: 'Chia sẻ',
+                    onTap: onShare!,
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

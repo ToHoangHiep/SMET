@@ -7,7 +7,7 @@ class NotificationTopHeader extends StatelessWidget {
   final String selectedFilter;
   final int unreadCount;
   final ValueChanged<String> onFilterChanged;
-  final VoidCallback onMarkAllRead;
+  final VoidCallback? onMarkAllRead;
   final VoidCallback? onRefresh;
   final List<BreadcrumbItem>? breadcrumbs;
 
@@ -18,7 +18,7 @@ class NotificationTopHeader extends StatelessWidget {
     required this.selectedFilter,
     required this.unreadCount,
     required this.onFilterChanged,
-    required this.onMarkAllRead,
+    this.onMarkAllRead,
     this.onRefresh,
     this.breadcrumbs,
   });
@@ -90,14 +90,16 @@ class NotificationTopHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          TextButton.icon(
-            onPressed: onMarkAllRead,
-            icon: Icon(Icons.done_all, color: primaryColor, size: 20),
-            label: Text(
-              'Đánh dấu tất cả',
-              style: TextStyle(color: primaryColor, fontSize: 14),
+          if (onMarkAllRead != null) ...[
+            TextButton.icon(
+              onPressed: onMarkAllRead,
+              icon: Icon(Icons.done_all, color: primaryColor, size: 20),
+              label: Text(
+                'Đánh dấu tất cả',
+                style: TextStyle(color: primaryColor, fontSize: 14),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

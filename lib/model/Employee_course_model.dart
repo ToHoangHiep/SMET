@@ -1,101 +1,107 @@
-// ============================================
-// COURSE MODELS — Dùng chung cho CourseDetail
-// ============================================
-
 class CourseDetail {
   final String id;
   final String title;
   final String description;
-  final String? imageUrl;
-  final String duration;
-  final String level;
-  final double rating;
-  final String studentsCount;
-  final bool isBestSeller;
-  final String category;
-  final int videoHours;
-  final int resources;
-  final bool hasCertificate;
-  final int enrolledCount;
-  final Instructor instructor;
-  final List<Module> modules;
-  final List<Review> reviews;
 
-  // --- Fields bổ sung theo phong cách Coursera ---
+  // Mentor
+  final int mentorId;
+  final String mentorName;
+
+  // Department
+  final int? departmentId;
   final String? departmentName;
+
+  // Status & Deadline
+  final String? status;
+  final String? deadlineStatus;
   final String? deadlineType;
   final int? defaultDeadlineDays;
   final String? fixedDeadline;
+
+  // Counts
+  final int moduleCount;
+  final int lessonCount;
+
+  // Enrollment (from backend)
+  final bool enrolled;
+  final int progress;
+  final String enrollmentStatus;
+  final DateTime? enrolledAt;
+  final DateTime? deadline;
+  final bool overdue;
+
+  // Modules
+  final List<ModuleDetail> modules;
 
   const CourseDetail({
     required this.id,
     required this.title,
     required this.description,
-    this.imageUrl,
-    required this.duration,
-    required this.level,
-    required this.rating,
-    required this.studentsCount,
-    required this.isBestSeller,
-    required this.category,
-    required this.videoHours,
-    required this.resources,
-    required this.hasCertificate,
-    required this.enrolledCount,
-    required this.instructor,
-    required this.modules,
-    required this.reviews,
+    required this.mentorId,
+    required this.mentorName,
+    this.departmentId,
     this.departmentName,
+    this.status,
+    this.deadlineStatus,
     this.deadlineType,
     this.defaultDeadlineDays,
     this.fixedDeadline,
+    required this.moduleCount,
+    required this.lessonCount,
+    this.enrolled = false,
+    this.progress = 0,
+    this.enrollmentStatus = 'NOT_STARTED',
+    this.enrolledAt,
+    this.deadline,
+    this.overdue = false,
+    required this.modules,
   });
+
+  bool get isArchived => status?.toUpperCase() == 'ARCHIVED';
 }
 
-class Instructor {
-  final String name;
+class ModuleDetail {
+  final int id;
   final String title;
-  final String? avatarUrl;
-  final String bio;
-  final String? linkedInUrl;
-  final String? websiteUrl;
-
-  const Instructor({
-    required this.name,
-    required this.title,
-    this.avatarUrl,
-    required this.bio,
-    this.linkedInUrl,
-    this.websiteUrl,
-  });
-}
-
-/// Dùng bởi lms_service để parse API response.
-class Module {
-  final String title;
+  final int orderIndex;
   final int lessonCount;
-  final List<String> lessons;
+  final List<LessonDetail> lessons;
   final bool isExpanded;
 
-  const Module({
+  const ModuleDetail({
+    required this.id,
     required this.title,
+    required this.orderIndex,
     required this.lessonCount,
     required this.lessons,
     this.isExpanded = false,
   });
 }
 
-/// Dùng bởi lms_service để parse API response.
-class Review {
-  final double rating;
-  final String comment;
-  final String userName;
-  final String? avatarUrl;
+class LessonDetail {
+  final int id;
+  final String title;
+  final int orderIndex;
+  final List<LessonContentResponse> contents;
 
-  const Review({
-    required this.rating,
-    required this.comment,
-    required this.userName,
-    this.avatarUrl,
+  const LessonDetail({
+    required this.id,
+    required this.title,
+    required this.orderIndex,
+    required this.contents,
+  });
+}
+
+class LessonContentResponse {
+  final int id;
+  final String type;
+  final String content;
+  final int? orderIndex;
+
+  const LessonContentResponse({
+    required this.id,
+    required this.type,
+    required this.content,
+    this.orderIndex,
   });
 }

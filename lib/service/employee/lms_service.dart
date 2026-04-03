@@ -5,6 +5,7 @@ import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/model/Employee_course_model.dart';
 import 'package:smet/model/course_model.dart';
+import 'package:smet/model/learning_path_model.dart' as lpm;
 import 'dart:developer';
 
 // ============================================================
@@ -513,12 +514,12 @@ class LmsService {
     }
   }
 
-  /// Kiểm tra đã đăng ký chưa — GET /api/lms/courses/{courseId}/completion
+  /// Kiểm tra đã đăng ký chưa — GET /api/lms/courses/{courseId}/enrollment
   static Future<bool> isEnrolled(String courseId) async {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse(
-        "$baseUrl/lms/courses/$courseId/completion",
+        "$baseUrl/lms/courses/$courseId/enrollment",
       );
 
       log("IS ENROLLED REQUEST: courseId=$courseId, url=$url");
@@ -535,8 +536,7 @@ class LmsService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data is bool) return data;
-        return data is Map && data['completed'] == true;
+        return data is Map && data['enrolled'] == true;
       }
       log("IS ENROLLED FAILED: status=${response.statusCode}, courseId=$courseId");
       return false;
@@ -612,6 +612,8 @@ class LmsService {
     String? keyword,
     String? departmentId,
     String? status,
+    bool? isMine,
+    String? enrollmentStatus,
     int page = 0,
     int size = 12,
   }) async {
@@ -627,6 +629,12 @@ class LmsService {
       }
       if (status != null && status.isNotEmpty) {
         urlStr += "&status=$status";
+      }
+      if (isMine != null) {
+        urlStr += "&isMine=$isMine";
+      }
+      if (enrollmentStatus != null && enrollmentStatus.isNotEmpty) {
+        urlStr += "&enrollmentStatus=$enrollmentStatus";
       }
 
       final url = Uri.parse(urlStr);
@@ -694,6 +702,7 @@ class LmsService {
       defaultDeadlineDays: c['defaultDeadlineDays'],
       fixedDeadline: c['fixedDeadline'],
       enrolled: c['enrolled'] ?? false,
+      enrollmentStatus: c['enrollmentStatus']?.toString(),
     );
   }
 
@@ -996,9 +1005,20 @@ class LmsService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final content = data['content'] as List<dynamic>? ?? [];
+        final content = (data['data'] ?? data['content']) as List<dynamic>? ?? [];
         log("GET MY LEARNING PATHS SUCCESS: count=${content.length}, keyword=$keyword, page=$page");
-        return content.map((lp) => _parseLearningPathInfo(lp)).toList();
+
+        // ── Fetch enrollments to compute real progress ──────────────────────────
+        final enrollmentsResult = await getMyCourses(page: 0, size: 1000);
+        final Map<String, EnrolledCourse> enrollmentMap = {
+          for (final e in enrollmentsResult.content) e.id: e,
+        };
+        // ───────────────────────────────────────────────────────────────────────
+
+        return content.map((lp) {
+          final base = _parseLearningPathInfo(lp);
+          return _enrichLearningPathInfo(base, enrollmentMap);
+        }).toList();
       }
       log("GET MY LEARNING PATHS FAILED: status=${response.statusCode}, keyword=$keyword, body=${response.body}");
       return [];
@@ -1006,6 +1026,40 @@ class LmsService {
       log("LmsService.getMyLearningPaths: $e");
       return [];
     }
+  }
+
+  /// Tính progressPercent thực tế cho LearningPathInfo từ enrollment data.
+  /// progress = trung bình progressPercent của các khóa trong lộ trình
+  /// mà user đã enroll.
+  static LearningPathInfo _enrichLearningPathInfo(
+    LearningPathInfo base,
+    Map<String, EnrolledCourse> enrollmentMap,
+  ) {
+    final enrolledCourses = base.courses.where((c) {
+      return enrollmentMap.containsKey(c.courseId.value.toString());
+    }).toList();
+
+    if (enrolledCourses.isEmpty) {
+      // Không có khóa nào được enroll → giữ nguyên (0%) từ API
+      return base;
+    }
+
+    double totalProgress = 0;
+    for (final c in enrolledCourses) {
+      final e = enrollmentMap[c.courseId.value.toString()];
+      totalProgress += e?.progressPercent ?? 0;
+    }
+    final progressPercent = totalProgress / enrolledCourses.length;
+
+    return LearningPathInfo(
+      id: base.id,
+      title: base.title,
+      description: base.description,
+      courseCount: base.courseCount,
+      progressPercent: progressPercent,
+      courses: base.courses,
+      totalModules: base.totalModules,
+    );
   }
 
   /// Chi tiết lộ trình — GET /api/lms/learning-paths/{id}
@@ -1026,7 +1080,16 @@ class LmsService {
         final data = jsonDecode(response.body);
         final coursesCount = (data['courses'] as List?)?.length ?? 0;
         log("GET LEARNING PATH DETAIL SUCCESS: id=$id, title=${data['title']}, courses=$coursesCount");
-        return _parseLearningPathDetail(data);
+
+        // ── Fetch enrollments to resolve real isCompleted per course ────────────
+        final enrollmentsResult = await getMyCourses(page: 0, size: 1000);
+        final Map<String, EnrolledCourse> enrollmentMap = {
+          for (final e in enrollmentsResult.content) e.id: e,
+        };
+        // ───────────────────────────────────────────────────────────────────────
+
+        final detail = _parseLearningPathDetail(data, enrollmentMap);
+        return detail;
       }
       log("GET LEARNING PATH DETAIL FAILED: status=${response.statusCode}, id=$id, body=${response.body}");
       return null;
@@ -1046,86 +1109,71 @@ class LmsService {
   ) {
     return CourseDetail(
       id: data['id']?.toString() ?? courseId,
-      title: data['title'] ?? data['name'] ?? 'Khóa học',
+      title: data['title'] ?? 'Khóa học',
       description: data['description'] ?? '',
-      imageUrl: data['imageUrl'] ?? data['thumbnail'] ?? data['coverImage'],
-      duration: _parseDuration(data['duration'] ?? data['estimatedHours']),
-      level: data['level'] ?? 'Trung bình',
-      rating: (data['rating'] ?? data['averageRating'] ?? 0).toDouble(),
-      studentsCount: _formatCount(
-        data['enrolledCount'] ?? data['studentCount'] ?? 0,
-      ),
-      isBestSeller: data['isBestSeller'] ?? data['featured'] ?? false,
-      category: data['category'] ?? 'Kỹ thuật',
-      videoHours: data['videoHours'] ?? data['totalVideoHours'] ?? 0,
-      resources: data['resources'] ?? data['resourceCount'] ?? 0,
-      hasCertificate:
-          data['hasCertificate'] ?? data['certificateEnabled'] ?? true,
-      enrolledCount: data['enrolledCount'] ?? data['studentCount'] ?? 0,
-      instructor: _parseInstructor(data['mentor'] ?? data['instructor']),
-      modules: _parseModules(data['modules'], data['syllabus']),
-      reviews: _parseReviews(data['reviews']),
+      mentorId: data['mentorId'] ?? 0,
+      mentorName: data['mentorName'] ?? 'Giảng viên',
+      departmentId: data['departmentId'],
       departmentName: data['departmentName'],
+      status: data['status'],
+      deadlineStatus: data['deadlineStatus'],
       deadlineType: data['deadlineType'],
       defaultDeadlineDays: data['defaultDeadlineDays'],
-      fixedDeadline: data['fixedDeadline'],
+      fixedDeadline: data['fixedDeadline']?.toString(),
+      moduleCount: data['moduleCount'] ?? 0,
+      lessonCount: data['lessonCount'] ?? 0,
+      // Enrollment fields from backend
+      enrolled: data['enrolled'] == true,
+      progress: data['progress'] ?? 0,
+      enrollmentStatus: data['enrollmentStatus'] ?? 'NOT_STARTED',
+      enrolledAt: _parseDateTime(data['enrolledAt']),
+      deadline: _parseDateTime(data['deadline']),
+      overdue: data['overdue'] == true,
+      modules: _parseModulesDetail(data['modules']),
     );
   }
 
-  static Instructor _parseInstructor(dynamic mentor) {
-    if (mentor == null) {
-      return const Instructor(name: 'Giảng viên', title: '', bio: '');
-    }
-    final m = mentor as Map<String, dynamic>;
-    return Instructor(
-      name: m['name'] ?? m['fullName'] ?? m['email'] ?? 'Giảng viên',
-      title: m['title'] ?? m['position'] ?? '',
-      avatarUrl: m['avatarUrl'] ?? m['avatar'],
-      bio: m['bio'] ?? m['description'] ?? '',
-      linkedInUrl: m['linkedIn'],
-      websiteUrl: m['website'],
-    );
-  }
-
-  static List<Module> _parseModules(dynamic modules, dynamic syllabus) {
-    final items = (modules ?? syllabus) as List<dynamic>? ?? [];
+  static List<ModuleDetail> _parseModulesDetail(dynamic modules) {
+    if (modules == null) return [];
+    final items = modules as List<dynamic>;
     return items.map((m) {
       final item = m as Map<String, dynamic>;
-      final lessons = (item['lessons'] as List<dynamic>?) ?? [];
-      final lessonTitles =
-          lessons
-              .map((l) => l['title']?.toString() ?? l['name']?.toString() ?? '')
-              .toList();
-      return Module(
-        title: item['title'] ?? item['name'] ?? 'Module',
-        lessonCount: lessons.length,
-        lessons: lessonTitles,
+      return ModuleDetail(
+        id: item['id'] ?? 0,
+        title: item['title'] ?? 'Module',
+        orderIndex: item['orderIndex'] ?? 0,
+        lessonCount: item['lessonCount'] ?? 0,
+        lessons: _parseLessonsDetail(item['lessons']),
       );
     }).toList();
   }
 
-  static List<Review> _parseReviews(dynamic reviews) {
-    if (reviews == null) return [];
-    final items = reviews as List<dynamic>;
-    return items.map((r) {
-      final item = r as Map<String, dynamic>;
-      return Review(
-        rating: item['rating'] ?? 5,
-        comment: item['comment'] ?? item['content'] ?? '',
-        userName: item['userName'] ?? item['reviewer'] ?? 'Học viên',
+  static List<LessonDetail> _parseLessonsDetail(dynamic lessons) {
+    if (lessons == null) return [];
+    final items = lessons as List<dynamic>;
+    return items.map((l) {
+      final item = l as Map<String, dynamic>;
+      return LessonDetail(
+        id: item['id'] ?? 0,
+        title: item['title'] ?? 'Bài học',
+        orderIndex: item['orderIndex'] ?? 0,
+        contents: _parseContentsDetail(item['contents']),
       );
     }).toList();
   }
 
-  static String _parseDuration(dynamic duration) {
-    if (duration == null) return '0 tuần';
-    if (duration is int) return '$duration tuần';
-    return duration.toString();
-  }
-
-  static String _formatCount(int count) {
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k+';
-    return '$count';
+  static List<LessonContentResponse> _parseContentsDetail(dynamic contents) {
+    if (contents == null) return [];
+    final items = contents as List<dynamic>;
+    return items.map((c) {
+      final item = c as Map<String, dynamic>;
+      return LessonContentResponse(
+        id: item['id'] ?? 0,
+        type: item['type']?.toString() ?? 'TEXT',
+        content: item['content']?.toString() ?? '',
+        orderIndex: item['orderIndex'],
+      );
+    }).toList();
   }
 
   static EnrolledCourse _parseEnrolledCourse(Map<String, dynamic> c) {
@@ -1217,25 +1265,58 @@ class LmsService {
   }
 
   static LearningPathInfo _parseLearningPathInfo(Map<String, dynamic> lp) {
+    int parseInt(dynamic v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    final coursesList = (lp['courses'] as List<dynamic>?) ?? [];
+    final courseItems = coursesList.map((c) {
+      final item = c as Map<String, dynamic>;
+      return lpm.CourseItemResponse(
+        relationId: lpm.Long(parseInt(item['relationId'])),
+        courseId: lpm.Long(parseInt(item['courseId'])),
+        courseTitle: item['courseTitle'] ?? '',
+        orderIndex: parseInt(item['orderIndex']),
+        mentorName: item['mentorName'],
+        moduleCount: parseInt(item['moduleCount']),
+      );
+    }).toList();
+
     return LearningPathInfo(
       id: lp['id']?.toString() ?? '',
       title: lp['title'] ?? lp['name'] ?? '',
       description: lp['description'] ?? '',
-      courseCount: lp['courseCount'] ?? 0,
+      courseCount: lp['courseCount'] ?? coursesList.length,
       progressPercent:
           (lp['progress'] ?? lp['progressPercent'] ?? 0).toDouble(),
+      courses: courseItems,
+      totalModules: courseItems.fold(0, (sum, c) => sum + (c.moduleCount ?? 0)),
     );
   }
 
-  static LearningPathDetail _parseLearningPathDetail(Map<String, dynamic> lp) {
+  static LearningPathDetail _parseLearningPathDetail(
+    Map<String, dynamic> lp,
+    Map<String, EnrolledCourse> enrollmentMap,
+  ) {
     final courses =
         (lp['courses'] as List<dynamic>?)?.map((c) {
           final item = c as Map<String, dynamic>;
+          final courseIdStr = item['courseId']?.toString() ?? '';
+          // Real completion: look up enrollment, fallback to backend isCompleted
+          bool isCompleted = item['isCompleted'] ?? false;
+          if (courseIdStr.isNotEmpty && enrollmentMap.containsKey(courseIdStr)) {
+            isCompleted =
+                enrollmentMap[courseIdStr]!.status == EnrollmentStatus.completed;
+          }
           return LearningPathCourseItem(
-            id: item['id']?.toString() ?? '',
+            id: courseIdStr,
             title: item['title'] ?? item['name'] ?? '',
             orderIndex: item['orderIndex'] ?? 0,
-            isCompleted: item['isCompleted'] ?? false,
+            isCompleted: isCompleted,
           );
         }).toList() ??
         [];
@@ -1426,6 +1507,8 @@ class LearningPathInfo {
   final String description;
   final int courseCount;
   final double progressPercent;
+  final List<lpm.CourseItemResponse> courses;
+  final int totalModules;
 
   LearningPathInfo({
     required this.id,
@@ -1433,6 +1516,8 @@ class LearningPathInfo {
     required this.description,
     required this.courseCount,
     required this.progressPercent,
+    this.courses = const [],
+    this.totalModules = 0,
   });
 }
 
@@ -1479,7 +1564,8 @@ class CatalogCourse {
   final String? deadlineType;
   final int? defaultDeadlineDays;
   final String? fixedDeadline;
-  final bool enrolled;
+  bool enrolled;
+  final String? enrollmentStatus;
 
   CatalogCourse({
     required this.id,
@@ -1497,5 +1583,6 @@ class CatalogCourse {
     this.defaultDeadlineDays,
     this.fixedDeadline,
     this.enrolled = false,
+    this.enrollmentStatus,
   });
 }

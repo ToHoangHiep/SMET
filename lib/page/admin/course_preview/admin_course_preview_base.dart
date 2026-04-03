@@ -47,12 +47,10 @@ class _AdminCoursePreviewPageState extends State<AdminCoursePreviewPage> {
     }
   }
 
-  List<BreadcrumbItem> _breadcrumbs(String? deptName) {
+  List<BreadcrumbItem> _breadcrumbs() {
     return [
       BreadcrumbItem(label: 'Trang chủ', onTap: () => context.go('/home')),
       BreadcrumbItem(label: 'Danh sách phòng ban', onTap: () => context.go('/department_management')),
-      if (deptName != null)
-        BreadcrumbItem(label: deptName, onTap: () => context.go('/department_management')),
       BreadcrumbItem(label: _course?.title ?? 'Chi tiết khóa học'),
     ];
   }
@@ -91,7 +89,7 @@ class _AdminCoursePreviewPageState extends State<AdminCoursePreviewPage> {
     }
 
     final course = _course!;
-    final breadcrumbs = _breadcrumbs(course.departmentName);
+    final breadcrumbs = _breadcrumbs();
 
     return AdminCoursePreviewWeb(
       course: course,

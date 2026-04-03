@@ -9,7 +9,8 @@ import 'package:smet/page/employee/course_catalog/widgets/search_filters.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/employee/course_service.dart';
-import 'package:smet/service/employee/lms_service.dart' show CatalogCourse;
+import 'package:smet/service/employee/lms_service.dart'
+    show CatalogCourse, LmsService;
 import 'package:smet/service/common/auth_service.dart';
 
 class CourseCatalogPage extends StatefulWidget {
@@ -20,7 +21,7 @@ class CourseCatalogPage extends StatefulWidget {
 }
 
 class _CourseCatalogPageState extends State<CourseCatalogPage> {
-  CourseCategory _selectedCategory = CourseCategory.all;
+  EnrollmentFilter _selectedEnrollment = EnrollmentFilter.all;
   String _searchQuery = '';
   bool _isLoading = true;
   String? _error;
@@ -65,11 +66,22 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     try {
       final result = await CourseService.getCourses(
         keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
-        departmentId: _getDepartmentId(_selectedCategory),
+        departmentId: null,
+        enrollmentStatus: _selectedEnrollment.apiValue,
         page: page,
         size: _pageSize,
       );
       if (!mounted) return;
+
+      // Lấy danh sách khóa đã đăng ký của user để đánh dấu enrolled
+      final myCourses = await LmsService.getMyCourses(page: 0, size: 1000);
+      final enrolledIds = myCourses.content.map((c) => c.id).toSet();
+
+      // Đánh dấu enrolled = true cho những khóa trùng ID
+      for (var course in result.content) {
+        course.enrolled = enrolledIds.contains(course.id);
+      }
+
       final tp = result.totalPages <= 0 ? 1 : result.totalPages;
       final safePage = result.number.clamp(0, tp - 1);
       setState(() {
@@ -107,9 +119,10 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            onPressed: !_isPaging && _currentPage > 0
-                ? () => _goToPage(_currentPage - 1)
-                : null,
+            onPressed:
+                !_isPaging && _currentPage > 0
+                    ? () => _goToPage(_currentPage - 1)
+                    : null,
             icon: const Icon(Icons.chevron_left),
             color: const Color(0xFF64748B),
           ),
@@ -117,54 +130,58 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
             opacity: _isPaging ? 0.5 : 1,
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                _totalPages > 5 ? 5 : _totalPages,
-                (index) {
-                  int pageNum;
-                  if (_totalPages > 5) {
-                    if (_currentPage < 3) {
-                      pageNum = index;
-                    } else if (_currentPage > _totalPages - 3) {
-                      pageNum = _totalPages - 5 + index;
-                    } else {
-                      pageNum = _currentPage - 2 + index;
-                    }
-                  } else {
+              children: List.generate(_totalPages > 5 ? 5 : _totalPages, (
+                index,
+              ) {
+                int pageNum;
+                if (_totalPages > 5) {
+                  if (_currentPage < 3) {
                     pageNum = index;
+                  } else if (_currentPage > _totalPages - 3) {
+                    pageNum = _totalPages - 5 + index;
+                  } else {
+                    pageNum = _currentPage - 2 + index;
                   }
-                  final isCurrent = pageNum == _currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: InkWell(
-                      onTap: _isPaging ? null : () => _goToPage(pageNum),
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isCurrent ? primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '${pageNum + 1}',
-                          style: TextStyle(
-                            color: isCurrent ? Colors.white : const Color(0xFF64748B),
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 13,
-                          ),
+                } else {
+                  pageNum = index;
+                }
+                final isCurrent = pageNum == _currentPage;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: InkWell(
+                    onTap: _isPaging ? null : () => _goToPage(pageNum),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isCurrent ? primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${pageNum + 1}',
+                        style: TextStyle(
+                          color:
+                              isCurrent
+                                  ? Colors.white
+                                  : const Color(0xFF64748B),
+                          fontWeight:
+                              isCurrent ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 13,
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              }),
             ),
           ),
           IconButton(
-            onPressed: !_isPaging && _currentPage < _totalPages - 1
-                ? () => _goToPage(_currentPage + 1)
-                : null,
+            onPressed:
+                !_isPaging && _currentPage < _totalPages - 1
+                    ? () => _goToPage(_currentPage + 1)
+                    : null,
             icon: const Icon(Icons.chevron_right),
             color: const Color(0xFF64748B),
           ),
@@ -178,9 +195,9 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     );
   }
 
-  void _onCategoryChanged(CourseCategory category) {
+  void _onEnrollmentFilterChanged(EnrollmentFilter filter) {
     setState(() {
-      _selectedCategory = category;
+      _selectedEnrollment = filter;
     });
     _loadCourses();
   }
@@ -199,10 +216,10 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
 
   Widget buildSearchFilters() {
     return SearchFilters(
-      selectedCategory: _selectedCategory.name,
       searchQuery: _searchQuery,
-      onCategoryChanged: _onCategoryChanged,
+      selectedEnrollment: _selectedEnrollment,
       onSearchChanged: _onSearchChanged,
+      onEnrollmentChanged: _onEnrollmentFilterChanged,
     );
   }
 
@@ -223,13 +240,22 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Color(0xFFEF4444)),
+              const Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Color(0xFFEF4444),
+              ),
               const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(fontSize: 16, color: Color(0xFF64748B))),
+              Text(
+                _error!,
+                style: const TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _loadCourses,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF137FEC)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF137FEC),
+                ),
                 child: const Text('Thử lại'),
               ),
             ],
@@ -277,14 +303,17 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                 onPressed: () {
                   setState(() {
                     _searchQuery = '';
-                    _selectedCategory = CourseCategory.all;
+                    _selectedEnrollment = EnrollmentFilter.all;
                   });
                   _loadCourses();
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF137FEC),
                   side: const BorderSide(color: Color(0xFFE5E7EB)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -331,10 +360,14 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                     moduleCount: course.moduleCount,
                     lessonCount: course.lessonCount,
                     mentorName: course.mentorName,
-                    onJoin: course.status == 'PUBLISHED' && !course.enrolled
-                        ? () => _enrollCourse(course.id)
-                        : null,
-                    onTap: () => context.go('/employee/course/${course.id}?from=catalog'),
+                    onJoin:
+                        course.status == 'PUBLISHED' && !course.enrolled
+                            ? () => _enrollCourse(course.id)
+                            : null,
+                    onTap:
+                        () => context.go(
+                          '/employee/course/${course.id}?from=catalog',
+                        ),
                   );
                 },
               ),
@@ -368,21 +401,9 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     } catch (e) {
       debugPrint('Error enrolling course: $e');
       if (mounted) {
-        context.showAppToast(
-          'Lỗi đăng ký: $e',
-          variant: AppToastVariant.error,
-        );
+        context.showAppToast('Lỗi đăng ký: $e', variant: AppToastVariant.error);
       }
     }
-  }
-
-  String? _getDepartmentId(CourseCategory category) {
-    // Backend uses departmentId filter.
-    // Since we don't have a departments list API here,
-    // pass null — backend will return all courses for non-matching categories.
-    // The actual departmentId mapping needs backend department data.
-    // For now, only filter when departmentId is known from backend response.
-    return null;
   }
 
   @override

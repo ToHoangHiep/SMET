@@ -76,7 +76,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       case 'learning_path':
         return const BreadcrumbItem(
           label: 'Lộ trình học tập',
-          route: '/employee/learning-paths',
+          route: '/employee/my-learning-paths',
         );
       case 'search':
         return const BreadcrumbItem(
@@ -205,7 +205,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     if (lesson.lessonType == LessonType.quiz) {
       _onTakeQuiz(lesson.id);
     } else {
-      context.go('/employee/learn/${widget.courseId}/${lesson.id}');
+      context.go('/employee/learn/${widget.courseId}/${lesson.id}?learningPathId=${widget.learningPathId}&from=learning_path');
     }
   }
 
@@ -219,7 +219,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
   void _onCourseInPathTap(String courseId) {
     if (widget.learningPathId != null) {
-      context.go('/employee/learn/$courseId?learningPathId=${widget.learningPathId}');
+      context.go('/employee/learn/$courseId?learningPathId=${widget.learningPathId}&from=learning_path');
     } else {
       context.go('/employee/learn/$courseId');
     }

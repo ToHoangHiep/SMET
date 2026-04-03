@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 /// Mentor Course - Mobile Layout (Danh sách khóa học)
 class MentorCourseMobile extends StatefulWidget {
@@ -12,6 +13,12 @@ class MentorCourseMobile extends StatefulWidget {
 }
 
 class _MentorCourseMobileState extends State<MentorCourseMobile> {
+  static const _primary = Color(0xFF6366F1);
+  static const _bgLight = Color(0xFFF3F6FC);
+  static const _cardBorder = Color(0xFFE8ECF4);
+  static const _textDark = Color(0xFF0F172A);
+  static const _textMedium = Color(0xFF64748B);
+
   final MentorCourseService _service = MentorCourseService();
 
   List<CourseResponse> _courses = [];
@@ -19,6 +26,8 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
   String? _error;
   String _searchQuery = '';
   String _selectedFilter = 'ALL';
+  /// `DEPT_ALL` = mọi khóa trong phòng ban; `MINE` = chỉ khóa của tôi.
+  String _listScope = 'DEPT_ALL';
 
   // Pagination
   int _currentPage = 0;
@@ -28,6 +37,10 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
   bool _isLoadingMore = false;
 
   final _searchController = TextEditingController();
+
+  int? get _currentUserId => AuthService.currentUserCached?.id;
+
+  bool? get _isMineQueryParam => _listScope == 'MINE' ? true : null;
 
   @override
   void initState() {
@@ -51,16 +64,19 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     });
 
     try {
-      bool? published;
+      String? status;
       if (_selectedFilter == 'PUBLISHED') {
-        published = true;
+        status = 'PUBLISHED';
       } else if (_selectedFilter == 'DRAFT') {
-        published = false;
+        status = 'DRAFT';
+      } else if (_selectedFilter == 'ARCHIVED') {
+        status = 'ARCHIVED';
       }
 
       final result = await _service.listCourses(
         keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
-        published: published,
+        status: status,
+        isMine: _isMineQueryParam,
         page: page,
         size: _pageSize,
       );
@@ -87,16 +103,19 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     setState(() => _isLoadingMore = true);
 
     try {
-      bool? published;
+      String? status;
       if (_selectedFilter == 'PUBLISHED') {
-        published = true;
+        status = 'PUBLISHED';
       } else if (_selectedFilter == 'DRAFT') {
-        published = false;
+        status = 'DRAFT';
+      } else if (_selectedFilter == 'ARCHIVED') {
+        status = 'ARCHIVED';
       }
 
       final result = await _service.listCourses(
         keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
-        published: published,
+        status: status,
+        isMine: _isMineQueryParam,
         page: _currentPage + 1,
         size: _pageSize,
       );
@@ -116,6 +135,11 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
   void _onFilterChanged(String filter) {
     setState(() => _selectedFilter = filter);
+    _loadCourses(page: 0);
+  }
+
+  void _onListScopeChanged(String scope) {
+    setState(() => _listScope = scope);
     _loadCourses(page: 0);
   }
 
@@ -183,57 +207,123 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xfff5f6fa),
+      backgroundColor: _bgLight,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         title: const Text(
           "Quản lý khóa học",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: _textDark, fontWeight: FontWeight.bold, fontSize: 18),
         ),
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: _textDark),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
+            icon: const Icon(Icons.add_circle_outline, color: _primary),
             onPressed: () => context.go('/mentor/courses/create'),
           ),
         ],
       ),
       body: Column(
         children: [
-          /// SEARCH BAR
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onSubmitted: (q) => setState(() {
-                _searchQuery = q;
-                _loadCourses(page: 0);
-              }),
-              decoration: InputDecoration(
-                hintText: "Tìm kiếm khóa học...",
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onSubmitted: (q) => setState(() {
+                  _searchQuery = q;
+                  _loadCourses(page: 0);
+                }),
+                decoration: InputDecoration(
+                  hintText: "Tìm kiếm khóa học...",
+                  hintStyle: TextStyle(color: _textMedium.withValues(alpha: 0.85)),
+                  prefixIcon: Icon(Icons.search, color: _textMedium),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: _primary, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               ),
             ),
           ),
 
-          /// FILTER CHIPS
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Phạm vi',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _textDark,
+                ),
+              ),
+            ),
+          ),
           SizedBox(
             height: 40,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              children: [
+                _mobileScopeChip('DEPT_ALL', 'Tất cả khóa học'),
+                _mobileScopeChip('MINE', 'Khóa của tôi'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          /// FILTER CHIPS (trạng thái)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Trạng thái',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _textDark,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               children: [
                 _mobileFilterChip('ALL', 'Tất cả'),
                 _mobileFilterChip('PUBLISHED', 'Đã xuất bản'),
                 _mobileFilterChip('DRAFT', 'Bản nháp'),
+                _mobileFilterChip('ARCHIVED', 'Đã lưu trữ'),
               ],
             ),
           ),
@@ -245,8 +335,36 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.go('/mentor/courses/create'),
-        backgroundColor: const Color(0xff1a90ff),
+        backgroundColor: _primary,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _mobileScopeChip(String value, String label) {
+    final isSelected = _listScope == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        showCheckmark: true,
+        checkmarkColor: _primary,
+        onSelected: (_) => _onListScopeChanged(value),
+        backgroundColor: Colors.white,
+        selectedColor: _primary.withValues(alpha: 0.12),
+        labelStyle: TextStyle(
+          color: isSelected ? _primary : _textMedium,
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        ),
+        side: BorderSide(
+          color: isSelected ? _primary.withValues(alpha: 0.35) : _cardBorder,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
   }
@@ -258,16 +376,20 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
       child: FilterChip(
         label: Text(label),
         selected: isSelected,
+        showCheckmark: true,
+        checkmarkColor: _primary,
         onSelected: (_) => _onFilterChanged(value),
         backgroundColor: Colors.white,
-        selectedColor: const Color(0xffeef3ff),
+        selectedColor: _primary.withValues(alpha: 0.12),
         labelStyle: TextStyle(
-          color: isSelected ? const Color(0xff1a90ff) : Colors.grey[700],
+          color: isSelected ? _primary : _textMedium,
           fontSize: 13,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
         ),
         side: BorderSide(
-          color: isSelected ? const Color(0xff1a90ff) : Colors.grey.shade300,
+          color: isSelected ? _primary.withValues(alpha: 0.35) : _cardBorder,
         ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
@@ -275,7 +397,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator(color: _primary));
     }
 
     if (_error != null) {
@@ -289,6 +411,12 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadCourses,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text("Thử lại"),
             ),
           ],
@@ -298,18 +426,49 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
     if (_courses.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.menu_book, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              _searchQuery.isNotEmpty || _selectedFilter != 'ALL'
-                  ? "Không tìm thấy khóa học"
-                  : "Chưa có khóa học nào",
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _primary.withValues(alpha: 0.08),
+                      _primary.withValues(alpha: 0.04),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.menu_book_rounded, size: 36, color: _primary.withValues(alpha: 0.55)),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                _searchQuery.isNotEmpty || _selectedFilter != 'ALL'
+                    ? "Không tìm thấy khóa học"
+                    : "Chưa có khóa học nào",
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: _textDark,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _searchQuery.isNotEmpty || _selectedFilter != 'ALL'
+                    ? "Thử đổi bộ lọc hoặc từ khóa."
+                    : "Nhấn + để tạo khóa học đầu tiên.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: _textMedium, height: 1.4),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -339,7 +498,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
                     child: SizedBox(
                       height: 24,
                       width: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
                     ),
                   ),
                 );
@@ -350,7 +509,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
                   child: Center(
                     child: Text(
                       '$_totalElements khóa học',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      style: const TextStyle(fontSize: 12, color: _textMedium),
                     ),
                   ),
                 );
@@ -369,20 +528,21 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           onTap: () => context.go(
             '/mentor/courses/${course.id.value}?title=${Uri.encodeComponent(course.title)}',
           ),
@@ -395,54 +555,57 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
                 Row(
                   children: [
                     _statusBadge(course.status),
+                    const SizedBox(width: 6),
+                    _ownershipBadge(course),
                     const Spacer(),
-                    PopupMenuButton<String>(
-                      icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          context.go(
-                            '/mentor/courses/${course.id.value}?title=${Uri.encodeComponent(course.title)}',
-                          );
-                        } else if (value == 'publish') {
-                          _publishCourse(course);
-                        } else if (value == 'delete') {
-                          _deleteCourse(course);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit_outlined, size: 20),
-                              SizedBox(width: 8),
-                              Text("Chỉnh sửa"),
-                            ],
-                          ),
-                        ),
-                        if (!course.isPublished)
-                          const PopupMenuItem(
-                            value: 'publish',
-                            child: Row(
-                              children: [
-                                Icon(Icons.publish, size: 20),
-                                SizedBox(width: 8),
-                                Text("Xuất bản"),
-                              ],
+                    if (_isOwner(course))
+                      PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: _textMedium),
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              context.go(
+                                '/mentor/courses/${course.id.value}?title=${Uri.encodeComponent(course.title)}',
+                              );
+                            } else if (value == 'publish') {
+                              _publishCourse(course);
+                            } else if (value == 'delete') {
+                              _deleteCourse(course);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit_outlined, size: 20),
+                                  SizedBox(width: 8),
+                                  Text("Chỉnh sửa"),
+                                ],
+                              ),
                             ),
-                          ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text("Xóa", style: TextStyle(color: Colors.red)),
-                            ],
-                          ),
+                            if (!course.isPublished)
+                              const PopupMenuItem(
+                                value: 'publish',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.publish, size: 20),
+                                    SizedBox(width: 8),
+                                    Text("Xuất bản"),
+                                  ],
+                                ),
+                              ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text("Xóa", style: TextStyle(color: Colors.red)),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -450,7 +613,11 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
                 /// TITLE
                 Text(
                   course.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: _textDark,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -459,7 +626,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
                 /// DESCRIPTION
                 Text(
                   course.description.isEmpty ? "Không có mô tả" : course.description,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 13, color: _textMedium),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -499,10 +666,10 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
@@ -511,13 +678,48 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     );
   }
 
+  bool _isOwner(CourseResponse course) =>
+      _currentUserId != null && course.mentorId.value == _currentUserId;
+
+  Widget _ownershipBadge(CourseResponse course) {
+    final isOwner = _isOwner(course);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isOwner
+            ? _primary.withValues(alpha: 0.1)
+            : Colors.grey.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isOwner ? Icons.person : Icons.people,
+            size: 11,
+            color: isOwner ? _primary : Colors.grey,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            isOwner ? 'Của bạn' : 'Mentor khác',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isOwner ? _primary : Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _statChip(IconData icon, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.grey[500]),
+        Icon(icon, size: 14, color: _textMedium),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+        Text(label, style: const TextStyle(fontSize: 12, color: _textMedium)),
       ],
     );
   }

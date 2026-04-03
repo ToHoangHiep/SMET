@@ -32,6 +32,12 @@ class EmployeeShell extends StatefulWidget {
       tooltip: 'Khóa học của tôi',
     ),
     SidebarMenuItem(
+      icon: Icons.route_rounded,
+      title: 'Lộ trình học tập',
+      route: '/employee/my-learning-paths',
+      tooltip: 'Lộ trình học tập',
+    ),
+    SidebarMenuItem(
       icon: Icons.explore_rounded,
       title: 'Danh mục',
       route: '/employee/courses',

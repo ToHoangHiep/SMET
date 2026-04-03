@@ -8,6 +8,22 @@ import 'package:smet/model/user_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer';
 
+DateTime _calendarDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+String _weekdayVietnamese(DateTime d) {
+  const names = [
+    '',
+    'Thứ 2',
+    'Thứ 3',
+    'Thứ 4',
+    'Thứ 5',
+    'Thứ 6',
+    'Thứ 7',
+    'Chủ nhật',
+  ];
+  return names[d.weekday];
+}
+
 /// Mentor Live Session - Web Layout
 class MentorLiveSessionWeb extends StatefulWidget {
   const MentorLiveSessionWeb({super.key});
@@ -31,6 +47,67 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
   bool _isGoogleConnected = false;
   bool _isGoogleLoading = false;
   String? _errorMessage;
+
+  /// Ngày đang xem ở chế độ « Ngày » (local, không giờ).
+  DateTime _dayViewFocusedDate = _calendarDateOnly(DateTime.now());
+
+  /// Ngày đang xem ở chế độ « Tuần » — lấy thứ Hai đầu tuần.
+  DateTime _weekViewFocusedDate = _calendarDateOnly(_weekStartOf(DateTime.now()));
+
+  /// Trả về thứ Hai của tuần chứa ngày d.
+  static DateTime _weekStartOf(DateTime d) {
+    // weekday: 1=Mon, 7=Sun
+    final diff = d.weekday - 1;
+    return _calendarDateOnly(d.subtract(Duration(days: diff)));
+  }
+
+  /// Lọc sessions rơi vào tuần đang xem.
+  List<LiveSessionInfo> _sessionsForFocusedWeek() {
+    final start = _weekViewFocusedDate;
+    final end = start.add(const Duration(days: 7));
+    return _sessions.where((s) {
+      final st = s.startTime;
+      if (st == null) return false;
+      final loc = st.toLocal();
+      return !loc.isBefore(start) && loc.isBefore(end);
+    }).toList();
+  }
+
+  String _monthYearVietnamese(DateTime d) {
+    const months = [
+      '',
+      'Tháng 1',
+      'Tháng 2',
+      'Tháng 3',
+      'Tháng 4',
+      'Tháng 5',
+      'Tháng 6',
+      'Tháng 7',
+      'Tháng 8',
+      'Tháng 9',
+      'Tháng 10',
+      'Tháng 11',
+      'Tháng 12',
+    ];
+    return '${months[d.month]} ${d.year}';
+  }
+
+  List<LiveSessionInfo> _sessionsForFocusedDay() {
+    final d = _dayViewFocusedDate;
+    final list =
+        _sessions.where((s) {
+          final st = s.startTime;
+          if (st == null) return false;
+          final loc = st.toLocal();
+          return loc.year == d.year && loc.month == d.month && loc.day == d.day;
+        }).toList();
+    list.sort((a, b) {
+      final as = a.startTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bs = b.startTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return as.compareTo(bs);
+    });
+    return list;
+  }
 
   @override
   void initState() {
@@ -381,7 +458,7 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
     }
   }
 
-  Future<void> _showCreateSessionDialog() async {
+  Future<void> _showCreateSessionDialog({DateTime? initialDate}) async {
     if (_selectedCourse == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng chọn khóa học trước')),
@@ -389,151 +466,310 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
       return;
     }
 
+    const accent = Color(0xff005BAF);
+    const surfaceTint = Color(0xffF4F6FC);
+
     final titleController = TextEditingController();
-    DateTime startDate = DateTime.now().add(const Duration(days: 1));
+    final today = _calendarDateOnly(DateTime.now());
+    DateTime startDate =
+        initialDate != null
+            ? _calendarDateOnly(initialDate)
+            : today.add(const Duration(days: 1));
+    if (startDate.isBefore(today)) startDate = today;
     TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 11, minute: 0);
 
-    await showDialog(
+    await showDialog<void>(
       context: context,
-      builder:
-          (ctx) => StatefulBuilder(
-            builder: (ctx, setDialogState) {
-              String fmt(TimeOfDay t) =>
-                  '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      barrierColor: Colors.black38,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            String fmt(TimeOfDay t) =>
+                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-              DateTime buildDt(TimeOfDay t) => DateTime(
-                startDate.year,
-                startDate.month,
-                startDate.day,
-                t.hour,
-                t.minute,
+            DateTime buildDt(TimeOfDay t) => DateTime(
+              startDate.year,
+              startDate.month,
+              startDate.day,
+              t.hour,
+              t.minute,
+            );
+
+            Widget pickRow({
+              required IconData icon,
+              required String label,
+              required String valueText,
+              required VoidCallback onTap,
+            }) {
+              return Material(
+                color: surfaceTint,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 20, color: accent),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade600,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                valueText,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xff181C22),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.grey.shade400,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
+            }
 
-              return AlertDialog(
-                title: const Text('Tạo buổi Live mới'),
-                content: SizedBox(
-                  width: 400,
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextField(
-                        controller: titleController,
-                        decoration: const InputDecoration(
-                          labelText: 'Tiêu đề buổi live',
-                          hintText: 'VD: Kỹ năng Quản lý Đội ngũ',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ListTile(
-                        title: const Text('Ngày'),
-                        subtitle: Text(
-                          '${startDate.day}/${startDate.month}/${startDate.year}',
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.calendar_today),
-                          onPressed: () async {
-                            final picked = await showDatePicker(
-                              context: ctx,
-                              initialDate: startDate,
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(
-                                const Duration(days: 365),
-                              ),
-                            );
-                            if (picked != null)
-                              setDialogState(() => startDate = picked);
-                          },
-                        ),
-                      ),
                       Row(
                         children: [
-                          Expanded(
-                            child: ListTile(
-                              title: const Text('Bắt đầu'),
-                              subtitle: Text(fmt(startTime)),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.access_time),
-                                onPressed: () async {
-                                  final picked = await showTimePicker(
-                                    context: ctx,
-                                    initialTime: startTime,
-                                  );
-                                  if (picked != null)
-                                    setDialogState(() => startTime = picked);
-                                },
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.video_call_rounded,
+                              color: accent,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Text(
+                              'Tạo buổi Live mới',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xff181C22),
                               ),
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      TextField(
+                        controller: titleController,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: 'Tiêu đề buổi live',
+                          hintText: 'VD: Kỹ năng Quản lý Đội ngũ',
+                          filled: true,
+                          fillColor: surfaceTint,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: accent,
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      pickRow(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Ngày',
+                        valueText:
+                            '${startDate.day}/${startDate.month}/${startDate.year}',
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: startDate,
+                            firstDate: today,
+                            lastDate: today.add(const Duration(days: 365 * 2)),
+                          );
+                          if (picked != null) {
+                            setDialogState(
+                              () => startDate = _calendarDateOnly(picked),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Expanded(
-                            child: ListTile(
-                              title: const Text('Kết thúc'),
-                              subtitle: Text(fmt(endTime)),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.access_time),
-                                onPressed: () async {
-                                  final picked = await showTimePicker(
-                                    context: ctx,
-                                    initialTime: endTime,
-                                  );
-                                  if (picked != null)
-                                    setDialogState(() => endTime = picked);
-                                },
+                            child: pickRow(
+                              icon: Icons.schedule_outlined,
+                              label: 'Bắt đầu',
+                              valueText: fmt(startTime),
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: ctx,
+                                  initialTime: startTime,
+                                );
+                                if (picked != null) {
+                                  setDialogState(() => startTime = picked);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: pickRow(
+                              icon: Icons.schedule_outlined,
+                              label: 'Kết thúc',
+                              valueText: fmt(endTime),
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: ctx,
+                                  initialTime: endTime,
+                                );
+                                if (picked != null) {
+                                  setDialogState(() => endTime = picked);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: TextButton.styleFrom(
+                              foregroundColor: accent,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
                               ),
                             ),
+                            child: const Text('Hủy'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () async {
+                              if (titleController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Vui lòng nhập tiêu đề'),
+                                  ),
+                                );
+                                return;
+                              }
+                              final start = buildDt(startTime);
+                              final end = buildDt(endTime);
+                              if (!end.isAfter(start)) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Giờ kết thúc phải sau giờ bắt đầu',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              try {
+                                await _service.createSession(
+                                  CreateLiveSessionRequest(
+                                    courseId: _selectedCourse!.id,
+                                    title: titleController.text.trim(),
+                                    startTime: start.toIso8601String(),
+                                    endTime: end.toIso8601String(),
+                                  ),
+                                );
+                                if (!mounted || !context.mounted) return;
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Tạo buổi live thành công!'),
+                                  ),
+                                );
+                                _loadSessions(_selectedCourse!);
+                              } catch (e) {
+                                if (!ctx.mounted) return;
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text('Tạo thất bại: $e')),
+                                );
+                              }
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: accent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            child: const Text('Tạo'),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Hủy'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () async {
-                      if (titleController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('Vui lòng nhập tiêu đề'),
-                          ),
-                        );
-                        return;
-                      }
-                      final start = buildDt(startTime);
-                      final end = buildDt(endTime);
-                      try {
-                        await _service.createSession(
-                          CreateLiveSessionRequest(
-                            courseId: _selectedCourse!.id,
-                            title: titleController.text.trim(),
-                            startTime: start.toIso8601String(),
-                            endTime: end.toIso8601String(),
-                          ),
-                        );
-                        if (!mounted) return;
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Tạo buổi live thành công!'),
-                          ),
-                        );
-                        _loadSessions(_selectedCourse!);
-                      } catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Tạo thất bại: $e')),
-                        );
-                      }
-                    },
-                    child: const Text('Tạo'),
-                  ),
-                ],
-              );
-            },
-          ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -573,7 +809,15 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                     ? const Center(child: CircularProgressIndicator())
                     : _viewMode == 0
                     ? _DayView(
-                      sessions: _sessions,
+                      sessions: _sessionsForFocusedDay(),
+                      focusedDate: _dayViewFocusedDate,
+                      onFocusedDateChanged: (d) {
+                        setState(() => _dayViewFocusedDate = _calendarDateOnly(d));
+                      },
+                      onAddLive: () => _showCreateSessionDialog(
+                        initialDate: _dayViewFocusedDate,
+                      ),
+                      courseSelected: _selectedCourse != null,
                       isLoading: _isLoadingSessions,
                       onEditSession: _showEditSessionDialog,
                       onDeleteSession: _deleteSession,
@@ -582,7 +826,26 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                     )
                     : _viewMode == 1
                     ? _WeekView(
-                      sessions: _sessions,
+                      sessions: _sessionsForFocusedWeek(),
+                      focusedDate: _weekViewFocusedDate,
+                      monthLabel: _monthYearVietnamese(_weekViewFocusedDate),
+                      onFocusedDateChanged: (d) {
+                        setState(() => _weekViewFocusedDate = _weekStartOf(d));
+                      },
+                      onPrevWeek: () {
+                        setState(() {
+                          _weekViewFocusedDate = _weekViewFocusedDate.subtract(const Duration(days: 7));
+                        });
+                      },
+                      onNextWeek: () {
+                        setState(() {
+                          _weekViewFocusedDate = _weekViewFocusedDate.add(const Duration(days: 7));
+                        });
+                      },
+                      onAddLive: () => _showCreateSessionDialog(
+                        initialDate: _weekViewFocusedDate,
+                      ),
+                      courseSelected: _selectedCourse != null,
                       isLoading: _isLoadingSessions,
                       onEditSession: _showEditSessionDialog,
                       onDeleteSession: _deleteSession,
@@ -606,7 +869,7 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
       decoration: BoxDecoration(
         color: const Color(0xffF9F9FF),
         border: Border(
-          bottom: BorderSide(color: const Color(0xffD7DAE3).withOpacity(0.6)),
+          bottom: BorderSide(color: const Color(0xffD7DAE3).withValues(alpha: 0.6)),
         ),
       ),
       child: Row(
@@ -618,7 +881,7 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                 _isLoadingCourses
                     ? const LinearProgressIndicator()
                     : DropdownButtonFormField<CourseResponse>(
-                      value: _selectedCourse,
+                      initialValue: _selectedCourse,
                       decoration: InputDecoration(
                         hintText: 'Chọn khóa học',
                         filled: true,
@@ -831,6 +1094,13 @@ class _ViewModeButton extends StatelessWidget {
 
 class _WeekView extends StatelessWidget {
   final List<LiveSessionInfo> sessions;
+  final DateTime focusedDate;
+  final String monthLabel;
+  final ValueChanged<DateTime> onFocusedDateChanged;
+  final VoidCallback onPrevWeek;
+  final VoidCallback onNextWeek;
+  final VoidCallback onAddLive;
+  final bool courseSelected;
   final bool isLoading;
   final void Function(LiveSessionInfo)? onEditSession;
   final void Function(LiveSessionInfo)? onDeleteSession;
@@ -839,6 +1109,13 @@ class _WeekView extends StatelessWidget {
 
   const _WeekView({
     required this.sessions,
+    required this.focusedDate,
+    required this.monthLabel,
+    required this.onFocusedDateChanged,
+    required this.onPrevWeek,
+    required this.onNextWeek,
+    required this.onAddLive,
+    required this.courseSelected,
     required this.isLoading,
     this.onEditSession,
     this.onDeleteSession,
@@ -849,50 +1126,106 @@ class _WeekView extends StatelessWidget {
   static const double timeColumnWidth = 80;
   static const double hourRowHeight = 80;
 
+  static const _weekdayNames = [
+    'THỨ 2',
+    'THỨ 3',
+    'THỨ 4',
+    'THỨ 5',
+    'THỨ 6',
+    'THỨ 7',
+    'CHỦ NHẬT',
+  ];
+
+  /// 7 ngày trong tuần tính từ focusedDate (thứ Hai).
+  List<DateTime> _weekDays() {
+    return List.generate(
+      7,
+      (i) => _calendarDateOnly(focusedDate.add(Duration(days: i))),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final days = [
-      {'name': 'THỨ 2', 'date': '27', 'selected': false},
-      {'name': 'THỨ 3', 'date': '28', 'selected': true},
-      {'name': 'THỨ 4', 'date': '29', 'selected': false},
-      {'name': 'THỨ 5', 'date': '30', 'selected': false},
-      {'name': 'THỨ 6', 'date': '31', 'selected': false},
-      {'name': 'THỨ 7', 'date': '01', 'selected': false},
-      {'name': 'CHỦ NHẬT', 'date': '02', 'selected': false},
-    ];
-    final hours = List.generate(14, (index) => 7 + index);
-
     if (isLoading) return const Center(child: CircularProgressIndicator());
 
-    if (sessions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.event_busy, size: 64, color: Color(0xffD1D5DB)),
-            SizedBox(height: 16),
-            Text(
-              'Chưa có buổi live nào',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xff64748B),
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Chọn khóa học và tạo buổi live đầu tiên',
-              style: TextStyle(color: Color(0xff94A3B8)),
-            ),
-          ],
-        ),
-      );
-    }
+    final days = _weekDays();
+    final today = _calendarDateOnly(DateTime.now());
+    final hours = List.generate(14, (index) => 7 + index);
+
+    final bool hasContent = sessions.isNotEmpty;
 
     return Container(
       color: Colors.white,
       child: Column(
         children: [
+          // ── Header: tháng/năm + prev/next + thêm buổi live ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xffE0E2EC))),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Tuần trước',
+                  onPressed: onPrevWeek,
+                  icon: const Icon(Icons.chevron_left, color: Color(0xff005BAF)),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: focusedDate,
+                        firstDate: DateTime(focusedDate.year - 2),
+                        lastDate: DateTime(focusedDate.year + 1, 12, 31),
+                      );
+                      if (picked != null) onFocusedDateChanged(picked);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        monthLabel,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xff005BAF),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Tuần sau',
+                  onPressed: onNextWeek,
+                  icon: const Icon(Icons.chevron_right, color: Color(0xff005BAF)),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed:
+                      courseSelected
+                          ? onAddLive
+                          : () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Vui lòng chọn khóa học trước'),
+                              ),
+                            );
+                          },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Thêm buổi live'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xff005BAF),
+                    side: const BorderSide(color: Color(0xff005BAF)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Cột ngày trong tuần ──
           Container(
             height: 82,
             decoration: const BoxDecoration(
@@ -917,13 +1250,13 @@ class _WeekView extends StatelessWidget {
                 ),
                 ...List.generate(days.length, (index) {
                   final day = days[index];
-                  final selected = day['selected'] as bool;
+                  final isToday = day == today;
                   return Expanded(
                     child: Container(
                       decoration: BoxDecoration(
                         color:
-                            selected
-                                ? const Color(0xff0074DB).withOpacity(0.05)
+                            isToday
+                                ? const Color(0xff005BAF).withValues(alpha: 0.06)
                                 : null,
                         border: Border(
                           right:
@@ -936,29 +1269,51 @@ class _WeekView extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            day['name'] as String,
+                            _weekdayNames[index],
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color:
-                                  selected
+                                  isToday
                                       ? const Color(0xff005BAF)
                                       : const Color(0xff717785),
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            day['date'] as String,
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight:
-                                  selected ? FontWeight.bold : FontWeight.w600,
-                              color:
-                                  selected
-                                      ? const Color(0xff005BAF)
-                                      : const Color(0xff181C22),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration:
+                                isToday
+                                    ? BoxDecoration(
+                                      color: const Color(0xff005BAF),
+                                      borderRadius: BorderRadius.circular(999),
+                                    )
+                                    : null,
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${day.day}',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight:
+                                    isToday
+                                        ? FontWeight.bold
+                                        : FontWeight.w600,
+                                color:
+                                    isToday
+                                        ? Colors.white
+                                        : const Color(0xff181C22),
+                              ),
                             ),
                           ),
+                          if (day.month != focusedDate.month)
+                            Text(
+                              '${day.day}/${day.month}',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Color(0xffA0A8B3),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -967,139 +1322,185 @@ class _WeekView extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final fullWidth = constraints.maxWidth;
-                  final dayWidth = (fullWidth - timeColumnWidth) / 7;
-                  final totalHeight = hours.length * hourRowHeight;
 
-                  return SizedBox(
-                    height: totalHeight,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Row(
-                            children: [
-                              Container(
-                                width: timeColumnWidth,
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    right: BorderSide(color: Color(0xffE0E2EC)),
-                                  ),
-                                ),
-                              ),
-                              ...List.generate(7, (index) {
-                                final isSelectedDay = index == 1;
-                                return Container(
-                                  width: dayWidth,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        isSelectedDay
-                                            ? const Color(
-                                              0xff0074DB,
-                                            ).withOpacity(0.02)
-                                            : Colors.transparent,
-                                    border: Border(
-                                      right:
-                                          index != 6
-                                              ? BorderSide(
-                                                color: const Color(
-                                                  0xffE0E2EC,
-                                                ).withOpacity(0.8),
-                                              )
-                                              : BorderSide.none,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
+          // ── Lưới giờ + sự kiện ──
+          Expanded(
+            child:
+                !hasContent
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.event_busy, size: 64, color: Color(0xffD1D5DB)),
+                          SizedBox(height: 16),
+                          Text(
+                            'Chưa có buổi live nào',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xff64748B),
+                            ),
                           ),
-                        ),
-                        ...List.generate(hours.length, (index) {
-                          return Positioned(
-                            top: index * hourRowHeight,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              height: hourRowHeight,
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: const Color(
-                                      0xffE0E2EC,
-                                    ).withOpacity(0.5),
+                          SizedBox(height: 8),
+                          Text(
+                            'Chọn khóa học và tạo buổi live đầu tiên',
+                            style: TextStyle(color: Color(0xff94A3B8)),
+                          ),
+                        ],
+                      ),
+                    )
+                    : SingleChildScrollView(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final fullWidth = constraints.maxWidth;
+                          final dayWidth = (fullWidth - timeColumnWidth) / 7;
+                          final totalHeight = hours.length * hourRowHeight;
+
+                          return SizedBox(
+                            height: totalHeight,
+                            child: Stack(
+                              children: [
+                                // Nền cột ngày
+                                Positioned.fill(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: timeColumnWidth,
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            right: BorderSide(
+                                              color: Color(0xffE0E2EC),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      ...List.generate(7, (index) {
+                                        final day = days[index];
+                                        final isToday = day == today;
+                                        return Container(
+                                          width: dayWidth,
+                                          decoration: BoxDecoration(
+                                            color:
+                                                isToday
+                                                    ? const Color(
+                                                      0xff005BAF,
+                                                    ).withValues(alpha: 0.02)
+                                                    : Colors.transparent,
+                                            border: Border(
+                                              right:
+                                                  index != 6
+                                                      ? BorderSide(
+                                                        color: const Color(
+                                                          0xffE0E2EC,
+                                                        ).withValues(alpha: 0.8),
+                                                      )
+                                                      : BorderSide.none,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ],
                                   ),
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: timeColumnWidth,
-                                    padding: const EdgeInsets.only(
-                                      left: 10,
-                                      top: 4,
-                                    ),
-                                    child: Text(
-                                      '${hours[index].toString().padLeft(2, '0')}:00',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xff717785),
+                                // Vạch giờ
+                                ...List.generate(hours.length, (index) {
+                                  return Positioned(
+                                    top: index * hourRowHeight,
+                                    left: 0,
+                                    right: 0,
+                                    child: Container(
+                                      height: hourRowHeight,
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: const Color(
+                                              0xffE0E2EC,
+                                            ).withValues(alpha: 0.5),
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: timeColumnWidth,
+                                            padding: const EdgeInsets.only(
+                                              left: 10,
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              '${hours[index].toString().padLeft(2, '0')}:00',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xff717785),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  );
+                                }),
+                                // Thẻ buổi live
+                                ...sessions.map((session) {
+                                  if (session.startTime == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final st = session.startTime!.toLocal();
+                                  final et =
+                                      session.endTime?.toLocal() ??
+                                      st.add(const Duration(hours: 1));
+                                  final day = _calendarDateOnly(st);
+
+                                  // Tìm dayIndex trong tuần
+                                  final diff = day.difference(days.first).inDays;
+                                  if (diff < 0 || diff >= 7) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final dayIndex = diff;
+
+                                  // Tính vị trí pixel
+                                  final startMinutes =
+                                      st.hour * 60 + st.minute;
+                                  final startOffset =
+                                      (startMinutes / 60) * hourRowHeight;
+                                  final durationMinutes =
+                                      et.difference(st).inMinutes;
+                                  final height =
+                                      (durationMinutes / 60) * hourRowHeight;
+
+                                  return Positioned(
+                                    top: startOffset + 4,
+                                    left:
+                                        timeColumnWidth +
+                                        (dayIndex * dayWidth) +
+                                        4,
+                                    width: dayWidth - 8,
+                                    height: height - 8,
+                                    child: _WeekEventCard(
+                                      session: session,
+                                      onEdit:
+                                          onEditSession != null
+                                              ? () => onEditSession!(session)
+                                              : null,
+                                      onDelete:
+                                          onDeleteSession != null
+                                              ? () => onDeleteSession!(session)
+                                              : null,
+                                      onJoin:
+                                          onJoinSession != null
+                                              ? () => onJoinSession!(session)
+                                              : null,
+                                      isAdmin: isAdmin,
+                                    ),
+                                  );
+                                }),
+                              ],
                             ),
                           );
-                        }),
-                        ...sessions.asMap().entries.map((entry) {
-                          final session = entry.value;
-                          if (session.startTime == null)
-                            return const SizedBox.shrink();
-                          final dayOfWeek = session.startTime!.weekday;
-                          final hour = session.startTime!.hour;
-                          final durationMinutes =
-                              session.endTime != null
-                                  ? session.endTime!
-                                      .difference(session.startTime!)
-                                      .inMinutes
-                                  : 60;
-                          final height = (durationMinutes / 60) * hourRowHeight;
-                          final dayIndex = dayOfWeek - 1;
-                          if (dayIndex < 0 || dayIndex >= 7)
-                            return const SizedBox.shrink();
-                          return Positioned(
-                            top: (hour - 7) * hourRowHeight + 4,
-                            left: timeColumnWidth + (dayIndex * dayWidth) + 4,
-                            width: dayWidth - 8,
-                            height: height - 8,
-                            child: _WeekEventCard(
-                              session: session,
-                              onEdit:
-                                  onEditSession != null
-                                      ? () => onEditSession!(session)
-                                      : null,
-                              onDelete:
-                                  onDeleteSession != null
-                                      ? () => onDeleteSession!(session)
-                                      : null,
-                              onJoin:
-                                  onJoinSession != null
-                                      ? () => onJoinSession!(session)
-                                      : null,
-                              isAdmin: isAdmin,
-                            ),
-                          );
-                        }),
-                      ],
+                        },
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
           ),
         ],
       ),
@@ -1361,6 +1762,10 @@ class _WeekEventCard extends StatelessWidget {
 
 class _DayView extends StatelessWidget {
   final List<LiveSessionInfo> sessions;
+  final DateTime focusedDate;
+  final ValueChanged<DateTime> onFocusedDateChanged;
+  final VoidCallback onAddLive;
+  final bool courseSelected;
   final bool isLoading;
   final void Function(LiveSessionInfo)? onEditSession;
   final void Function(LiveSessionInfo)? onDeleteSession;
@@ -1369,6 +1774,10 @@ class _DayView extends StatelessWidget {
 
   const _DayView({
     required this.sessions,
+    required this.focusedDate,
+    required this.onFocusedDateChanged,
+    required this.onAddLive,
+    required this.courseSelected,
     required this.isLoading,
     this.onEditSession,
     this.onDeleteSession,
@@ -1388,19 +1797,63 @@ class _DayView extends StatelessWidget {
         children: [
           Row(
             children: [
+              IconButton(
+                tooltip: 'Ngày trước',
+                onPressed:
+                    () => onFocusedDateChanged(
+                      focusedDate.subtract(const Duration(days: 1)),
+                    ),
+                icon: const Icon(Icons.chevron_left, color: Color(0xff005BAF)),
+              ),
               const Icon(Icons.calendar_today, color: Color(0xff005BAF)),
-              const SizedBox(width: 12),
-              const Text(
-                'Thứ 3, 28/03/2026',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xff181C22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: focusedDate,
+                      firstDate: DateTime(focusedDate.year - 1),
+                      lastDate: DateTime(focusedDate.year + 1, 12, 31),
+                    );
+                    if (picked != null) onFocusedDateChanged(picked);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      '${_weekdayVietnamese(focusedDate)}, '
+                      '${focusedDate.day.toString().padLeft(2, '0')}/'
+                      '${focusedDate.month.toString().padLeft(2, '0')}/'
+                      '${focusedDate.year}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xff181C22),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
+              IconButton(
+                tooltip: 'Ngày sau',
+                onPressed:
+                    () => onFocusedDateChanged(
+                      focusedDate.add(const Duration(days: 1)),
+                    ),
+                icon: const Icon(Icons.chevron_right, color: Color(0xff005BAF)),
+              ),
               OutlinedButton.icon(
-                onPressed: () {},
+                onPressed:
+                    courseSelected
+                        ? onAddLive
+                        : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Vui lòng chọn khóa học trước'),
+                            ),
+                          );
+                        },
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Thêm buổi live'),
                 style: OutlinedButton.styleFrom(
