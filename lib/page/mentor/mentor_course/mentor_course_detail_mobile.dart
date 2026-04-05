@@ -72,8 +72,8 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
       setState(() {
         _course = course;
         _titleController.text = course.title;
-        _descriptionController.text = course.description;
-        _deadlineType = course.deadlineType ?? DeadlineType.RELATIVE;
+        _descriptionController.text = course.description ?? '';
+        _deadlineType = _parseDeadlineType(course.deadlineType) ?? DeadlineType.RELATIVE;
         _deadlineDays = course.defaultDeadlineDays ?? 20;
         _fixedDeadline = course.fixedDeadline;
       });
@@ -175,6 +175,16 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
           SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
         );
       }
+    }
+  }
+
+  DeadlineType? _parseDeadlineType(String? value) {
+    if (value == null) return null;
+    switch (value.toUpperCase()) {
+      case 'FIXED':
+        return DeadlineType.FIXED;
+      default:
+        return DeadlineType.RELATIVE;
     }
   }
 

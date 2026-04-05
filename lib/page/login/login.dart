@@ -322,7 +322,9 @@ class _LoginPageState extends State<LoginPage>
               ),
               const Spacer(),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  context.push('/forgot-password');
+                },
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF6366F1),
                 ),

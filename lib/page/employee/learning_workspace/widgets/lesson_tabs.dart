@@ -65,12 +65,8 @@ class _TabItemState extends State<_TabItem> {
     switch (widget.tab.icon) {
       case 'description':
         return Icons.description_outlined;
-      case 'folder_zip':
-        return Icons.folder_zip_outlined;
       case 'forum':
         return Icons.forum_outlined;
-      case 'history':
-        return Icons.history;
       default:
         return Icons.circle_outlined;
     }

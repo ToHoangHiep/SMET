@@ -5,6 +5,7 @@ import 'package:smet/core/utils/animations.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Create/Edit Learning Path - Web Layout
 /// Nâng cấp UI: drag-drop course cards với hover, live preview, dialog nâng cấp.
@@ -94,22 +95,11 @@ class _MentorCreateLearningPathWebState
       });
     } catch (e) {
       setState(() => _loadingCourses = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text("Lỗi tải khóa học: $e")),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi tải khóa học: $e',
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -128,22 +118,11 @@ class _MentorCreateLearningPathWebState
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text("Lỗi tải lộ trình: $e")),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi tải lộ trình: $e',
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -176,45 +155,21 @@ class _MentorCreateLearningPathWebState
         }
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(_isEditMode
-                    ? "Cập nhật thành công!"
-                    : "Tạo lộ trình thành công!"),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-        context.go(
-          '/mentor/learning-paths?refresh=${DateTime.now().millisecondsSinceEpoch}',
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: _isEditMode ? 'Cập nhật thành công!' : 'Tạo lộ trình thành công!',
+        type: NotificationType.success,
+      );
+      context.go(
+        '/mentor/learning-paths?refresh=${DateTime.now().millisecondsSinceEpoch}',
+      );
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text("Lỗi: $e")),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi: $e',
+        type: NotificationType.error,
+      );
     }
   }
 

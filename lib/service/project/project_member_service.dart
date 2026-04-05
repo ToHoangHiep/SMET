@@ -39,6 +39,18 @@ class ProjectMemberService {
         ));
       }
 
+      // Mentor
+      if (project.mentorId != null) {
+        members.add(ProjectMemberModel(
+          id: 0,
+          projectId: projectId,
+          userId: project.mentorId!,
+          role: ProjectMemberRole.PROJECT_MENTOR,
+          userName: project.mentorName,
+          userEmail: null,
+        ));
+      }
+
       // Members
       if (project.memberIds != null && project.memberNames != null) {
         for (int i = 0; i < project.memberIds!.length; i++) {
@@ -151,6 +163,8 @@ class ProjectMemberService {
           'status': project.status.name,
           'leaderId': project.leaderId,
           'leaderName': project.leaderName,
+          'mentorId': project.mentorId,
+          'mentorName': project.mentorName,
           'memberIds': project.memberIds,
           'memberNames': project.memberNames,
         },
@@ -186,6 +200,17 @@ class ProjectMemberService {
           'userName': project.leaderName,
           'userEmail': null,
           'role': 'PROJECT_LEAD',
+        });
+      }
+
+      // Mentor
+      if (project.mentorId != null) {
+        members.add({
+          'id': 0,
+          'userId': project.mentorId,
+          'userName': project.mentorName,
+          'userEmail': null,
+          'role': 'PROJECT_MENTOR',
         });
       }
 

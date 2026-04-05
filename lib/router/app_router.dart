@@ -23,6 +23,12 @@ import 'package:smet/page/employee/search/screen/search_page.dart';
 import 'package:smet/page/employee/widgets/shell/employee_shell.dart';
 import 'package:smet/page/home/home.dart';
 import 'package:smet/page/login/login.dart';
+import 'package:smet/page/auth/forgot_password/forgot_password_web.dart';
+import 'package:smet/page/auth/forgot_password/forgot_password_mobile.dart';
+import 'package:smet/page/auth/reset_password/reset_password_web.dart';
+import 'package:smet/page/auth/reset_password/reset_password_mobile.dart';
+import 'package:smet/page/auth/verify_email/verify_email_web.dart';
+import 'package:smet/page/auth/verify_email/verify_email_mobile.dart';
 import 'package:smet/page/mentor/mentor_dashboard/mentor_dashboard.dart';
 import 'package:smet/page/mentor/mentor_dashboard/mentor_shell.dart';
 import 'package:smet/page/mentor/mentor_course/mentor_course.dart';
@@ -40,6 +46,7 @@ import 'package:smet/page/project_manager/learning_path/screen/learning_path_bas
 import 'package:smet/page/project_manager/project/screen/project_management_base.dart';
 import 'package:smet/page/project_manager/project_member/screen/project_member_base.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_base.dart';
+import 'package:smet/page/project_manager/assignment/screen/pm_assignment_base.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
 import 'package:smet/page/mentor/mentor_quiz/mentor_create_quiz_web.dart';
 import 'package:smet/page/mentor/mentor_course_report/mentor_course_report.dart';
@@ -47,6 +54,8 @@ import 'package:smet/page/mentor/mentor_course_report_detail/mentor_course_repor
 import 'package:smet/page/mentor/mentor_live_session/screen/mentor_live_session.dart';
 import 'package:smet/page/mentor/mentor_review_assignment/mentor_review_assignment.dart';
 import 'package:smet/page/mentor/mentor_students/mentor_students.dart';
+import 'package:smet/page/employee/projects/screen/employee_projects_base.dart';
+import 'package:smet/page/mentor/projects/screen/mentor_projects_base.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 
@@ -112,7 +121,10 @@ class AppPages {
       // Public routes — skip guard
       if (path == '/login' ||
           path == '/first-login-password' ||
-          path == '/home') {
+          path == '/home' ||
+          path == '/forgot-password' ||
+          path == '/reset-password' ||
+          path == '/verify-email') {
         return null;
       }
 
@@ -243,6 +255,14 @@ class AppPages {
                     const NoTransitionPage(child: MentorStudents()),
           ),
 
+          // Mentor Projects (MENTOR role)
+          GoRoute(
+            path: '/mentor/projects',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MentorProjectsPage()),
+          ),
+
           // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module / final)
           GoRoute(
             path: '/mentor/quizzes/create',
@@ -265,6 +285,35 @@ class AppPages {
       ),
 
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) {
+          if (kIsWeb || MediaQuery.of(context).size.width > 800) {
+            return const ForgotPasswordWeb();
+          }
+          return const ForgotPasswordMobile();
+        },
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'];
+          if (kIsWeb || MediaQuery.of(context).size.width > 800) {
+            return ResetPasswordWeb(token: token);
+          }
+          return ResetPasswordMobile(token: token);
+        },
+      ),
+      GoRoute(
+        path: '/verify-email',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'];
+          if (kIsWeb || MediaQuery.of(context).size.width > 800) {
+            return VerifyEmailWeb(token: token);
+          }
+          return VerifyEmailMobile(token: token);
+        },
+      ),
       GoRoute(
         path: '/first-login-password',
         builder: (context, state) => const FirstLoginPasswordPage(),
@@ -346,6 +395,11 @@ class AppPages {
             path: '/pm/learning_path',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: LearningPathPage()),
+          ),
+          GoRoute(
+            path: '/pm/assign',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PmAssignmentPage()),
           ),
         ],
       ),
@@ -494,6 +548,15 @@ class AppPages {
               );
             },
           ),
+
+          // Employee Projects (LEAD + MEMBER)
+          GoRoute(
+            path: '/employee/projects',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: EmployeeProjectsPage()),
+          ),
+
           GoRoute(
             path: '/search',
             pageBuilder:

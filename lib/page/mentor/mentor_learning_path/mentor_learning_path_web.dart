@@ -5,6 +5,7 @@ import 'package:smet/core/utils/animations.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Learning Path - Web Layout
 /// Nâng cấp UI: Hero banner, animations, hover effects, filter chips, modern table.
@@ -173,43 +174,17 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
       try {
         await _service.deleteLearningPath(pathId);
         _loadLearningPaths(page: _currentPage);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  const Text("Xóa lộ trình thành công"),
-                ],
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          );
-        }
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Xóa lộ trình thành công',
+          type: NotificationType.success,
+        );
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text("Xóa thất bại: $e")),
-                ],
-              ),
-              backgroundColor: AppColors.error,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          );
-        }
+        GlobalNotificationService.show(
+          context: context,
+          message: e.toString(),
+          type: NotificationType.error,
+        );
       }
     }
   }

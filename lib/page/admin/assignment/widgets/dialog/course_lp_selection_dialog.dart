@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -5,6 +6,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smet/service/common/base_url.dart';
 
 enum AssignmentItemType { course, learningPath }
+
+enum CourseStatus { published, draft }
+
+class Department {
+  final int id;
+  final String name;
+
+  Department({required this.id, required this.name});
+
+  factory Department.fromJson(Map<String, dynamic> json) {
+    return Department(
+      id: json['id'] ?? 0,
+      name: json['name'] ?? '',
+    );
+  }
+}
 
 class AssignmentItem {
   final int id;
@@ -102,12 +119,49 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
   String _searchQuery = '';
   bool _isMultiSelect = false;
 
+  // Filter state
+  List<Department> _departments = [];
+  int? _selectedDepartmentId;
+  String? _selectedStatus;
+  Timer? _debounce;
+
   String get _baseUrl => baseUrl;
   String get _tokenKey => "token";
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
+  }
+
+  Future<void> _loadDepartments() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return;
+
+      final res = await http.get(
+        Uri.parse('$baseUrl/departments'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final List<dynamic> content =
+            (data['data'] ?? data['content'] ?? data ?? []) as List<dynamic>;
+        if (mounted) {
+          setState(() {
+            _departments = content
+                .map((e) => Department.fromJson(e as Map<String, dynamic>))
+                .toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading departments: $e');
+    }
   }
 
   Future<void> _loadItems({bool append = false}) async {
@@ -138,6 +192,12 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
       if (_searchQuery.isNotEmpty) {
         params['keyword'] = _searchQuery;
       }
+      if (widget.allowedType == AssignmentItemType.course && _selectedStatus != null) {
+        params['status'] = _selectedStatus!;
+      }
+      if (_selectedDepartmentId != null) {
+        params['departmentId'] = _selectedDepartmentId.toString();
+      }
 
       final uri = Uri.parse(endpoint).replace(queryParameters: params);
       final res = await http.get(
@@ -164,6 +224,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
 
         int totalPages = data['totalPages'] ?? 1;
         int currentPage = data['page'] ?? 0;
+        bool isLast = data['last'] ?? (currentPage >= totalPages - 1);
 
         setState(() {
           if (append) {
@@ -173,7 +234,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
             _items = items;
             _isLoading = false;
           }
-          _hasNext = currentPage < totalPages - 1;
+          _hasNext = !isLast;
           _currentPage = currentPage + 1;
         });
       } else {
@@ -186,6 +247,38 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
         _error = 'Không thể tải danh sách';
       });
     }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      setState(() {
+        _searchQuery = value;
+        _currentPage = 0;
+        _items = [];
+      });
+      _loadItems();
+    });
+  }
+
+  void _onFilterChanged() {
+    setState(() {
+      _currentPage = 0;
+      _items = [];
+    });
+    _loadItems();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedDepartmentId = null;
+      _selectedStatus = null;
+      _currentPage = 0;
+      _items = [];
+    });
+    _loadItems();
   }
 
   void _toggleItem(AssignmentItem item) {
@@ -220,13 +313,15 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
   @override
   void initState() {
     super.initState();
-    _isMultiSelect = true; // Cho phép chọn nhiều khóa học và Learning Path
+    _isMultiSelect = true;
+    _loadDepartments();
     _loadItems();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -235,13 +330,14 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        width: 700,
-        constraints: const BoxConstraints(maxHeight: 700),
+        width: 750,
+        constraints: const BoxConstraints(maxHeight: 750),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildHeader(),
             _buildSearchBar(),
+            _buildFilterBar(),
             const Divider(height: 1),
             _buildItemList(),
             const Divider(height: 1),
@@ -303,7 +399,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFFAFBFC),
@@ -312,14 +408,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
         ),
         child: TextField(
           controller: _searchController,
-          onChanged: (value) {
-            setState(() {
-              _searchQuery = value;
-              _currentPage = 0;
-              _items = [];
-            });
-            _loadItems();
-          },
+          onChanged: _onSearchChanged,
           decoration: InputDecoration(
             hintText: 'Tìm kiếm $_itemTypeLabel...',
             hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -329,12 +418,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
                     icon: Icon(Icons.clear, size: 18, color: Colors.grey[400]),
                     onPressed: () {
                       _searchController.clear();
-                      setState(() {
-                        _searchQuery = '';
-                        _currentPage = 0;
-                        _items = [];
-                      });
-                      _loadItems();
+                      _onSearchChanged('');
                     },
                   )
                 : null,
@@ -346,10 +430,99 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
     );
   }
 
+  Widget _buildFilterBar() {
+    final hasFilters = _selectedDepartmentId != null || _selectedStatus != null;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          if (widget.allowedType == AssignmentItemType.course) ...[
+            _buildStatusDropdown(),
+            const SizedBox(width: 8),
+          ],
+          _buildDepartmentDropdown(),
+          const Spacer(),
+          if (hasFilters)
+            TextButton.icon(
+              onPressed: _clearFilters,
+              icon: const Icon(Icons.clear_all, size: 18),
+              label: const Text('Xóa lọc'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: _selectedStatus,
+          hint: const Text('Trạng thái'),
+          icon: Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
+          items: const [
+            DropdownMenuItem(value: null, child: Text('Tất cả')),
+            DropdownMenuItem(value: 'PUBLISHED', child: Text('Đã xuất bản')),
+            DropdownMenuItem(value: 'DRAFT', child: Text('Bản nháp')),
+            DropdownMenuItem(value: 'ARCHIVED', child: Text('Đã lưu trữ')),
+          ],
+          onChanged: (value) {
+            setState(() => _selectedStatus = value);
+            _onFilterChanged();
+          },
+          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: _selectedDepartmentId,
+          hint: const Text('Phòng ban'),
+          icon: Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Tất cả phòng ban')),
+            ..._departments.map(
+              (dept) => DropdownMenuItem(
+                value: dept.id,
+                child: Text(dept.name, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => _selectedDepartmentId = value);
+            _onFilterChanged();
+          },
+          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+        ),
+      ),
+    );
+  }
+
   Widget _buildItemList() {
     if (_isLoading) {
       return Container(
-        height: 350,
+        height: 300,
         alignment: Alignment.center,
         child: const CircularProgressIndicator(),
       );
@@ -357,7 +530,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
 
     if (_error != null) {
       return Container(
-        height: 350,
+        height: 300,
         padding: const EdgeInsets.all(40),
         child: Center(
           child: Column(
@@ -379,7 +552,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
 
     if (_items.isEmpty) {
       return Container(
-        height: 350,
+        height: 300,
         padding: const EdgeInsets.all(40),
         child: Center(
           child: Column(
@@ -398,7 +571,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
     }
 
     return Container(
-      height: 350,
+      height: 300,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification is ScrollEndNotification &&

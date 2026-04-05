@@ -4,6 +4,8 @@ import 'package:smet/model/user_model.dart';
 enum UserSelectionType {
   manager,      // Chỉ Project Manager
   members,      // Mentor và User
+  projectLead,  // Chỉ User (cho project)
+  projectMentor, // Chỉ Mentor (cho project)
   all,          // Tất cả
 }
 
@@ -68,6 +70,42 @@ class UserSelectionDialog extends StatefulWidget {
     );
   }
 
+  static Future<UserModel?> selectProjectLead({
+    required BuildContext context,
+    required Color primaryColor,
+    required List<UserModel> leads,
+    UserModel? currentLead,
+  }) async {
+    return showDialog<UserModel>(
+      context: context,
+      builder: (context) => UserSelectionDialog(
+        primaryColor: primaryColor,
+        title: 'Chọn trưởng nhóm',
+        selectionType: UserSelectionType.projectLead,
+        users: leads,
+        preSelectedUsers: currentLead != null ? [currentLead] : [],
+      ),
+    );
+  }
+
+  static Future<UserModel?> selectProjectMentor({
+    required BuildContext context,
+    required Color primaryColor,
+    required List<UserModel> mentors,
+    UserModel? currentMentor,
+  }) async {
+    return showDialog<UserModel>(
+      context: context,
+      builder: (context) => UserSelectionDialog(
+        primaryColor: primaryColor,
+        title: 'Chọn người hướng dẫn',
+        selectionType: UserSelectionType.projectMentor,
+        users: mentors,
+        preSelectedUsers: currentMentor != null ? [currentMentor] : [],
+      ),
+    );
+  }
+
   @override
   State<UserSelectionDialog> createState() => _UserSelectionDialogState();
 }
@@ -88,6 +126,12 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
         _roleFilter = 'PROJECT_MANAGER';
         break;
       case UserSelectionType.members:
+        _roleFilter = 'MENTOR';
+        break;
+      case UserSelectionType.projectLead:
+        _roleFilter = 'USER';
+        break;
+      case UserSelectionType.projectMentor:
         _roleFilter = 'MENTOR';
         break;
       case UserSelectionType.all:
@@ -114,12 +158,16 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       // Role filter
       final matchesRole = _roleFilter == 'ALL' || user.role.name == _roleFilter;
 
-      // Department filter: exclude users from other departments (unless pre-selected)
-      final isPreSelected = widget.preSelectedUsers.any((u) => u.id == user.id);
-      final matchesDepartment = widget.excludeDepartmentId == null ||
-          user.departmentId == null ||
-          user.departmentId == widget.excludeDepartmentId ||
-          isPreSelected;
+      // Department filter: only apply for Members (not for Managers)
+      // Backend allows PMs to be assigned to any department, so we skip this filter for managers
+      bool matchesDepartment = true;
+      if (widget.selectionType != UserSelectionType.manager) {
+        final isPreSelected = widget.preSelectedUsers.any((u) => u.id == user.id);
+        matchesDepartment = widget.excludeDepartmentId == null ||
+            user.departmentId == null ||
+            user.departmentId == widget.excludeDepartmentId ||
+            isPreSelected;
+      }
 
       return matchesSearch && matchesRole && matchesDepartment;
     }).toList();
@@ -135,6 +183,14 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
         return [
           {'value': 'MENTOR', 'label': 'Người hướng dẫn'},
           {'value': 'USER', 'label': 'Nhân viên'},
+        ];
+      case UserSelectionType.projectLead:
+        return [
+          {'value': 'USER', 'label': 'Nhân viên'},
+        ];
+      case UserSelectionType.projectMentor:
+        return [
+          {'value': 'MENTOR', 'label': 'Người hướng dẫn'},
         ];
       case UserSelectionType.all:
         return [

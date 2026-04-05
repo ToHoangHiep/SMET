@@ -1,11 +1,14 @@
 enum ProjectMemberRole {
   PROJECT_LEAD,
+  PROJECT_MENTOR,
   PROJECT_MEMBER;
 
   static ProjectMemberRole fromString(String? value) {
     switch (value?.toUpperCase()) {
       case 'PROJECT_LEAD':
         return ProjectMemberRole.PROJECT_LEAD;
+      case 'PROJECT_MENTOR':
+        return ProjectMemberRole.PROJECT_MENTOR;
       case 'PROJECT_MEMBER':
         return ProjectMemberRole.PROJECT_MEMBER;
       default:
@@ -17,6 +20,8 @@ enum ProjectMemberRole {
     switch (this) {
       case ProjectMemberRole.PROJECT_LEAD:
         return 'Trưởng nhóm';
+      case ProjectMemberRole.PROJECT_MENTOR:
+        return 'Người hướng dẫn';
       case ProjectMemberRole.PROJECT_MEMBER:
         return 'Thành viên';
     }

@@ -16,6 +16,9 @@ enum UserSelectionContext {
   /// PM: Chọn Lead cho Project (lấy user có role USER)
   projectLead,
 
+  /// PM: Chọn Mentor cho Project (lấy user có role MENTOR)
+  projectMentor,
+
   /// PM: Thêm Users vào Project (lấy user có role USER)
   projectMembers,
 }
@@ -46,7 +49,13 @@ UserSelectionConfig _getConfig(UserSelectionContext context) {
         endpoint: '/users/for-project',
         requiresDepartmentId: true,
       );
-   
+
+    case UserSelectionContext.projectMentor:
+      return const UserSelectionConfig(
+        endpoint: '/users/for-project',
+        requiresDepartmentId: true,
+      );
+
     case UserSelectionContext.projectMembers:
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
@@ -131,6 +140,9 @@ Future<List<UserModel>> fetchSelectableUsers(
 
       case UserSelectionContext.projectLead:
         return users.where((u) => u.role.name == 'USER').toList();
+
+      case UserSelectionContext.projectMentor:
+        return users.where((u) => u.role.name == 'MENTOR').toList();
 
       case UserSelectionContext.projectMembers:
         return users.where((u) => u.role.name == 'USER').toList();

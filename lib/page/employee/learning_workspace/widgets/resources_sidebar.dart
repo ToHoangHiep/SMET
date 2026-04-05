@@ -7,7 +7,6 @@ import 'package:smet/service/employee/lms_service.dart';
 /// - Up Next card with gradient background
 /// - Learning path card with course items
 class ResourcesSidebar extends StatelessWidget {
-  final List<LessonResource> resources;
   final Lesson? nextLesson;
   final Function(Lesson)? onJumpToLesson;
   final LearningPathDetail? learningPath;
@@ -17,7 +16,6 @@ class ResourcesSidebar extends StatelessWidget {
 
   const ResourcesSidebar({
     super.key,
-    required this.resources,
     this.nextLesson,
     this.onJumpToLesson,
     this.learningPath,
@@ -48,9 +46,6 @@ class ResourcesSidebar extends StatelessWidget {
           _buildLearningPathCard(context),
           const SizedBox(height: 20),
         ],
-
-        // Resources Card
-        _buildResourcesCard(),
       ],
     );
   }
@@ -426,119 +421,6 @@ class ResourcesSidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildResourcesCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.attach_file, size: 20,
-                    color: Color(0xFFF59E0B)),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Tài liệu (${resources.length})',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...resources.map((resource) => _buildResourceItem(resource)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResourceItem(LessonResource resource) {
-    final IconData icon;
-    final Color color;
-
-    switch (resource.type) {
-      case 'pdf':
-        icon = Icons.picture_as_pdf;
-        color = const Color(0xFFEF4444);
-        break;
-      case 'link':
-        icon = Icons.link;
-        color = const Color(0xFF3B82F6);
-        break;
-      default:
-        icon = Icons.insert_drive_file;
-        color = const Color(0xFF64748B);
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: ListTile(
-        dense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        title: Text(
-          resource.title,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF0F172A),
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: resource.fileSize != null
-            ? Text(
-                resource.fileSize!,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF94A3B8),
-                ),
-              )
-            : null,
-        trailing: Icon(
-          resource.type == 'link' ? Icons.open_in_new : Icons.download,
-          size: 16,
-          color: const Color(0xFF94A3B8),
-        ),
-      ),
-    );
-  }
 }
 
 /// Circular ring painter for continue learning progress.

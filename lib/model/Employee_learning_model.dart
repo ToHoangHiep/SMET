@@ -162,9 +162,7 @@ class User {
 
 enum LessonTab {
   overview,
-  resources,
   discussion,
-  transcripts,
 }
 
 extension LessonTabExtension on LessonTab {
@@ -172,12 +170,8 @@ extension LessonTabExtension on LessonTab {
     switch (this) {
       case LessonTab.overview:
         return 'Tổng quan';
-      case LessonTab.resources:
-        return 'Tài liệu';
       case LessonTab.discussion:
         return 'Thảo luận';
-      case LessonTab.transcripts:
-        return 'Bản dịch';
     }
   }
 
@@ -185,12 +179,8 @@ extension LessonTabExtension on LessonTab {
     switch (this) {
       case LessonTab.overview:
         return 'description';
-      case LessonTab.resources:
-        return 'folder_zip';
       case LessonTab.discussion:
         return 'forum';
-      case LessonTab.transcripts:
-        return 'history';
     }
   }
 }

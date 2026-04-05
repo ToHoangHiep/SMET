@@ -4,6 +4,7 @@ import 'package:smet/service/admin/department_management/api_department_manageme
 import 'package:smet/service/admin/lms_assignment/lms_assignment_service.dart';
 import 'package:smet/page/admin/assignment/widgets/dialog/assignable_user_dialog.dart';
 import 'package:smet/page/admin/assignment/widgets/dialog/assignment_result_dialog.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 class DepartmentLearningPathsTab extends StatefulWidget {
   final int departmentId;
@@ -223,12 +224,10 @@ class _DepartmentLearningPathsTabState
     } catch (e) {
       if (!context.mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi: $e',
+        type: NotificationType.error,
       );
     }
   }

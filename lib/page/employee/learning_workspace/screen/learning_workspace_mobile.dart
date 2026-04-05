@@ -102,13 +102,13 @@ class LearningWorkspaceMobile extends StatelessWidget {
                   const SizedBox(height: 20),
                   // Tab Content
                   _buildTabContent(),
-                  const SizedBox(height: 20),
-                  // Resources & Up Next
-                  ResourcesSidebar(
-                    resources: lessonContent.resources,
-                    nextLesson: lessonContent.nextLesson,
-                    onJumpToLesson: onLessonTap,
-                  ),
+                  if (lessonContent.nextLesson != null) ...[
+                    const SizedBox(height: 20),
+                    ResourcesSidebar(
+                      nextLesson: lessonContent.nextLesson,
+                      onJumpToLesson: onLessonTap,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -125,15 +125,11 @@ class LearningWorkspaceMobile extends StatelessWidget {
           description: lessonContent.description,
           keyTakeaways: lessonContent.keyTakeaways,
         );
-      case LessonTab.resources:
-        return ResourcesTab(resources: lessonContent.resources);
       case LessonTab.discussion:
         return DiscussionTab(
           discussions: lessonContent.discussions,
           onPostComment: (comment) {},
         );
-      case LessonTab.transcripts:
-        return TranscriptTab(transcript: lessonContent.transcript);
     }
   }
 

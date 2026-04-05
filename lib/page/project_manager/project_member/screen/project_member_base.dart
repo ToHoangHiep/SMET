@@ -6,6 +6,7 @@ import 'package:smet/page/project_manager/project_member/screen/project_member_m
 import 'package:smet/service/project/project_member_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/project_member_model.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 class ProjectMemberPage extends StatefulWidget {
   const ProjectMemberPage({super.key});
@@ -151,20 +152,29 @@ class _ProjectMemberPageState extends State<ProjectMemberPage> {
 
   void _submitCreateMember() {
     if (_createNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập họ tên'), backgroundColor: Colors.orange));
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng nhập họ tên',
+        type: NotificationType.warning,
+      );
       return;
     }
     setState(() { _isCreateMode = false; });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã thêm thành viên (cần kết nối API)'), backgroundColor: Colors.green));
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Đã thêm thành viên (cần kết nối API)',
+      type: NotificationType.success,
+    );
   }
 
   void _submitUpdateMember() {
     if (_editingMemberId == null) return;
     setState(() { _isUpdateMode = false; _editingMemberId = null; });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã cập nhật'), backgroundColor: Colors.green));
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Đã cập nhật',
+      type: NotificationType.success,
+    );
   }
 
   Widget buildTableSection() => Container(
@@ -285,8 +295,11 @@ class _ProjectMemberPageState extends State<ProjectMemberPage> {
       // await ProjectMemberService.deleteMember(member.id!);
       setState(() => _members.removeWhere((m) => m.id == member.id));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa'), backgroundColor: Colors.green));
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Đã xóa',
+          type: NotificationType.success,
+        );
       }
     }
   }

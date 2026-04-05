@@ -6,6 +6,7 @@ import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/mentor/course_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 import 'dart:developer';
 
@@ -123,13 +124,10 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
 
   Future<void> _saveCourse() async {
     if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Vui lòng nhập tên khóa học"),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng nhập tên khóa học',
+        type: NotificationType.warning,
       );
       return;
     }
@@ -157,28 +155,20 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
       await _courseService.createCourse(request);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("Tạo khóa học thành công!"),
-            backgroundColor: const Color(0xFF22C55E),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Tạo khóa học thành công!',
+          type: NotificationType.success,
         );
         context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
       }
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Lỗi: $e"),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: e.toString(),
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -713,13 +703,10 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
               _AddChapterButton(
                 primaryColor: _primary,
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text("Tạo khóa học trước để thêm chương"),
-                      backgroundColor: const Color(0xFFF59E0B),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
+                  GlobalNotificationService.show(
+                    context: context,
+                    message: 'Tạo khóa học trước để thêm chương',
+                    type: NotificationType.warning,
                   );
                 },
               ),

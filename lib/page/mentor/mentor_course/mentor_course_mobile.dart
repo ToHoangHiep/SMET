@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Course - Mobile Layout (Danh sách khóa học)
 class MentorCourseMobile extends StatefulWidget {
@@ -171,17 +172,17 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
             ? _currentPage - 1
             : _currentPage;
         _loadCourses(page: targetPage);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Xóa khóa học thành công")),
-          );
-        }
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Xóa khóa học thành công',
+          type: NotificationType.success,
+        );
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Xóa thất bại: $e")),
-          );
-        }
+        GlobalNotificationService.show(
+          context: context,
+          message: e.toString(),
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -190,17 +191,17 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     try {
       await _service.publishCourse(course.id);
       _loadCourses(page: _currentPage);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Xuất bản thành công")),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Xuất bản khóa học thành công',
+        type: NotificationType.success,
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Xuất bản thất bại: $e")),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: e.toString(),
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -625,7 +626,7 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
 
                 /// DESCRIPTION
                 Text(
-                  course.description.isEmpty ? "Không có mô tả" : course.description,
+                  (course.description ?? '').isEmpty ? "Không có mô tả" : course.description!,
                   style: TextStyle(fontSize: 13, color: _textMedium),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -648,15 +649,15 @@ class _MentorCourseMobileState extends State<MentorCourseMobile> {
     );
   }
 
-  Widget _statusBadge(CourseStatus status) {
+  Widget _statusBadge(String status) {
     Color color;
     String label;
-    switch (status) {
-      case CourseStatus.PUBLISHED:
+    switch (status.toUpperCase()) {
+      case 'PUBLISHED':
         color = const Color(0xff4caf50);
         label = 'Đã xuất bản';
         break;
-      case CourseStatus.ARCHIVED:
+      case 'ARCHIVED':
         color = Colors.grey;
         label = 'Đã lưu trữ';
         break;

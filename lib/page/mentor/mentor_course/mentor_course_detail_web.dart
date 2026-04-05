@@ -11,6 +11,7 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 import 'package:smet/service/mentor/lesson_content_service.dart';
 import 'package:smet/service/mentor/quiz_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Course Detail / Edit - Web Layout
 class MentorCourseDetailWeb extends StatefulWidget {
@@ -46,6 +47,12 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   DeadlineType _deadlineType = DeadlineType.RELATIVE;
   int _deadlineDays = 20;
   DateTime? _fixedDeadline;
+
+  // Lưu giá trị ban đầu để tránh gửi null lên backend
+  String? _initialDescription;
+  DeadlineType _initialDeadlineType = DeadlineType.RELATIVE;
+  int _initialDeadlineDays = 20;
+  DateTime? _initialFixedDeadline;
 
   List<ModuleResponse> _modules = [];
   Long? _finalQuizId;
@@ -86,10 +93,15 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       setState(() {
         _course = course;
         _titleController.text = course.title;
-        _descriptionController.text = course.description;
-        _deadlineType = course.deadlineType ?? DeadlineType.RELATIVE;
+        _descriptionController.text = course.description ?? '';
+        _deadlineType = _parseDeadlineType(course.deadlineType) ?? DeadlineType.RELATIVE;
         _deadlineDays = course.defaultDeadlineDays ?? 20;
         _fixedDeadline = course.fixedDeadline;
+        // Lưu giá trị ban đầu
+        _initialDescription = course.description;
+        _initialDeadlineType = _deadlineType;
+        _initialDeadlineDays = _deadlineDays;
+        _initialFixedDeadline = _fixedDeadline;
       });
       await _loadModules();
       await _loadFinalQuizId();
@@ -156,12 +168,24 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     }
   }
 
+  DeadlineType? _parseDeadlineType(String? value) {
+    if (value == null) return null;
+    switch (value.toUpperCase()) {
+      case 'FIXED':
+        return DeadlineType.FIXED;
+      default:
+        return DeadlineType.RELATIVE;
+    }
+  }
+
   Future<void> _saveCourse() async {
     if (!_isEditMode) return;
 
     if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng nhập tiêu đề khóa học")),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng nhập tiêu đề khóa học',
+        type: NotificationType.warning,
       );
       return;
     }
@@ -169,29 +193,39 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     setState(() => _isSaving = true);
 
     try {
+      final currentDescription = _descriptionController.text.trim();
+      final currentDeadlineType = _deadlineType.name;
+      final currentDeadlineDays = _deadlineDays;
+      final currentFixedDeadline = _fixedDeadline?.toIso8601String();
+
       final request = UpdateCourseRequest(
         title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        defaultDeadlineDays: _deadlineDays,
-        deadlineType: _deadlineType.name,
-        fixedDeadline: _fixedDeadline?.toIso8601String(),
+        description: currentDescription != (_initialDescription ?? '')
+            ? currentDescription : null,
+        defaultDeadlineDays: currentDeadlineDays != _initialDeadlineDays
+            ? currentDeadlineDays : null,
+        deadlineType: currentDeadlineType != _initialDeadlineType.name
+            ? currentDeadlineType : null,
+        fixedDeadline: currentFixedDeadline != _initialFixedDeadline?.toIso8601String()
+            ? currentFixedDeadline : null,
       );
 
       await _courseService.updateCourse(_course!.id, request);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Lưu thành công"),
-            backgroundColor: Color(0xFF22C55E),
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lưu thành công',
+          type: NotificationType.success,
         );
         context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi: $e',
+          type: NotificationType.error,
         );
       }
     } finally {
@@ -249,19 +283,20 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     try {
       await _courseService.archiveCourse(_course!.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Lưu trữ thành công"),
-          backgroundColor: Color(0xFF22C55E),
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lưu trữ thành công',
+        type: NotificationType.success,
       );
       context.go(
         '/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi: $e',
+          type: NotificationType.error,
         );
       }
     }
@@ -284,18 +319,19 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         reordered.map((m) => Long(m.id.value)).toList(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Đã sắp xếp lại thứ tự chương"),
-            backgroundColor: Color(0xFF22C55E),
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Đã sắp xếp lại thứ tự chương',
+          type: NotificationType.success,
         );
       }
     } catch (e) {
       await _loadModules();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi sắp xếp: $e"), backgroundColor: const Color(0xFFEF4444)),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi sắp xếp: $e',
+          type: NotificationType.error,
         );
       }
     }
@@ -333,8 +369,10 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     } catch (e) {
       await _loadModules();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi sắp xếp: $e"), backgroundColor: const Color(0xFFEF4444)),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi sắp xếp: $e',
+          type: NotificationType.error,
         );
       }
     }
@@ -344,19 +382,20 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     try {
       await _courseService.publishCourse(_course!.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Xuất bản thành công"),
-          backgroundColor: Color(0xFF22C55E),
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Xuất bản thành công',
+        type: NotificationType.success,
       );
       context.go(
         '/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi: $e',
+          type: NotificationType.error,
         );
       }
     }
@@ -458,17 +497,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _moduleService.createModule(request);
         await _loadCourse();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Thêm chương thành công"),
-              backgroundColor: Color(0xFF22C55E),
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Thêm chương thành công',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi: $e',
+            type: NotificationType.error,
           );
         }
       }
@@ -541,17 +581,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _moduleService.updateModule(module.id, request);
         await _loadCourse();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Cập nhật chương thành công"),
-              backgroundColor: Color(0xFF22C55E),
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Cập nhật chương thành công',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi: $e',
+            type: NotificationType.error,
           );
         }
       }
@@ -685,17 +726,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
         await _loadCourse();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Thêm bài học thành công"),
-              backgroundColor: Color(0xFF22C55E),
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Thêm bài học thành công',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi: $e',
+            type: NotificationType.error,
           );
         }
       }
@@ -856,17 +898,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
         await _loadCourse();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Cập nhật bài học thành công"),
-              backgroundColor: Color(0xFF22C55E),
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Cập nhật bài học thành công',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi: $e',
+            type: NotificationType.error,
           );
         }
       }
@@ -920,17 +963,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _moduleService.deleteModule(module.id);
         await _loadCourse();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Xóa chương thành công"),
-              backgroundColor: Color(0xFF22C55E),
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Xóa chương thành công',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi: $e',
+            type: NotificationType.error,
           );
         }
       }
@@ -982,17 +1026,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _lessonService.deleteLesson(lesson.id);
         await _loadCourse();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Xóa bài học thành công"),
-              backgroundColor: Color(0xFF22C55E),
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Xóa bài học thành công',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi: $e',
+            type: NotificationType.error,
           );
         }
       }

@@ -1,13 +1,20 @@
+import 'dart:developer';
+import 'dart:html' as html; // For web file download
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
+import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
+import '../widgets/dialog/change_department_dialog.dart';
+import '../widgets/dialog/reassignment_dialog.dart';
 import 'package:flutter/foundation.dart';
 
 int? _parsePaginationInt(dynamic value) {
@@ -27,10 +34,13 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   final UserManagementApi _apiService = UserManagementApi();
+  final DepartmentService _departmentService = DepartmentService();
 
   String _searchQuery = '';
   String _selectedRole = 'ALL';
+  bool? _selectedIsActive;
   int? _selectedDepartmentId;
+  List<DepartmentModel> _departments = [];
 
   List<UserModel> _users = [];
   bool _isLoading = true;
@@ -56,7 +66,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
   @override
   void initState() {
     super.initState();
+    _fetchDepartments();
     _fetchUsers();
+  }
+
+  Future<void> _fetchDepartments() async {
+    try {
+      final result = await _departmentService.searchDepartments(
+        page: 0,
+        size: 100,
+      );
+      if (mounted) {
+        setState(() {
+          _departments = result['departments'] as List<DepartmentModel>? ?? [];
+        });
+      }
+    } catch (e) {
+      log("Lỗi khi tải danh sách phòng ban: $e");
+    }
   }
 
   final Color _primaryColor = const Color(0xFF6366F1); // Indigo như login
@@ -92,6 +119,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         size: _rowsPerPage,
         keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
         role: _selectedRole != 'ALL' ? _selectedRole : null,
+        isActive: _selectedIsActive,
         departmentId: _selectedDepartmentId,
       );
 
@@ -134,26 +162,75 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Đã nhập file '${file.name}' thành công! "),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: "Đã nhập file '${file.name}' thành công!",
+          type: NotificationType.success,
         );
 
         _fetchUsers();
       }
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi nhập file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      Navigator.pop(context);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi khi nhập file: $e',
+        type: NotificationType.error,
+      );
+    }
+  }
+
+  Future<void> _handleDownloadTemplate() async {
+    if (!mounted) return;
+    final NavigatorState rootNav = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    var downloadOk = false;
+    Object? caught;
+
+    try {
+      final res = await _apiService.downloadTemplate();
+      if (!mounted) return;
+
+      final bytes = res.bodyBytes;
+      final blob = html.Blob(
+        [bytes],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      html.AnchorElement(href: url)
+        ..setAttribute('download', 'user_import_template.xlsx')
+        ..click();
+
+      html.Url.revokeObjectUrl(url);
+      downloadOk = true;
+    } catch (e) {
+      caught = e;
+    } finally {
+      // Dùng NavigatorState đã bắt trước showDialog — tránh ctx.mounted sai trên Web.
+      // Không mở thông báo trước bước này (tránh 2 dialog chồng nhau làm pop lệch).
+      rootNav.pop();
+    }
+
+    if (!mounted) return;
+    if (downloadOk) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đã tải template thành công!',
+        type: NotificationType.success,
+      );
+    } else if (caught != null) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi khi tải template: $caught',
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -202,6 +279,56 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
   }
 
+  Future<void> _showChangeDepartmentDialog(UserModel user) async {
+    if (user.role == UserRole.MENTOR) {
+      // Mentor: dùng ReassignmentDialog — chuyển khóa học trước khi đổi phòng ban
+      await ReassignmentDialog.show(
+        context: context,
+        mentor: user,
+        departments: _departments,
+        primaryColor: _primaryColor,
+        onComplete: () async {
+          await _fetchUsers();
+          if (context.mounted) {
+            GlobalNotificationService.show(
+              context: context,
+              message: 'Đổi phòng ban thành công!',
+              type: NotificationType.success,
+            );
+          }
+        },
+      );
+      return;
+    }
+
+    // Role khác: dùng ChangeDepartmentDialog đơn giản
+    await ChangeDepartmentDialog.show(
+      context: context,
+      user: user,
+      departments: _departments,
+      primaryColor: _primaryColor,
+      onConfirm: (newDepartmentId) async {
+        try {
+          await _apiService.updateUser(
+            user,
+            departmentId: newDepartmentId,
+          );
+          await _fetchUsers();
+          return true;
+        } catch (e) {
+          if (context.mounted) {
+            GlobalNotificationService.show(
+              context: context,
+              message: 'Đổi phòng ban thất bại: ${e.toString().replaceFirst('Exception: ', '')}',
+              type: NotificationType.error,
+            );
+          }
+          return false;
+        }
+      },
+    );
+  }
+
   Future<void> _submitCreateUser() async {
     if (!_createFormKey.currentState!.validate()) return;
 
@@ -233,11 +360,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _currentPage = 1;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Tạo nhân viên thành công!'),
-        backgroundColor: Colors.green,
-      ),
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Tạo nhân viên thành công!',
+      type: NotificationType.success,
     );
   }
 
@@ -274,11 +400,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _editingUserId = null;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Cập nhật nhân viên thành công!'),
-        backgroundColor: Colors.green,
-      ),
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Cập nhật nhân viên thành công!',
+      type: NotificationType.success,
     );
   }
 
@@ -312,6 +437,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           UserManagementPageHeader(
                             primaryColor: _primaryColor,
                             onImportExcel: _handleImportExcel,
+                            onDownloadTemplate: _handleDownloadTemplate,
                             onCreateUser: _openCreateUserScreen,
                           ),
                           const SizedBox(height: 20),
@@ -343,6 +469,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 roleOptions: _roleOptions,
                                 isLoading: _isLoading,
                                 selectedRole: _selectedRole,
+                                selectedIsActive: _selectedIsActive,
+                                departments: _departments,
+                                selectedDepartmentId: _selectedDepartmentId,
                                 currentPage: _currentPage + 1,
                                 rowsPerPage: _rowsPerPage,
                                 totalElements: _totalElements,
@@ -355,6 +484,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 onRoleChanged: (val) {
                                   setState(() {
                                     _selectedRole = val;
+                                  });
+                                  _fetchUsers(resetPage: true);
+                                },
+                                onIsActiveChanged: (val) {
+                                  setState(() {
+                                    _selectedIsActive = val;
+                                  });
+                                  _fetchUsers(resetPage: true);
+                                },
+                                onDepartmentChanged: (val) {
+                                  setState(() {
+                                    _selectedDepartmentId = val;
                                   });
                                   _fetchUsers(resetPage: true);
                                 },
@@ -382,6 +523,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   await _apiService.toggleUserActive(user.id);
                                   await _fetchUsers();
                                 },
+                                onReassignDepartment: _showChangeDepartmentDialog,
                               ),
                         ],
                       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer';
 
@@ -86,18 +87,19 @@ class _LiveSessionPageState extends State<LiveSessionPage> {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể mở link: $meetingUrl')),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Không thể mở link: $meetingUrl',
+          type: NotificationType.error,
         );
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: NotificationType.error,
       );
     }
   }

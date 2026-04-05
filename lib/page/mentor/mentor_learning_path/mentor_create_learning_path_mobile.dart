@@ -4,6 +4,7 @@ import 'package:smet/core/theme/app_colors.dart';
 import 'package:smet/core/utils/animations.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Create/Edit Learning Path - Mobile Layout
 /// Nâng cấp UI: Animated header, modern form, course timeline, skeleton loading.
@@ -111,22 +112,11 @@ class _MentorCreateLearningPathMobileState
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text("Lỗi tải lộ trình: $e")),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi tải lộ trình: $e',
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -188,43 +178,19 @@ class _MentorCreateLearningPathMobileState
         }
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(_isEditMode
-                    ? "Cập nhật thành công!"
-                    : "Tạo lộ trình thành công!"),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-        context.go('/mentor/learning-paths');
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: _isEditMode ? 'Cập nhật thành công!' : 'Tạo lộ trình thành công!',
+        type: NotificationType.success,
+      );
+      context.go('/mentor/learning-paths');
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(child: Text("Lỗi: $e")),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi: $e',
+        type: NotificationType.error,
+      );
     }
   }
 

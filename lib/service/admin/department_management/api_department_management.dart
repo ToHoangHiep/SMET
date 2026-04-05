@@ -152,12 +152,14 @@ class DepartmentService {
   }
 
   /// ================= DELETE =================
-  /// DELETE /api/departments/{id}
-  Future<bool> deleteDepartment(int id) async {
+  /// DELETE /api/departments/{id}?force={true/false}
+  /// Nếu force = true: xóa toàn bộ thông tin bên trong (users, courses, learning paths)
+  /// Nếu force = false (mặc định): chỉ xóa department rỗng
+  Future<Map<String, dynamic>> deleteDepartment(int id, {bool force = false}) async {
     try {
-      final url = "$baseUrl/departments/$id";
+      final url = "$baseUrl/departments/$id${force ? '?force=true' : ''}";
 
-      _logRequest("DELETE DEPARTMENT", url);
+      _logRequest("DELETE DEPARTMENT (force=$force)", url);
 
       final token = await _getToken();
       final response = await http.delete(
@@ -167,10 +169,21 @@ class DepartmentService {
 
       _logResponse(response);
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        // Backend trả về message mô tả kết quả
+        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        return {
+          'success': true,
+          'message': body['message'] ?? 'Xóa thành công',
+        };
+      }
+
+      // Parse error message từ response
+      final errorBody = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      throw Exception(errorBody['message'] ?? errorBody['error'] ?? 'Xóa thất bại');
     } catch (e) {
       log("DELETE DEPARTMENT ERROR: $e");
-      log("DEPARTMENT ID: $id");
+      log("DEPARTMENT ID: $id, FORCE: $force");
       rethrow;
     }
   }

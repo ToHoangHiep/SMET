@@ -279,10 +279,7 @@ class LoginWeb extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.12),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.15),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -294,11 +291,7 @@ class LoginWeb extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: Colors.white.withOpacity(0.9),
-            size: 18,
-          ),
+          Icon(icon, color: Colors.white.withOpacity(0.9), size: 18),
           const SizedBox(width: 8),
           Text(
             label,

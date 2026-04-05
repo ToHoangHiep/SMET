@@ -523,46 +523,177 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   }
 
   Future<void> _handleDeleteDepartment(DepartmentModel department) async {
+    bool forceDelete = false;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          title: const Text('Xóa phòng ban'),
-          content: Text(
-            'Bạn có chắc muốn xóa phòng ban "${department.name}" không?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Hủy'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: const Text('Xóa'),
-            ),
-          ],
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Xóa phòng ban'),
+                ],
+              ),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bạn có chắc muốn xóa phòng ban "${department.name}" không?',
+                      style: const TextStyle(fontSize: 14, height: 1.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Phòng ban này có thể chứa nhân viên, khóa học hoặc lộ trình học tập.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.orange.shade800,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: forceDelete ? Colors.red.shade50 : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: forceDelete ? Colors.red.shade200 : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: CheckboxListTile(
+                        value: forceDelete,
+                        onChanged: (val) {
+                          setDialogState(() => forceDelete = val ?? false);
+                        },
+                        title: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_forever_rounded,
+                              size: 20,
+                              color: forceDelete ? Colors.red.shade700 : Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Xóa toàn bộ dữ liệu',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: forceDelete ? Colors.red.shade700 : Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(left: 28, top: 4),
+                          child: Text(
+                            forceDelete
+                                ? 'Xóa tất cả nhân viên, khóa học, lộ trình liên quan'
+                                : 'Chỉ xóa phòng ban rỗng',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: forceDelete ? Colors.red.shade600 : Colors.grey.shade500,
+                            ),
+                          ),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(
+                    'Hủy',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: forceDelete ? Colors.red : Colors.indigo,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        forceDelete ? Icons.delete_forever_rounded : Icons.delete_rounded,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(forceDelete ? 'Xóa toàn bộ' : 'Xóa'),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
     if (confirmed != true) return;
 
-    final isDeleted = await _departmentService.deleteDepartment(department.id);
+    try {
+      final result = await _departmentService.deleteDepartment(
+        department.id,
+        force: forceDelete,
+      );
 
-    if (!mounted || !isDeleted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _departments.removeWhere((dept) => dept.id == department.id);
-    });
+      // Hiển thị thông báo thành công từ backend
+      final message = result['message'] ?? 'Đã xóa phòng ban thành công';
+      context.showAppToast(message, variant: AppToastVariant.success);
 
-    context.showAppToast('Đã xóa phòng ban thành công');
+      setState(() {
+        _departments.removeWhere((dept) => dept.id == department.id);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // Truncate error message nếu quá dài
+      final errorMsg = e.toString().replaceAll('Exception: ', '');
+      final displayMsg = errorMsg.length > 100
+          ? '${errorMsg.substring(0, 100)}...'
+          : errorMsg;
+      context.showAppToast(displayMsg, variant: AppToastVariant.error);
+    }
   }
 
   Future<void> _showDepartmentDetailDialog(DepartmentModel department) async {

@@ -228,4 +228,85 @@ class AuthService {
       }
     }
   }
+
+  /// FORGOT PASSWORD - gui email dat lai mat khau
+  /// POST /api/users/forgot-password
+  /// Luon tra ve void, backend da handle email enumeration
+  static Future<void> forgotPassword(String email) async {
+    final url = Uri.parse("$baseUrl/users/forgot-password?email=$email");
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+    );
+
+    log("FORGOT PASSWORD STATUS: ${response.statusCode}");
+
+    if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body["message"] ?? "Failed to send reset email");
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception("Failed to send reset email");
+      }
+    }
+  }
+
+  /// RESET PASSWORD - dat lai mat khau bang token
+  /// POST /api/users/reset-password (backend: @RequestParam)
+  static Future<void> resetPassword(String token, String newPassword) async {
+    final uri = Uri.parse("$baseUrl/users/reset-password").replace(
+      queryParameters: {
+        'token': token,
+        'newPassword': newPassword,
+      },
+    );
+
+    final response = await http.post(
+      uri,
+      headers: {"Content-Type": "application/json"},
+    );
+
+    log("RESET PASSWORD STATUS: ${response.statusCode}");
+    log("RESET PASSWORD BODY: ${response.body}");
+
+    if (response.statusCode == 200) {
+      return;
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body["message"] ?? "Failed to reset password");
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception("Failed to reset password");
+      }
+    }
+  }
+
+  /// VERIFY EMAIL - xac thuc email bang token
+  /// GET /api/users/verify-email
+  static Future<void> verifyEmail(String token) async {
+    final url = Uri.parse("$baseUrl/users/verify-email?token=$token");
+
+    final response = await http.get(
+      url,
+      headers: {"Content-Type": "application/json"},
+    );
+
+    log("VERIFY EMAIL STATUS: ${response.statusCode}");
+    log("VERIFY EMAIL BODY: ${response.body}");
+
+    if (response.statusCode == 200) {
+      return;
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body["message"] ?? "Failed to verify email");
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception("Failed to verify email");
+      }
+    }
+  }
 }

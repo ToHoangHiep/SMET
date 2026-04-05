@@ -5,6 +5,7 @@ import 'package:smet/page/sidebar/shared_sidebar.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 /// Pm Shell - Layout chung cho tất cả các màn hình PM
 /// Sử dụng SharedSidebar dùng chung cho cả dự án
@@ -47,6 +48,12 @@ class PmShell extends StatefulWidget {
       title: 'Lộ trình học',
       route: '/pm/learning_path',
       tooltip: 'Lộ trình học',
+    ),
+    SidebarMenuItem(
+      icon: Icons.assignment_ind_rounded,
+      title: 'Gán khóa học',
+      route: '/pm/assign',
+      tooltip: 'Gán khóa học',
     ),
   ];
 
@@ -113,8 +120,10 @@ class _PmShellState extends State<PmShell> {
             onLogout: () async {
               await AuthService.logout();
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đăng xuất thành công')),
+              GlobalNotificationService.show(
+                context: context,
+                message: 'Đăng xuất thành công',
+                type: NotificationType.success,
               );
               context.go('/login');
             },

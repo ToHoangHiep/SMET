@@ -9,6 +9,7 @@ import 'package:smet/model/quiz_model.dart';
 import 'package:smet/service/mentor/option_service.dart';
 import 'package:smet/service/mentor/question_service.dart';
 import 'package:smet/service/mentor/quiz_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 class MentorCreateQuizWeb extends StatefulWidget {
   final String? moduleId;
@@ -301,11 +302,10 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
         }
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cập nhật quiz thành công'),
-            backgroundColor: Colors.green,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Cập nhật quiz thành công',
+          type: NotificationType.success,
         );
         _goBack();
       } else {
@@ -400,21 +400,19 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
               name: 'QuizDebug',
             );
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Quiz đã lưu nhưng chưa validate: $e'),
-                backgroundColor: Colors.orange,
-              ),
+            GlobalNotificationService.show(
+              context: context,
+              message: 'Quiz đã lưu nhưng chưa validate: $e',
+              type: NotificationType.warning,
             );
           }
         }
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tạo quiz thành công'),
-            backgroundColor: Colors.green,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Tạo quiz thành công',
+          type: NotificationType.success,
         );
 
         _goBack();
@@ -429,9 +427,10 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   }
 
   void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    GlobalNotificationService.show(
+      context: context,
+      message: message,
+      type: NotificationType.error,
     );
   }
 

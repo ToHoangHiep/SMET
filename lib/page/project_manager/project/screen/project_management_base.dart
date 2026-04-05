@@ -9,6 +9,8 @@ import 'package:smet/model/project_model.dart';
 import 'package:smet/service/project/project_service.dart';
 import 'package:smet/service/project/project_member_service.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/page/project_manager/project/screen/mentor_picker.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'dart:developer';
 
 class ProjectManagementPage extends StatefulWidget {
@@ -34,6 +36,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   String _statusFilter = 'Tất cả';
   int _currentPage = 0;
   final int _rowsPerPage = 10;
+  int _totalProjects = 0;
+  int _totalPages = 0;
   bool _isCreateMode = false;
   bool _isUpdateMode = false;
   String? _editingProjectId;
@@ -48,10 +52,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   int? _selectedLeaderId; // Leader của dự án
   String?
   _selectedLeaderName; // Tên trưởng nhóm (để hiển thị khi không có _leadOptions)
+  int? _selectedMentorId; // Mentor của dự án
+  String?
+  _selectedMentorName; // Tên người hướng dẫn (để hiển thị khi không có _mentorOptions)
   List<Map<String, dynamic>> _selectedMembers = [];
 
-  // Separate lists for Lead, Members
+  // Separate lists for Lead, Mentor, Members
   List<Map<String, dynamic>> _leadOptions = [];
+  List<Map<String, dynamic>> _mentorOptions = [];
   List<Map<String, dynamic>> _memberOptions = [];
 
   @override
@@ -67,35 +75,35 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     }
     setState(() => _isLoadingProjects = true);
     try {
-      // Chuyển đổi status filter sang format backend
       String? statusFilter;
       if (_statusFilter != 'Tất cả') {
-        if (_statusFilter == 'Nháp') {
+        if (_statusFilter == 'Không hoạt động') {
           statusFilter = 'INACTIVE';
-        } else if (_statusFilter == 'Đang thực hiện') {
+        } else if (_statusFilter == 'Hoạt động') {
           statusFilter = 'ACTIVE';
         } else if (_statusFilter == 'Hoàn thành') {
           statusFilter = 'COMPLETED';
         }
       }
 
-      final projects = await ProjectService.getAll(
+      final result = await ProjectService.getAll(
         keyword: _nameQuery.isNotEmpty ? _nameQuery : null,
         status: statusFilter,
         page: _currentPage,
         size: _rowsPerPage,
       );
       setState(() {
-        _projects = projects;
+        _projects = result.projects;
+        _totalProjects = result.totalElements;
+        _totalPages = result.totalPages;
       });
     } catch (e) {
       debugPrint('Error loading projects: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tải dự án: $e'),
-            backgroundColor: Colors.red,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi khi tải dự án: $e',
+          type: NotificationType.error,
         );
       }
     } finally {
@@ -200,9 +208,23 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       log("Total users: ${allUsers.length}");
 
       setState(() {
-        // Tất cả user đều có thể làm leader hoặc member
-        _leadOptions = allUsers;
-        _memberOptions = allUsers;
+        // Leader: USER role
+        _leadOptions = allUsers.where((u) {
+          final role = (u['role'] ?? '').toString().toUpperCase();
+          return role == 'USER';
+        }).toList();
+
+        // Mentor: MENTOR role
+        _mentorOptions = allUsers.where((u) {
+          final role = (u['role'] ?? '').toString().toUpperCase();
+          return role == 'MENTOR';
+        }).toList();
+
+        // Members: USER role (loại trừ leader)
+        _memberOptions = allUsers.where((u) {
+          final role = (u['role'] ?? '').toString().toUpperCase();
+          return role == 'USER';
+        }).toList();
       });
     } catch (e) {
       debugPrint('Error loading employees: $e');
@@ -251,6 +273,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       _createStatus = project.status.name;
       _selectedLeaderId = project.leaderId > 0 ? project.leaderId : null;
       _selectedLeaderName = project.leaderName;
+      _selectedMentorId = project.mentorId;
+      _selectedMentorName = project.mentorName;
 
       // Chuyển memberIds thành danh sách Map để hiển thị
       _selectedMembers = [];
@@ -317,6 +341,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                     'Trưởng nhóm',
                     project.leaderName ?? 'User ${project.leaderId}',
                   ),
+                  if (project.mentorName != null || project.mentorId != null)
+                    _buildViewRow(
+                      'Người hướng dẫn',
+                      project.mentorName ?? 'Mentor ${project.mentorId}',
+                    ),
                   _buildViewRow('Trạng thái', statusLabel),
                   if (project.memberIds != null &&
                       project.memberIds!.isNotEmpty)
@@ -376,12 +405,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       // API mới trả về leaderId và memberIds trực tiếp trong project
       final project = await ProjectService.getById(projectId);
       log(
-        "Loaded project details: leaderId=${project.leaderId}, memberIds=${project.memberIds}",
+        "Loaded project details: leaderId=${project.leaderId}, mentorId=${project.mentorId}, memberIds=${project.memberIds}",
       );
 
       setState(() {
         _selectedLeaderId = project.leaderId > 0 ? project.leaderId : null;
         _selectedLeaderName = project.leaderName;
+        _selectedMentorId = project.mentorId;
+        _selectedMentorName = project.mentorName;
 
         // Chuyển memberIds thành danh sách Map để hiển thị
         _selectedMembers = [];
@@ -414,6 +445,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _endDate = null;
     _selectedLeaderId = null;
     _selectedLeaderName = null;
+    _selectedMentorId = null;
+    _selectedMentorName = null;
     _selectedMembers = [];
   });
 
@@ -425,33 +458,28 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   void submitCreateProject() async {
     if (_createNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng nhập tên dự án'),
-          backgroundColor: Colors.orange,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng nhập tên dự án',
+        type: NotificationType.warning,
       );
       return;
     }
 
     if (_currentDepartmentId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Bạn chưa được gán phòng ban. Vui lòng liên hệ quản trị viên.',
-          ),
-          backgroundColor: Colors.red,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Bạn chưa được gán phòng ban. Vui lòng liên hệ quản trị viên.',
+        type: NotificationType.error,
       );
       return;
     }
 
     if (_selectedLeaderId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn Trưởng nhóm'),
-          backgroundColor: Colors.orange,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng chọn Trưởng nhóm',
+        type: NotificationType.warning,
       );
       return;
     }
@@ -459,7 +487,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Chuẩn bị danh sách memberIds
       final memberIds =
           _selectedMembers.isNotEmpty
               ? _selectedMembers
@@ -467,8 +494,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   .toList()
               : null;
 
-      // Tạo project - Backend mới yêu cầu leaderId và memberIds
-      final project = await ProjectService.create(
+      await ProjectService.create(
         title: _createNameController.text,
         description:
             _createDescriptionController.text.isNotEmpty
@@ -476,11 +502,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 : null,
         departmentId: _currentDepartmentId!,
         leaderId: _selectedLeaderId!,
+        mentorId: _selectedMentorId,
         memberIds: memberIds,
         status: _createStatus,
       );
 
-      // Reload danh sách project
       await _loadProjects();
 
       setState(() {
@@ -489,21 +515,19 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã tạo dự án thành công'),
-            backgroundColor: Colors.green,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Đã tạo dự án thành công',
+          type: NotificationType.success,
         );
       }
     } catch (e) {
       debugPrint('Error creating project: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tạo dự án: $e'),
-            backgroundColor: Colors.red,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi khi tạo dự án: $e',
+          type: NotificationType.error,
         );
       }
     } finally {
@@ -517,11 +541,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     if (_editingProjectId == null) return;
 
     if (_selectedLeaderId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn Trưởng nhóm'),
-          backgroundColor: Colors.orange,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng chọn Trưởng nhóm',
+        type: NotificationType.warning,
       );
       return;
     }
@@ -529,12 +552,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Lấy departmentId từ project đang edit
       final editingProject = _projects.firstWhere(
         (p) => p.id.toString() == _editingProjectId,
       );
 
-      // Chuẩn bị danh sách memberIds
       final memberIds =
           _selectedMembers.isNotEmpty
               ? _selectedMembers
@@ -542,7 +563,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   .toList()
               : null;
 
-      // Cập nhật project - Backend mới yêu cầu leaderId và memberIds
       await ProjectService.update(
         id: int.parse(_editingProjectId!),
         title: _createNameController.text,
@@ -552,10 +572,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 : null,
         departmentId: editingProject.departmentId,
         leaderId: _selectedLeaderId!,
+        mentorId: _selectedMentorId,
         memberIds: memberIds,
       );
 
-      // Cập nhật status riêng (nếu cần)
       if (_createStatus != editingProject.status.name) {
         await ProjectService.updateStatus(
           int.parse(_editingProjectId!),
@@ -563,7 +583,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         );
       }
 
-      // Reload danh sách project
       await _loadProjects();
 
       setState(() {
@@ -572,21 +591,19 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã cập nhật dự án'),
-            backgroundColor: Colors.green,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Đã cập nhật dự án',
+          type: NotificationType.success,
         );
       }
     } catch (e) {
       debugPrint('Error updating project: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi cập nhật dự án: $e'),
-            backgroundColor: Colors.red,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi khi cập nhật dự án: $e',
+          type: NotificationType.error,
         );
       }
     } finally {
@@ -601,49 +618,47 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       context: context,
       builder:
           (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            title: const Text('Xóa dự án'),
-            content: Text(
-              'Bạn có chắc muốn xóa dự án "${project.title}" không?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Hủy'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Xóa'),
-              ),
-            ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        title: const Text('Xóa dự án'),
+        content: Text(
+          'Bạn có chắc muốn xóa dự án "${project.title}" không?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
     );
     if (confirmed == true) {
       try {
         await ProjectService.delete(project.id);
         await _loadProjects();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã xóa dự án'),
-              backgroundColor: Colors.green,
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Đã xóa dự án',
+            type: NotificationType.success,
           );
         }
       } catch (e) {
         debugPrint('Error deleting project: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Lỗi khi xóa dự án: $e'),
-              backgroundColor: Colors.red,
-            ),
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Lỗi khi xóa dự án: $e',
+            type: NotificationType.error,
           );
         }
       }
@@ -882,6 +897,17 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       _isLoadingEmployees
                           ? _buildLoadingShimmer()
                           : _buildLeaderSelector(),
+                ),
+                const SizedBox(height: 20),
+                _buildAnimatedSection(
+                  icon: Icons.school_outlined,
+                  iconColor: const Color(0xFFF59E0B),
+                  title: 'Người hướng dẫn',
+                  subtitle: 'Chọn người hướng dẫn (tùy chọn)',
+                  child:
+                      _isLoadingEmployees
+                          ? _buildLoadingShimmer()
+                          : _buildMentorSection(),
                 ),
                 const SizedBox(height: 20),
                 _buildAnimatedSection(
@@ -1322,7 +1348,25 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               : Colors.grey[400],
                     ),
                   ),
-                  if (_selectedLeaderId == null)
+                  if (_selectedLeaderId != null) ...[
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF8B5CF6)),
+                      ),
+                      child: const Text(
+                        'Leader',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ),
+                  ] else
                     Text(
                       'Nhấn để chọn người quản lý',
                       style: TextStyle(fontSize: 13, color: Colors.grey[400]),
@@ -1342,6 +1386,140 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 size: 16,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Mentor Section
+  Widget _buildMentorSection() {
+    return GestureDetector(
+      onTap: _selectedMentorId != null ? null : _showMentorPicker,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [const Color(0xFFFEF3C7), const Color(0xFFFDE68A)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _selectedMentorId != null
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFFE5E7EB),
+            width: _selectedMentorId != null ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _selectedMentorId != null
+                  ? CircleAvatar(
+                      key: const ValueKey('mentor-selected'),
+                      backgroundColor: const Color(0xFFF59E0B),
+                      radius: 20,
+                      child: Text(
+                        _getMentorName(_selectedMentorId!).isNotEmpty
+                            ? _getMentorName(_selectedMentorId!)[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      key: const ValueKey('mentor-empty'),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.school_outlined,
+                        color: Color(0xFFF59E0B),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        _selectedMentorId != null
+                            ? _getMentorName(_selectedMentorId!)
+                            : 'Chọn người hướng dẫn',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: _selectedMentorId != null
+                              ? const Color(0xFF1F2937)
+                              : Colors.grey[400],
+                        ),
+                      ),
+                      if (_selectedMentorId != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFF59E0B)),
+                          ),
+                          child: const Text(
+                            'Mentor',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFD97706),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (_selectedMentorId == null)
+                    Text(
+                      'Tùy chọn - Không bắt buộc',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    ),
+                ],
+              ),
+            ),
+            if (_selectedMentorId != null)
+              GestureDetector(
+                onTap: () => setState(() {
+                  _selectedMentorId = null;
+                  _selectedMentorName = null;
+                }),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.close, size: 18, color: Colors.red.shade400),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Color(0xFFF59E0B),
+                  size: 16,
+                ),
+              ),
           ],
         ),
       ),
@@ -1445,6 +1623,23 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           Text(
             member['name'] ?? '',
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFD1D5DB)),
+            ),
+            child: const Text(
+              'Member',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF6B7280),
+              ),
+            ),
           ),
           const SizedBox(width: 4),
           InkWell(
@@ -1772,8 +1967,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   void _showLeaderPicker() {
     if (_currentDepartmentId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn phòng ban trước')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng chọn phòng ban trước',
+        type: NotificationType.warning,
       );
       return;
     }
@@ -1821,15 +2018,66 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     return 'User $id';
   }
 
+  String _getMentorName(int id) {
+    if (_selectedMentorName != null && _selectedMentorId == id) {
+      return _selectedMentorName!;
+    }
+    final mentor = _mentorOptions.where((e) => e['id'] == id).firstOrNull;
+    if (mentor != null) {
+      final firstName = mentor['firstName'] ?? '';
+      final lastName = mentor['lastName'] ?? '';
+      return '$firstName $lastName'.trim();
+    }
+    return 'Mentor $id';
+  }
+
+  void _showMentorPicker() {
+    if (_currentDepartmentId == null) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng chọn phòng ban trước',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder:
+          (ctx) => MentorPickerSheetContent(
+            departmentId: _currentDepartmentId!,
+            pageSize: 10,
+            onSelectMentor: (user) {
+              final id = user['id'];
+              final idInt = id is int ? id : int.tryParse(id.toString());
+              if (idInt == null) return;
+              final firstName = user['firstName'] ?? '';
+              final lastName = user['lastName'] ?? '';
+              final fullName = '$firstName $lastName'.trim();
+              setState(() {
+                _selectedMentorId = idInt;
+                _selectedMentorName = fullName;
+              });
+            },
+          ),
+    );
+  }
+
   void _showMembersPicker() {
     if (_currentDepartmentId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn phòng ban trước')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng chọn phòng ban trước',
+        type: NotificationType.warning,
       );
       return;
     }
     final excludeIds = <int>[
       if (_selectedLeaderId != null) _selectedLeaderId!,
+      if (_selectedMentorId != null) _selectedMentorId!,
       ..._selectedMembers
           .map((e) => int.tryParse(e['id']?.toString() ?? '') ?? 0)
           .where((id) => id > 0),
@@ -2045,51 +2293,135 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   Widget _buildProjectsList() {
-    // Chuyển đổi filter status sang enum name để so sánh
-    String? filterStatusEnum;
-    if (_statusFilter != 'Tất cả') {
-      if (_statusFilter == 'Không hoạt động') {
-        filterStatusEnum = 'INACTIVE';
-      } else if (_statusFilter == 'Hoạt động') {
-        filterStatusEnum = 'ACTIVE';
-      } else if (_statusFilter == 'Hoàn thành') {
-        filterStatusEnum = 'COMPLETED';
-      }
-    }
-
-    final filteredProjects =
-        _projects.where((p) {
-          final matchesName =
-              _nameQuery.isEmpty ||
-              p.title.toLowerCase().contains(_nameQuery.toLowerCase());
-          final matchesStatus =
-              filterStatusEnum == null || p.status.name == filterStatusEnum;
-          return matchesName && matchesStatus;
-        }).toList();
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: filteredProjects.length,
-      padding: const EdgeInsets.only(bottom: 16),
-      itemBuilder: (context, index) {
-        final project = filteredProjects[index];
-        return TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: Duration(milliseconds: 200 + (index * 50)),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return Opacity(
-              opacity: value,
-              child: Transform.translate(
-                offset: Offset(0, 20 * (1 - value)),
-                child: child,
-              ),
+    return Column(
+      children: [
+        // Project cards
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _projects.length,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemBuilder: (context, index) {
+            final project = _projects[index];
+            return TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: Duration(milliseconds: 200 + (index * 50)),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildProjectCard(project),
             );
           },
-          child: _buildProjectCard(project),
-        );
-      },
+        ),
+        // Pagination
+        _buildPaginationControls(),
+      ],
+    );
+  }
+
+  Widget _buildPaginationControls() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Tổng số
+          Text(
+            '$_totalProjects dự án',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+          const SizedBox(width: 16),
+          // Prev button
+          _buildPageButton(
+            icon: Icons.chevron_left,
+            onPressed: _currentPage > 0
+                ? () => setCurrentPage(_currentPage - 1)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          // Page numbers
+          ..._buildPageNumbers(),
+          const SizedBox(width: 8),
+          // Next button
+          _buildPageButton(
+            icon: Icons.chevron_right,
+            onPressed: _currentPage < _totalPages - 1
+                ? () => setCurrentPage(_currentPage + 1)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPageNumbers() {
+    final List<Widget> pages = [];
+    final int maxVisible = 5;
+    int start = 0;
+    int end = _totalPages;
+
+    if (_totalPages > maxVisible) {
+      start = (_currentPage - 2).clamp(0, _totalPages - maxVisible);
+      end = start + maxVisible;
+    }
+
+    for (int i = start; i < end; i++) {
+      final isActive = i == _currentPage;
+      pages.add(
+        InkWell(
+          onTap: () => setCurrentPage(i),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isActive ? const Color(0xFF6366F1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActive ? const Color(0xFF6366F1) : const Color(0xFFE5E7EB),
+              ),
+            ),
+            child: Text(
+              '${i + 1}',
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.grey[700],
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return pages;
+  }
+
+  Widget _buildPageButton({
+    required IconData icon,
+    VoidCallback? onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: onPressed != null ? const Color(0xFF6366F1) : Colors.grey[400],
+        ),
+      ),
     );
   }
 
@@ -2370,12 +2702,6 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
   int _totalElements = 0;
   bool _isLoading = false;
   String _keyword = '';
-  String? _selectedRole; // Filter by role
-
-  static const List<Map<String, String?>> _roleOptions = [
-    {'label': 'Tất cả', 'value': null},
-    {'label': 'Nhân viên', 'value': 'USER'},
-  ];
 
   @override
   void initState() {
@@ -2398,7 +2724,8 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
         departmentId: widget.departmentId,
         keyword: _keyword.isEmpty ? null : _keyword,
         excludeUserIds: null,
-        role: _selectedRole,
+        // Backend chỉ cho phép USER làm trưởng nhóm — luôn gửi role để không trả về PM/ADMIN
+        role: 'USER',
         page: _page,
         size: widget.pageSize,
       );
@@ -2412,12 +2739,11 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải danh sách: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi tải danh sách: $e',
+          type: NotificationType.error,
+        ); 
       }
     }
   }
@@ -2551,43 +2877,6 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
                         vertical: 16,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Role filter chips
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children:
-                        _roleOptions.map((opt) {
-                          final selected = _selectedRole == opt['value'];
-                          return FilterChip(
-                            label: Text(opt['label']!),
-                            selected: selected,
-                            onSelected: (value) {
-                              setState(() {
-                                _selectedRole = opt['value'];
-                                _page = 0;
-                              });
-                              _loadPage();
-                            },
-                            selectedColor: primaryPurple.withOpacity(0.15),
-                            checkmarkColor: primaryPurple,
-                            labelStyle: TextStyle(
-                              color:
-                                  selected ? primaryPurple : Colors.grey[700],
-                              fontWeight:
-                                  selected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                              fontSize: 13,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            visualDensity: VisualDensity.compact,
-                          );
-                        }).toList(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -2902,13 +3191,7 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
   int _totalElements = 0;
   bool _isLoading = false;
   String _keyword = '';
-  String? _selectedRole; // Filter by role
   List<int> _excludeIds = [];
-
-  static const List<Map<String, String?>> _roleOptions = [
-    {'label': 'Tất cả', 'value': null},
-    {'label': 'Nhân viên', 'value': 'USER'},
-  ];
 
   @override
   void initState() {
@@ -2933,7 +3216,8 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
         departmentId: widget.departmentId,
         keyword: _keyword.isEmpty ? null : _keyword,
         excludeUserIds: _excludeIds.isEmpty ? null : _excludeIds,
-        role: _selectedRole,
+        // Backend chỉ cho phép USER trong thành viên dự án
+        role: 'USER',
         page: _page,
         size: widget.pageSize,
       );
@@ -2947,11 +3231,10 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải danh sách: $e'),
-            backgroundColor: Colors.red,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi tải danh sách: $e',
+          type: NotificationType.error,
         );
       }
     }
@@ -3102,42 +3385,6 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
                         vertical: 16,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Role filter chips
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children:
-                        _roleOptions.map((opt) {
-                          final selected = _selectedRole == opt['value'];
-                          return FilterChip(
-                            label: Text(opt['label']!),
-                            selected: selected,
-                            onSelected: (value) {
-                              setState(() {
-                                _selectedRole = opt['value'];
-                                _page = 0;
-                              });
-                              _loadPage();
-                            },
-                            selectedColor: primaryGreen.withOpacity(0.15),
-                            checkmarkColor: primaryGreen,
-                            labelStyle: TextStyle(
-                              color: selected ? primaryGreen : Colors.grey[700],
-                              fontWeight:
-                                  selected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                              fontSize: 13,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            visualDensity: VisualDensity.compact,
-                          );
-                        }).toList(),
                   ),
                 ),
                 const SizedBox(height: 16),

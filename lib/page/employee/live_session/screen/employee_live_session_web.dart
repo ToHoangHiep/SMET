@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/employee/lms_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
@@ -124,8 +125,6 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
   }
 
   Future<void> _joinSession(LiveSessionInfo session) async {
-    ScaffoldMessenger.of(context).clearSnackBars();
-
     String? directUrl;
     if (session.meetingUrl.isNotEmpty) {
       directUrl = session.meetingUrl;
@@ -135,19 +134,19 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
     if (directUrl != null) {
       meetingUrl = directUrl;
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đang kết nối buổi live...')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đang kết nối buổi live...',
+        type: NotificationType.info,
       );
       try {
         meetingUrl = await LmsService.joinSession(session.id);
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: Colors.red,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: e.toString().replaceFirst('Exception: ', ''),
+          type: NotificationType.error,
         );
         return;
       }
@@ -156,12 +155,13 @@ class _EmployeeLiveSessionWebState extends State<EmployeeLiveSessionWeb> {
     final uri = Uri.parse(meetingUrl);
     final canLaunch = await canLaunchUrl(uri);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).clearSnackBars();
     if (canLaunch) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể mở link: $meetingUrl')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể mở link: $meetingUrl',
+        type: NotificationType.error,
       );
     }
   }

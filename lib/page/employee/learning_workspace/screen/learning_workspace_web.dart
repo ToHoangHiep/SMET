@@ -11,7 +11,7 @@ class LearningWorkspaceWeb extends StatelessWidget {
   final Widget lessonHeader;
   final Widget tabs;
   final Widget tabContent;
-  final Widget resourcesSidebar;
+  final Widget? resourcesSidebar;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
   final List<BreadcrumbItem>? breadcrumbs;
@@ -23,7 +23,7 @@ class LearningWorkspaceWeb extends StatelessWidget {
     required this.lessonHeader,
     required this.tabs,
     required this.tabContent,
-    required this.resourcesSidebar,
+    this.resourcesSidebar,
     required this.onNavigate,
     required this.onLogout,
     this.breadcrumbs,
@@ -57,20 +57,22 @@ class LearningWorkspaceWeb extends StatelessWidget {
                       const SizedBox(height: 20),
                       tabs,
                       const SizedBox(height: 24),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: tabContent,
-                          ),
-                          const SizedBox(width: 28),
-                          SizedBox(
-                            width: 300,
-                            child: resourcesSidebar,
-                          ),
-                        ],
-                      ),
+                      resourcesSidebar == null
+                          ? tabContent
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: tabContent,
+                                ),
+                                const SizedBox(width: 28),
+                                SizedBox(
+                                  width: 300,
+                                  child: resourcesSidebar!,
+                                ),
+                              ],
+                            ),
                     ],
                   ),
                 ),

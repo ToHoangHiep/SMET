@@ -59,6 +59,12 @@ class MentorShell extends StatefulWidget {
       tooltip: 'Học viên',
     ),
     SidebarMenuItem(
+      icon: Icons.work_rounded,
+      title: 'Dự án',
+      route: '/mentor/projects',
+      tooltip: 'Dự án hướng dẫn',
+    ),
+    SidebarMenuItem(
       icon: Icons.chat_bubble_rounded,
       title: 'Tin nhắn',
       route: '/mentor/messages',
@@ -75,7 +81,8 @@ class MentorShell extends StatefulWidget {
     if (path.startsWith('/mentor/live-sessions')) return 4;
     if (path.startsWith('/mentor/review-assignments')) return 5;
     if (path.startsWith('/mentor/students')) return 6;
-    if (path.startsWith('/mentor/messages')) return 7;
+    if (path.startsWith('/mentor/projects')) return 7;
+    if (path.startsWith('/mentor/messages')) return 8;
     return 0;
   }
 

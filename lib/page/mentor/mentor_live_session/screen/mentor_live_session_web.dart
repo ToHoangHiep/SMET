@@ -5,6 +5,7 @@ import 'package:smet/model/mentor_live_session_model.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer';
 
@@ -173,15 +174,93 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
       await _checkGoogleStatus();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể kết nối Google: $e'),
-          backgroundColor: Colors.red,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể kết nối Google: $e',
+        type: NotificationType.error,
       );
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
+  }
+
+  Future<void> _showGoogleRequiredDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 28),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Cần kết nối Google Calendar',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bạn cần kết nối tài khoản Google để tạo buổi Live Session có link Google Meet.',
+              style: TextStyle(fontSize: 15, height: 1.5, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Nhấn "Kết nối Google" bên phải màn hình để liên kết tài khoản.',
+                      style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Đóng'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xff005BAF),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Kết nối Google'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      _connectGoogle();
+    }
+  }
+
+  void _showGoogleNotConnectedSnackBar() {
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Tạo thành công nhưng chưa có link. Vui lòng kết nối Google Calendar.',
+      type: NotificationType.warning,
+    );
   }
 
   Future<void> _loadSessions(CourseResponse course) async {
@@ -322,10 +401,10 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                   ElevatedButton(
                     onPressed: () async {
                       if (titleController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('Vui lòng nhập tiêu đề'),
-                          ),
+                        GlobalNotificationService.show(
+                          context: ctx,
+                          message: 'Vui lòng nhập tiêu đề',
+                          type: NotificationType.warning,
                         );
                         return;
                       }
@@ -342,15 +421,19 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                         );
                         if (!mounted) return;
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Cập nhật thành công!')),
+                        GlobalNotificationService.show(
+                          context: context,
+                          message: 'Cập nhật thành công!',
+                          type: NotificationType.success,
                         );
                         if (_selectedCourse != null)
                           _loadSessions(_selectedCourse!);
                       } catch (e) {
                         if (!mounted) return;
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Cập nhật thất bại: $e')),
+                        GlobalNotificationService.show(
+                          context: ctx,
+                          message: 'Cập nhật thất bại: $e',
+                          type: NotificationType.error,
                         );
                       }
                     },
@@ -389,30 +472,27 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
     try {
       await _service.deleteSession(session.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Xóa thành công!')));
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Xóa thành công!',
+        type: NotificationType.success,
+      );
       if (_selectedCourse != null) _loadSessions(_selectedCourse!);
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
       final isForbidden = msg.contains('403') || msg.contains('không có quyền');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isForbidden
-                ? 'Bạn không có quyền xóa buổi live. Chỉ Admin mới được phép xóa.'
-                : 'Xóa thất bại: $e',
-          ),
-          backgroundColor: isForbidden ? Colors.orange : null,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: isForbidden
+            ? 'Bạn không có quyền xóa buổi live. Chỉ Admin mới được phép xóa.'
+            : 'Xóa thất bại: $e',
+        type: isForbidden ? NotificationType.warning : NotificationType.error,
       );
     }
   }
 
   Future<void> _joinSession(LiveSessionInfo session) async {
-    ScaffoldMessenger.of(context).clearSnackBars();
-
     String? directUrl;
     if (session.meetingUrl != null && session.meetingUrl!.isNotEmpty) {
       directUrl = session.meetingUrl;
@@ -420,48 +500,47 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
 
     String meetingUrl;
     if (directUrl != null) {
-      // Mentor can join directly via stored meetingUrl (no time restriction)
       meetingUrl = directUrl;
     } else {
-      // Fallback: call backend to get the link (backend may enforce time check)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đang kết nối buổi live...')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đang kết nối buổi live...',
+        type: NotificationType.info,
       );
       try {
         meetingUrl = await _service.joinSession(session.id);
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: Colors.red,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: e.toString().replaceFirst('Exception: ', ''),
+          type: NotificationType.error,
         );
         return;
       }
     }
 
-    // Open the meeting URL
     final uri = Uri.parse(meetingUrl);
     final canLaunch = await canLaunchUrl(uri);
     if (canLaunch) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể mở link: $meetingUrl')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể mở link: $meetingUrl',
+        type: NotificationType.error,
       );
     }
   }
 
   Future<void> _showCreateSessionDialog({DateTime? initialDate}) async {
     if (_selectedCourse == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn khóa học trước')),
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng chọn khóa học trước',
+        type: NotificationType.warning,
       );
       return;
     }
@@ -703,27 +782,25 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                           FilledButton(
                             onPressed: () async {
                               if (titleController.text.trim().isEmpty) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Vui lòng nhập tiêu đề'),
-                                  ),
+                                GlobalNotificationService.show(
+                                  context: ctx,
+                                  message: 'Vui lòng nhập tiêu đề',
+                                  type: NotificationType.warning,
                                 );
                                 return;
                               }
                               final start = buildDt(startTime);
                               final end = buildDt(endTime);
                               if (!end.isAfter(start)) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Giờ kết thúc phải sau giờ bắt đầu',
-                                    ),
-                                  ),
+                                GlobalNotificationService.show(
+                                  context: ctx,
+                                  message: 'Giờ kết thúc phải sau giờ bắt đầu',
+                                  type: NotificationType.warning,
                                 );
                                 return;
                               }
                               try {
-                                await _service.createSession(
+                                final result = await _service.createSession(
                                   CreateLiveSessionRequest(
                                     courseId: _selectedCourse!.id,
                                     title: titleController.text.trim(),
@@ -734,16 +811,22 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                                 if (!mounted || !context.mounted) return;
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Tạo buổi live thành công!'),
-                                  ),
-                                );
+                                if (result.meetingUrl != null && result.meetingUrl!.isNotEmpty) {
+                                  GlobalNotificationService.show(
+                                    context: context,
+                                    message: 'Tạo buổi live thành công!',
+                                    type: NotificationType.success,
+                                  );
+                                } else {
+                                  _showGoogleNotConnectedSnackBar();
+                                }
                                 _loadSessions(_selectedCourse!);
                               } catch (e) {
                                 if (!ctx.mounted) return;
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(content: Text('Tạo thất bại: $e')),
+                                GlobalNotificationService.show(
+                                  context: ctx,
+                                  message: 'Tạo thất bại: $e',
+                                  type: NotificationType.error,
                                 );
                               }
                             },
@@ -814,9 +897,15 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                       onFocusedDateChanged: (d) {
                         setState(() => _dayViewFocusedDate = _calendarDateOnly(d));
                       },
-                      onAddLive: () => _showCreateSessionDialog(
-                        initialDate: _dayViewFocusedDate,
-                      ),
+                      onAddLive: () {
+                        if (!_isGoogleConnected) {
+                          _showGoogleRequiredDialog();
+                          return;
+                        }
+                        _showCreateSessionDialog(
+                          initialDate: _dayViewFocusedDate,
+                        );
+                      },
                       courseSelected: _selectedCourse != null,
                       isLoading: _isLoadingSessions,
                       onEditSession: _showEditSessionDialog,
@@ -842,9 +931,15 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
                           _weekViewFocusedDate = _weekViewFocusedDate.add(const Duration(days: 7));
                         });
                       },
-                      onAddLive: () => _showCreateSessionDialog(
-                        initialDate: _weekViewFocusedDate,
-                      ),
+                      onAddLive: () {
+                        if (!_isGoogleConnected) {
+                          _showGoogleRequiredDialog();
+                          return;
+                        }
+                        _showCreateSessionDialog(
+                          initialDate: _weekViewFocusedDate,
+                        );
+                      },
                       courseSelected: _selectedCourse != null,
                       isLoading: _isLoadingSessions,
                       onEditSession: _showEditSessionDialog,
@@ -914,7 +1009,15 @@ class _MentorLiveSessionWebState extends State<MentorLiveSessionWeb> {
           const SizedBox(width: 12),
           ElevatedButton.icon(
             onPressed:
-                _selectedCourse != null ? _showCreateSessionDialog : null,
+                _selectedCourse != null
+                    ? () {
+                        if (!_isGoogleConnected) {
+                          _showGoogleRequiredDialog();
+                          return;
+                        }
+                        _showCreateSessionDialog();
+                      }
+                    : null,
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Tạo buổi live'),
             style: ElevatedButton.styleFrom(
@@ -1208,10 +1311,10 @@ class _WeekView extends StatelessWidget {
                       courseSelected
                           ? onAddLive
                           : () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Vui lòng chọn khóa học trước'),
-                              ),
+                            GlobalNotificationService.show(
+                              context: context,
+                              message: 'Vui lòng chọn khóa học trước',
+                              type: NotificationType.warning,
                             );
                           },
                   icon: const Icon(Icons.add, size: 18),
@@ -1848,10 +1951,10 @@ class _DayView extends StatelessWidget {
                     courseSelected
                         ? onAddLive
                         : () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Vui lòng chọn khóa học trước'),
-                            ),
+                          GlobalNotificationService.show(
+                            context: context,
+                            message: 'Vui lòng chọn khóa học trước',
+                            type: NotificationType.warning,
                           );
                         },
                 icon: const Icon(Icons.add, size: 18),

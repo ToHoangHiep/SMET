@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 class UserManagementPageHeader extends StatefulWidget {
   final Color primaryColor;
   final VoidCallback onImportExcel;
+  final VoidCallback onDownloadTemplate;
   final VoidCallback onCreateUser;
 
   const UserManagementPageHeader({
     super.key,
     required this.primaryColor,
     required this.onImportExcel,
+    required this.onDownloadTemplate,
     required this.onCreateUser,
   });
 
@@ -25,6 +27,7 @@ class _UserManagementPageHeaderState extends State<UserManagementPageHeader>
 
   bool _isHoveredCreate = false;
   bool _isHoveredImport = false;
+  bool _isHoveredTemplate = false;
 
   @override
   void initState() {
@@ -159,6 +162,19 @@ class _UserManagementPageHeaderState extends State<UserManagementPageHeader>
   Widget _buildActionButtons() {
     return Row(
       children: [
+        _AnimatedButton(
+          onPressed: widget.onDownloadTemplate,
+          isHovered: _isHoveredTemplate,
+          onHover: (value) => setState(() => _isHoveredTemplate = value),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF374151),
+          borderColor: const Color(0xFFE5E7EB),
+          hoverBorderColor: widget.primaryColor.withValues(alpha: 0.5),
+          primaryColor: widget.primaryColor,
+          icon: Icons.download_outlined,
+          label: 'Tải template',
+        ),
+        const SizedBox(width: 12),
         _AnimatedButton(
           onPressed: widget.onImportExcel,
           isHovered: _isHoveredImport,

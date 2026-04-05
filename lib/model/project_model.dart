@@ -36,8 +36,8 @@ class ProjectModel {
   final ProjectStatus status;
   final int leaderId;
   final String? leaderName;
-  final int? managerId;
-  final String? managerName;
+  final int? mentorId;
+  final String? mentorName;
   final List<int>? memberIds;
   final List<String>? memberNames;
 
@@ -49,8 +49,8 @@ class ProjectModel {
     required this.status,
     required this.leaderId,
     this.leaderName,
-    this.managerId,
-    this.managerName,
+    this.mentorId,
+    this.mentorName,
     this.memberIds,
     this.memberNames,
   });
@@ -64,8 +64,8 @@ class ProjectModel {
       status: ProjectStatus.fromString(json['status']),
       leaderId: json['leaderId'] ?? 0,
       leaderName: json['leaderName']?.toString(),
-      managerId: json['managerId'] as int?,
-      managerName: json['managerName']?.toString(),
+      mentorId: json['mentorId'] as int?,
+      mentorName: json['mentorName']?.toString(),
       memberIds: json['memberIds'] != null 
           ? List<int>.from(json['memberIds']) 
           : null,
@@ -95,8 +95,8 @@ class ProjectModel {
     ProjectStatus? status,
     int? leaderId,
     String? leaderName,
-    int? managerId,
-    String? managerName,
+    int? mentorId,
+    String? mentorName,
     List<int>? memberIds,
     List<String>? memberNames,
   }) {
@@ -108,8 +108,8 @@ class ProjectModel {
       status: status ?? this.status,
       leaderId: leaderId ?? this.leaderId,
       leaderName: leaderName ?? this.leaderName,
-      managerId: managerId ?? this.managerId,
-      managerName: managerName ?? this.managerName,
+      mentorId: mentorId ?? this.mentorId,
+      mentorName: mentorName ?? this.mentorName,
       memberIds: memberIds ?? this.memberIds,
       memberNames: memberNames ?? this.memberNames,
     );

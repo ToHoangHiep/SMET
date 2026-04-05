@@ -358,8 +358,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           description: _lessonContent!.description,
           keyTakeaways: _lessonContent!.keyTakeaways,
         );
-      case LessonTab.resources:
-        return ResourcesTab(resources: _lessonContent!.resources);
       case LessonTab.discussion:
         return DiscussionTab(
           discussions: _lessonContent!.discussions,
@@ -367,18 +365,16 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
             // TODO: Implement post comment
           },
         );
-      case LessonTab.transcripts:
-        return TranscriptTab(transcript: _lessonContent!.transcript);
     }
   }
 
-  // Build resources sidebar widget
-  Widget buildResourcesSidebar() {
-    if (_lessonContent == null) return const SizedBox.shrink();
+  Widget? buildResourcesSidebar() {
+    if (_lessonContent == null) return null;
+    final next = _lessonContent!.nextLesson;
+    if (next == null && _learningPath == null) return null;
 
     return ResourcesSidebar(
-      resources: _lessonContent!.resources,
-      nextLesson: _lessonContent!.nextLesson,
+      nextLesson: next,
       onJumpToLesson: _onJumpToLesson,
       learningPath: _learningPath,
       currentCourseId: widget.courseId,
