@@ -43,6 +43,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   bool _isLoading = true;
   String? _error;
   LearningPathDetail? _learningPath;
+  int _discussionCount = 0;
 
   @override
   void initState() {
@@ -138,15 +139,25 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         }
       }
 
+      int fetchedCount = 0;
       LessonContent? lessonContent;
       if (targetLessonId.isNotEmpty) {
         lessonContent = await LmsService.getLessonDetail(targetLessonId);
+
+        // Fetch discussion count for the badge
+        try {
+          final (_, count) = await LmsService.getChatMessages(targetLessonId, size: 1);
+          fetchedCount = count > 0 ? count : 0;
+        } catch (_) {
+          fetchedCount = 0;
+        }
       }
 
       setState(() {
         _course = course;
         _lessonContent = lessonContent;
         _learningPath = pathDetail;
+        _discussionCount = fetchedCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -344,7 +355,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     return LessonTabs(
       selectedTab: _selectedTab,
       onTabChanged: _onTabChanged,
-      discussionCount: _lessonContent?.discussions.length ?? 0,
+      discussionCount: _discussionCount,
     );
   }
 
@@ -360,10 +371,8 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         );
       case LessonTab.discussion:
         return DiscussionTab(
-          discussions: _lessonContent!.discussions,
-          onPostComment: (comment) {
-            // TODO: Implement post comment
-          },
+          lessonId: _lessonContent!.id,
+          initialDiscussions: const [],
         );
     }
   }

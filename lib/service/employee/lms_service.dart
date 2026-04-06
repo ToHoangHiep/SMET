@@ -325,13 +325,22 @@ class LmsService {
   }
 
   // ============================================================
-  // DISCUSSIONS — GET /api/lms/lessons/{lessonId}/discussions
+  // CHAT / DISCUSSION — GET /api/chat/messages
+  // Maps backend ChatMessageResponse to Discussion model.
+  // Backend returns: id(Long), senderId(Long), content(String), createdAt(LocalDateTime)
   // ============================================================
 
-  static Future<List<Discussion>> getDiscussions(String lessonId) async {
+  /// Returns (messages, totalCount). totalCount = -1 if pagination info unavailable.
+  static Future<(List<Discussion>, int)> getChatMessages(
+    String lessonId, {
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/lessons/$lessonId/discussions");
+      final url = Uri.parse(
+        "$baseUrl/chat/messages?lessonId=$lessonId&page=$page&size=$size",
+      );
 
       final response = await http.get(
         url,
@@ -341,44 +350,82 @@ class LmsService {
         },
       );
 
+      log("GET CHAT MESSAGES STATUS: ${response.statusCode}, lessonId=$lessonId");
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         List<dynamic> list;
+        int totalCount = 0;
+
         if (data is List) {
           list = data;
         } else if (data is Map) {
-          list = data['data'] ?? data['content'] ?? [];
+          list = data['content'] ?? data['data'] ?? [];
+          totalCount = (data['totalElements'] ?? data['totalElements'] ?? list.length) as int;
         } else {
           list = [];
         }
-        return list.map((d) => Discussion(
-          id: d['id']?.toString() ?? '',
-          userName: d['userName'] ?? d['user_name'] ?? 'User',
-          avatarUrl: d['avatarUrl']?.toString(),
-          comment: d['comment'] ?? d['content'] ?? '',
-          timeAgo: d['timeAgo'] ?? d['time_ago'] ?? '',
-          replyCount: d['replyCount'] ?? d['reply_count'] ?? 0,
-        )).toList();
+
+        final currentUser = await AuthService.getCurrentUser();
+        final currentUserId = currentUser.id;
+
+        final discussions = list.map((m) {
+          final senderId = m['senderId'] is int
+              ? m['senderId'] as int
+              : int.tryParse(m['senderId']?.toString() ?? '0') ?? 0;
+          final isCurrentUser = senderId == currentUserId;
+
+          DateTime createdAt;
+          try {
+            createdAt = DateTime.parse(m['createdAt']?.toString() ?? '');
+          } catch (_) {
+            createdAt = DateTime.now();
+          }
+
+          return Discussion(
+            id: m['id'] is int
+                ? m['id'] as int
+                : int.tryParse(m['id']?.toString() ?? '0') ?? 0,
+            senderId: senderId,
+            senderName: isCurrentUser
+                ? (currentUser.fullName.isNotEmpty
+                    ? currentUser.fullName
+                    : 'Bạn')
+                : (m['senderName']?.toString() ?? m['senderName'] ?? 'Người dùng'),
+            senderAvatarUrl:
+                isCurrentUser ? currentUser.avatarUrl : m['senderAvatarUrl'],
+            content: m['content']?.toString() ?? '',
+            createdAt: createdAt,
+            replyCount: 0,
+          );
+        }).toList();
+
+        return (discussions, totalCount);
       }
-      return [];
+
+      log("GET CHAT MESSAGES FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
+      return (<Discussion>[], 0);
     } catch (e) {
-      log("LmsService.getDiscussions failed: $e");
-      return [];
+      log("LmsService.getChatMessages failed: $e");
+      return (<Discussion>[], 0);
     }
   }
 
   // ============================================================
-  // POST DISCUSSION — POST /api/lms/lessons/{lessonId}/discussions
+  // SEND CHAT MESSAGE — POST /api/chat/send
+  // Backend expects: lessonId(Long), content(String), clientMessageId(String)
   // ============================================================
 
-  static Future<Discussion> postDiscussion(
+  static Future<Discussion?> sendChatMessage(
     String lessonId,
-    String userId,
-    String comment,
+    String content,
   ) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/lessons/$lessonId/discussions");
+      final url = Uri.parse("$baseUrl/chat/send?lessonId=$lessonId");
+
+      final clientMessageId =
+          '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecondsSinceEpoch}';
 
       final response = await http.post(
         url,
@@ -387,27 +434,32 @@ class LmsService {
           "Content-Type": "application/json",
         },
         body: jsonEncode({
-          'userId': userId,
-          'comment': comment,
+          'content': content,
+          'clientMessageId': clientMessageId,
         }),
       );
 
+      log("SEND CHAT MESSAGE STATUS: ${response.statusCode}, lessonId=$lessonId");
+
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
+        final currentUser = await AuthService.getCurrentUser();
         return Discussion(
-          id: data['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
-          userName: data['userName'] ?? 'Bạn',
-          avatarUrl: data['avatarUrl']?.toString(),
-          comment: data['comment'] ?? comment,
-          timeAgo: 'Vừa xong',
+          id: -1, // Backend doesn't return the created message; use -1 as temp
+          senderId: currentUser.id,
+          senderName:
+              currentUser.fullName.isNotEmpty ? currentUser.fullName : 'Bạn',
+          senderAvatarUrl: currentUser.avatarUrl,
+          content: content,
+          createdAt: DateTime.now(),
           replyCount: 0,
         );
       }
-      log("POST DISCUSSION FAILED: status=${response.statusCode}, body=${response.body}");
-      throw Exception("Không thể gửi bình luận");
+
+      log("SEND CHAT MESSAGE FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
+      return null;
     } catch (e) {
-      log("LmsService.postDiscussion failed: $e");
-      rethrow;
+      log("LmsService.sendChatMessage failed: $e");
+      return null;
     }
   }
 

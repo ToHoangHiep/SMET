@@ -125,21 +125,66 @@ class LessonResource {
 }
 
 class Discussion {
-  final String id;
-  final String userName;
-  final String? avatarUrl;
-  final String comment;
-  final String timeAgo;
+  final int id;
+  final int senderId;
+  final String senderName;
+  final String? senderAvatarUrl;
+  final String content;
+  final DateTime createdAt;
   final int replyCount;
 
   const Discussion({
     required this.id,
-    required this.userName,
-    this.avatarUrl,
-    required this.comment,
-    required this.timeAgo,
-    required this.replyCount,
+    required this.senderId,
+    required this.senderName,
+    this.senderAvatarUrl,
+    required this.content,
+    required this.createdAt,
+    this.replyCount = 0,
   });
+
+  String get timeAgo => _formatTimeAgo(createdAt);
+
+  static String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 365) {
+      final years = (difference.inDays / 365).floor();
+      return '$years năm trước';
+    } else if (difference.inDays > 30) {
+      final months = (difference.inDays / 30).floor();
+      return '$months tháng trước';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} ngày trước';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} giờ trước';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} phút trước';
+    } else {
+      return 'Vừa xong';
+    }
+  }
+
+  Discussion copyWith({
+    int? id,
+    int? senderId,
+    String? senderName,
+    String? senderAvatarUrl,
+    String? content,
+    DateTime? createdAt,
+    int? replyCount,
+  }) {
+    return Discussion(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName,
+      senderAvatarUrl: senderAvatarUrl ?? this.senderAvatarUrl,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      replyCount: replyCount ?? this.replyCount,
+    );
+  }
 }
 
 class User {

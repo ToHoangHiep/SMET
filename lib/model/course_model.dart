@@ -66,9 +66,8 @@ class PageResponse<T> {
   ) {
     final List<dynamic>? rawList = json['data'] ?? json['content'];
     return PageResponse(
-      content: rawList
-              ?.map((e) => fromJsonT(e as Map<String, dynamic>))
-              .toList() ??
+      content:
+          rawList?.map((e) => fromJsonT(e as Map<String, dynamic>)).toList() ??
           [],
       totalElements: _parseInt(json['totalElements'] ?? 0),
       totalPages: _parseInt(json['totalPages'] ?? 0),
@@ -311,14 +310,14 @@ class CreateCourseRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        if (description != null) 'description': description,
-        if (departmentId != null) 'departmentId': departmentId,
-        if (deadlineType != null) 'deadlineType': deadlineType,
-        if (defaultDeadlineDays != null) 'defaultDeadlineDays': defaultDeadlineDays,
-        if (fixedDeadline != null) 'fixedDeadline': fixedDeadline,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-      };
+    'title': title,
+    if (description != null) 'description': description,
+    if (departmentId != null) 'departmentId': departmentId,
+    if (deadlineType != null) 'deadlineType': deadlineType,
+    if (defaultDeadlineDays != null) 'defaultDeadlineDays': defaultDeadlineDays,
+    if (fixedDeadline != null) 'fixedDeadline': fixedDeadline,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+  };
 }
 
 // ============================================
@@ -345,14 +344,14 @@ class UpdateCourseRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        if (description != null) 'description': description,
-        if (status != null) 'status': status,
-        if (deadlineType != null) 'deadlineType': deadlineType,
-        if (defaultDeadlineDays != null) 'defaultDeadlineDays': defaultDeadlineDays,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        if (fixedDeadline != null) 'fixedDeadline': fixedDeadline,
-      };
+    'title': title,
+    if (description != null) 'description': description,
+    if (status != null) 'status': status,
+    if (deadlineType != null) 'deadlineType': deadlineType,
+    if (defaultDeadlineDays != null) 'defaultDeadlineDays': defaultDeadlineDays,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+    if (fixedDeadline != null) 'fixedDeadline': fixedDeadline,
+  };
 }
 
 class CourseModel {
@@ -450,9 +449,10 @@ class CoursePageResponse {
     }
 
     return CoursePageResponse(
-      data: rawList
-          .map((e) => CourseModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      data:
+          rawList
+              .map((e) => CourseModel.fromJson(e as Map<String, dynamic>))
+              .toList(),
       page: parseInt(json['page']),
       size: parseInt(json['size']),
       totalElements: parseInt(json['totalElements']),
@@ -519,7 +519,8 @@ class ModuleResponse {
       id: _parseLong(json['id']),
       title: (json['title'] ?? '').toString(),
       orderIndex: _parseInt(json['orderIndex']),
-      lessons: (json['lessons'] as List<dynamic>?)
+      lessons:
+          (json['lessons'] as List<dynamic>?)
               ?.map((e) => LessonResponse.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -559,7 +560,8 @@ class LessonResponse {
       contentType: json['contentType']?.toString(),
       content: json['content']?.toString(),
       videoUrl: json['videoUrl']?.toString(),
-      contentId: json['contentId'] != null ? _parseLong(json['contentId']) : null,
+      contentId:
+          json['contentId'] != null ? _parseLong(json['contentId']) : null,
     );
   }
 }
@@ -580,10 +582,10 @@ class CreateModuleRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'orderIndex': orderIndex,
-        'courseId': courseId.value,
-      };
+    'title': title,
+    'orderIndex': orderIndex,
+    'courseId': courseId.value,
+  };
 }
 
 // ============================================
@@ -608,11 +610,11 @@ class CreateLessonRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'orderIndex': orderIndex,
-        'moduleId': moduleId.value,
-        'contentType': contentType,
-        if (content != null) 'content': content,
-        if (videoUrl != null) 'videoUrl': videoUrl,
-      };
+    'title': title,
+    'orderIndex': orderIndex,
+    'moduleId': moduleId.value,
+    'contentType': contentType,
+    if (content != null) 'content': content,
+    if (videoUrl != null) 'videoUrl': videoUrl,
+  };
 }

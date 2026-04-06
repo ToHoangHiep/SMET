@@ -307,11 +307,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
       user: user,
       departments: _departments,
       primaryColor: _primaryColor,
-      onConfirm: (newDepartmentId) async {
+      onConfirm: (newDepartmentId, {bool confirmSwap = false}) async {
         try {
           await _apiService.updateUser(
             user,
             departmentId: newDepartmentId,
+            confirmSwap: confirmSwap,
           );
           await _fetchUsers();
           return true;

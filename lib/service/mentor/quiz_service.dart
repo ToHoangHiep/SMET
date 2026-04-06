@@ -34,11 +34,7 @@ class MentorQuizService {
       name: 'QuizDebug',
     );
 
-    final response = await http.post(
-      uri,
-      headers: _headers(token),
-      body: body,
-    );
+    final response = await http.post(uri, headers: _headers(token), body: body);
 
     dev.log(
       '[MentorQuizService.createQuiz] status=${response.statusCode}\n'

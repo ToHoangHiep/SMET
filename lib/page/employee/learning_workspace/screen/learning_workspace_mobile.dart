@@ -127,8 +127,8 @@ class LearningWorkspaceMobile extends StatelessWidget {
         );
       case LessonTab.discussion:
         return DiscussionTab(
-          discussions: lessonContent.discussions,
-          onPostComment: (comment) {},
+          lessonId: lessonContent.id,
+          initialDiscussions: const [],
         );
     }
   }

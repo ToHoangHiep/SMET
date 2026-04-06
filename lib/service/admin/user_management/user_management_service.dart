@@ -123,7 +123,7 @@ class UserManagementApi {
   }
 
   /// ================= UPDATE USER =================
-  Future<void> updateUser(UserModel user, {int? departmentId}) async {
+  Future<void> updateUser(UserModel user, {int? departmentId, bool confirmSwap = false}) async {
     try {
       final token = await _getToken();
       final url = "$baseUrl/admin/users/${user.id}";
@@ -142,6 +142,11 @@ class UserManagementApi {
         body["departmentId"] = departmentId;
       }
 
+      // Thêm confirmSwap nếu là swap
+      if (confirmSwap) {
+        body["confirmSwap"] = true;
+      }
+
       _logRequest(
         "UPDATE USER",
         url,
@@ -158,7 +163,12 @@ class UserManagementApi {
       _logResponse(res);
 
       if (res.statusCode != 200) {
-        throw Exception("Update user failed");
+        String msg = 'Cập nhật thất bại';
+        try {
+          final body = jsonDecode(res.body);
+          msg = body['message'] ?? msg;
+        } catch (_) {}
+        throw Exception(msg);
       }
     } catch (e) {
       log("UPDATE USER ERROR: $e");

@@ -12,11 +12,12 @@ class ProjectService {
   static Future<ProjectPageResult> getAll({
     String? keyword,
     String? status,
+    int? departmentId,
     int page = 0,
     int size = 10,
   }) async {
     final token = await AuthService.getToken();
-    
+
     final queryParams = <String, String>{
       'page': page.toString(),
       'size': size.toString(),
@@ -26,6 +27,9 @@ class ProjectService {
     }
     if (status != null && status.isNotEmpty) {
       queryParams['status'] = status;
+    }
+    if (departmentId != null) {
+      queryParams['departmentId'] = departmentId.toString();
     }
     
     final uri = Uri.parse("$_baseUrl/projects/get").replace(queryParameters: queryParams);

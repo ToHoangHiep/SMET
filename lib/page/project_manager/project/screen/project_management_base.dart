@@ -56,6 +56,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   String?
   _selectedMentorName; // Tên người hướng dẫn (để hiển thị khi không có _mentorOptions)
   List<Map<String, dynamic>> _selectedMembers = [];
+  int? _editingDepartmentId; // Department của project đang edit (dùng cho picker thay vì _currentDepartmentId)
 
   // Separate lists for Lead, Mentor, Members
   List<Map<String, dynamic>> _leadOptions = [];
@@ -89,6 +90,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       final result = await ProjectService.getAll(
         keyword: _nameQuery.isNotEmpty ? _nameQuery : null,
         status: statusFilter,
+        departmentId: _currentDepartmentId,
         page: _currentPage,
         size: _rowsPerPage,
       );
@@ -264,39 +266,44 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   void setCreateStatus(String v) => setState(() => _createStatus = v);
 
   void openEditProjectScreen(ProjectModel project) async {
-    setState(() {
-      _isUpdateMode = true;
-      _isCreateMode = false;
-      _editingProjectId = project.id.toString();
-      _createNameController.text = project.title;
-      _createDescriptionController.text = project.description ?? '';
-      _createStatus = project.status.name;
-      _selectedLeaderId = project.leaderId > 0 ? project.leaderId : null;
-      _selectedLeaderName = project.leaderName;
-      _selectedMentorId = project.mentorId;
-      _selectedMentorName = project.mentorName;
+    try {
+      // Gọi getById để lấy đầy đủ leaderId, mentorId, memberIds, memberNames
+      final fullProject = await ProjectService.getById(project.id);
+      log("openEditProjectScreen - full data: "
+          "leaderId=${fullProject.leaderId}, "
+          "mentorId=${fullProject.mentorId}, "
+          "memberIds=${fullProject.memberIds}");
 
-      // Chuyển memberIds thành danh sách Map để hiển thị
-      _selectedMembers = [];
-      if (project.memberIds != null) {
-        for (final memberId in project.memberIds!) {
-          _selectedMembers.add({
-            'id': memberId,
-            'name':
-                project.memberNames != null &&
-                        project.memberIds!.indexOf(memberId) <
-                            project.memberNames!.length
-                    ? project.memberNames![project.memberIds!.indexOf(memberId)]
-                    : 'User $memberId',
-            'email': '',
-          });
+      setState(() {
+        _isUpdateMode = true;
+        _isCreateMode = false;
+        _editingProjectId = project.id.toString();
+        _editingDepartmentId = project.departmentId > 0 ? project.departmentId : null;
+        _createNameController.text = fullProject.title;
+        _createDescriptionController.text = fullProject.description ?? '';
+        _createStatus = fullProject.status.name;
+        _selectedLeaderId = fullProject.leaderId > 0 ? fullProject.leaderId : null;
+        _selectedLeaderName = fullProject.leaderName;
+        _selectedMentorId = fullProject.mentorId;
+        _selectedMentorName = fullProject.mentorName;
+
+        _selectedMembers = [];
+        if (fullProject.memberIds != null) {
+          for (final memberId in fullProject.memberIds!) {
+            _selectedMembers.add({
+              'id': memberId,
+              'name': fullProject.memberNames != null &&
+                      fullProject.memberNames!.length > fullProject.memberIds!.indexOf(memberId)
+                  ? fullProject.memberNames![fullProject.memberIds!.indexOf(memberId)]
+                  : 'User $memberId',
+              'email': '',
+            });
+          }
         }
-      }
-    });
-
-    log(
-      "Project loaded - LeaderId: ${project.leaderId}, Members: ${project.memberIds}",
-    );
+      });
+    } catch (e) {
+      log("openEditProjectScreen error: $e");
+    }
   }
 
   /// Mở dialog xem chi tiết dự án (read-only). Có nút "Cập nhật" để chuyển sang chỉnh sửa.
@@ -454,6 +461,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _isCreateMode = false;
     _isUpdateMode = false;
     _editingProjectId = null;
+    _editingDepartmentId = null;
   });
 
   void submitCreateProject() async {
@@ -1966,7 +1974,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   void _showLeaderPicker() {
-    if (_currentDepartmentId == null) {
+    final deptId = _isUpdateMode ? _editingDepartmentId : _currentDepartmentId;
+    if (deptId == null) {
       GlobalNotificationService.show(
         context: context,
         message: 'Vui lòng chọn phòng ban trước',
@@ -1982,7 +1991,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       ),
       builder:
           (ctx) => _LeaderPickerSheetContent(
-            departmentId: _currentDepartmentId!,
+            departmentId: deptId,
             pageSize: 10,
             onSelectLeader: (user) {
               final id = user['id'];
@@ -2032,7 +2041,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   void _showMentorPicker() {
-    if (_currentDepartmentId == null) {
+    final deptId = _isUpdateMode ? _editingDepartmentId : _currentDepartmentId;
+    if (deptId == null) {
       GlobalNotificationService.show(
         context: context,
         message: 'Vui lòng chọn phòng ban trước',
@@ -2048,7 +2058,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       ),
       builder:
           (ctx) => MentorPickerSheetContent(
-            departmentId: _currentDepartmentId!,
+            departmentId: deptId,
             pageSize: 10,
             onSelectMentor: (user) {
               final id = user['id'];
@@ -2067,7 +2077,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   void _showMembersPicker() {
-    if (_currentDepartmentId == null) {
+    final deptId = _isUpdateMode ? _editingDepartmentId : _currentDepartmentId;
+    if (deptId == null) {
       GlobalNotificationService.show(
         context: context,
         message: 'Vui lòng chọn phòng ban trước',
@@ -2090,7 +2101,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       ),
       builder:
           (ctx) => _MemberPickerSheetContent(
-            departmentId: _currentDepartmentId!,
+            departmentId: deptId,
             excludeUserIds: excludeIds,
             pageSize: 10,
             onSelectMember: (user) {
@@ -3201,6 +3212,21 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
   }
 
   @override
+  void didUpdateWidget(_MemberPickerSheetContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newExclude = List<int>.from(widget.excludeUserIds);
+    final oldExclude = List<int>.from(oldWidget.excludeUserIds);
+    final changed = newExclude.length != oldExclude.length ||
+        Set<int>.from(newExclude).containsAll(oldExclude) == false ||
+        Set<int>.from(oldExclude).containsAll(newExclude) == false;
+    if (changed) {
+      _excludeIds = newExclude;
+      _page = 0;
+      _loadPage();
+    }
+  }
+
+  @override
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
@@ -3215,7 +3241,7 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
       final result = await ProjectMemberService.getUsersForProjectPaginated(
         departmentId: widget.departmentId,
         keyword: _keyword.isEmpty ? null : _keyword,
-        excludeUserIds: _excludeIds.isEmpty ? null : _excludeIds,
+        excludeUserIds: widget.excludeUserIds.isEmpty ? null : widget.excludeUserIds,
         // Backend chỉ cho phép USER trong thành viên dự án
         role: 'USER',
         page: _page,

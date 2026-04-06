@@ -25,11 +25,10 @@ class MentorSidebar extends StatelessWidget {
       width: 250,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: isMobile
-            ? null
-            : const Border(
-                right: BorderSide(color: Color(0xffe0e0e0)),
-              ),
+        border:
+            isMobile
+                ? null
+                : const Border(right: BorderSide(color: Color(0xffe0e0e0))),
       ),
       child: Column(
         children: [
@@ -48,7 +47,7 @@ class MentorSidebar extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
-              )
+              ),
             ],
           ),
 
@@ -70,9 +69,7 @@ class MentorSidebar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Color(0xffe0e0e0)),
-              ),
+              border: Border(top: BorderSide(color: Color(0xffe0e0e0))),
             ),
             child: Row(
               children: const [
@@ -95,10 +92,7 @@ class MentorSidebar extends StatelessWidget {
                       ),
                       Text(
                         "Mentor",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: Colors.grey, fontSize: 11),
                       ),
                     ],
                   ),
@@ -192,18 +186,18 @@ class MentorSidebar extends StatelessWidget {
       case "Học viên":
       case "Tin nhắn":
         Future.delayed(const Duration(milliseconds: 300), () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$title - Đang phát triển')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('$title - Đang phát triển')));
         });
         return;
     }
 
     if (targetPage != null) {
       Future.delayed(const Duration(milliseconds: 300), () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => targetPage!),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => targetPage!));
       });
     }
   }

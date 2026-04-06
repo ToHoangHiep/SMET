@@ -49,11 +49,12 @@ class QuizModel {
           json['module_id'] != null
               ? Long(json['module_id'])
               : (json['moduleId'] != null ? Long(json['moduleId']) : null),
-      questions: json['questions'] != null
-          ? (json['questions'] as List)
-              .map((q) => QuestionModel.fromJson(q))
-              .toList()
-          : null,
+      questions:
+          json['questions'] != null
+              ? (json['questions'] as List)
+                  .map((q) => QuestionModel.fromJson(q))
+                  .toList()
+              : null,
       totalQuestions: json['totalQuestions'],
     );
   }

@@ -24,6 +24,8 @@ class _MentorProjectDetailDialogState extends State<MentorProjectDetailDialog> {
   bool _isLoading = true;
   bool _isApproving = false;
   bool _isRejecting = false;
+  bool _isApprovingPM = false;
+  bool _isRejectingPM = false;
   String? _error;
 
   @override
@@ -154,6 +156,101 @@ class _MentorProjectDetailDialogState extends State<MentorProjectDetailDialog> {
       } finally {
         if (mounted) {
           setState(() => _isRejecting = false);
+        }
+      }
+    }
+  }
+
+  Future<void> _approveByPM() async {
+    setState(() => _isApprovingPM = true);
+
+    try {
+      await MentorProjectService.approveByPM(widget.project.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PM duyet du an thanh cong!')),
+        );
+        widget.onRefresh();
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Loi: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isApprovingPM = false);
+      }
+    }
+  }
+
+  Future<void> _rejectByPM() async {
+    final reasonController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('PM tu choi du an'),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(
+            labelText: 'Ly do tu choi',
+            hintText: 'Nhap ly do...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Huy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui long nhap ly do')),
+                );
+                return;
+              }
+              Navigator.of(context).pop(true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Tu choi'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      setState(() => _isRejectingPM = true);
+
+      try {
+        await MentorProjectService.rejectByPM(
+          widget.project.id,
+          reasonController.text.trim(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('PM tu choi du an thanh cong!')),
+          );
+          widget.onRefresh();
+          Navigator.of(context).pop();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Loi: ${e.toString()}')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isRejectingPM = false);
         }
       }
     }
@@ -559,6 +656,125 @@ class _MentorProjectDetailDialogState extends State<MentorProjectDetailDialog> {
     final reviewState = _reviewState;
 
     if (reviewState == null) return const SizedBox();
+
+    // Da hoan thanh - PM da duyet
+    if (reviewState.pmApproved) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF22C55E).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Color(0xFF22C55E)),
+            SizedBox(width: 12),
+            Text(
+              'Da hoan thanh - Du an da duoc PM xac nhan',
+              style: TextStyle(
+                color: Color(0xFF22C55E),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Cho PM duyet - hien thi nut PM approve
+    if (reviewState.mentorApproved && reviewState.submitted) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.manage_accounts, color: Color(0xFF3B82F6)),
+                SizedBox(width: 8),
+                Text(
+                  'Cho PM xac nhan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1D4ED8),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Mentor da duyet. Vui long cho PM xac nhan de hoan thanh du an.',
+              style: TextStyle(
+                color: Color(0xFF1D4ED8),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isRejectingPM ? null : _rejectByPM,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: _isRejectingPM
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Tu choi',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isApprovingPM ? null : _approveByPM,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3B82F6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: _isApprovingPM
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'PM Duyet',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     if (reviewState.mentorApproved) {
       return Container(

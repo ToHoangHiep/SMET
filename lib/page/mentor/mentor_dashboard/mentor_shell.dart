@@ -75,7 +75,9 @@ class MentorShell extends StatefulWidget {
   /// Map route path → index để highlight sidebar item đúng
   static int getIndexFromRoute(String path) {
     if (path.startsWith('/mentor/dashboard')) return 0;
-    if (path.startsWith('/mentor/courses') || path.startsWith('/mentor/quizzes')) return 1;
+    if (path.startsWith('/mentor/courses') ||
+        path.startsWith('/mentor/quizzes'))
+      return 1;
     if (path.startsWith('/mentor/learning-paths')) return 2;
     if (path.startsWith('/mentor/course-report')) return 3;
     if (path.startsWith('/mentor/live-sessions')) return 4;
@@ -127,7 +129,8 @@ class _MentorShellState extends State<MentorShell> {
   Widget build(BuildContext context) {
     // Safety net: nếu user đã cached nhưng role không phù hợp → redirect
     final cachedUser = AuthService.currentUserCached;
-    if (cachedUser != null && !AuthGuardService.canAccess('/mentor', cachedUser.role)) {
+    if (cachedUser != null &&
+        !AuthGuardService.canAccess('/mentor', cachedUser.role)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         context.go(AuthGuardService.getRedirectPath(cachedUser.role));
       });

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/Employee_learning_model.dart';
+import 'package:smet/page/shared/widgets/app_toast.dart';
+import 'package:smet/service/employee/lms_service.dart';
 
 /// Lesson content tabs — modern Coursera-style:
 /// - Overview: key takeaways with numbered circles + dividers
@@ -33,7 +35,6 @@ class LessonOverviewTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // About section
           Row(
             children: [
               Container(
@@ -61,8 +62,6 @@ class LessonOverviewTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-
-          // Description
           Text(
             description,
             style: const TextStyle(
@@ -71,13 +70,10 @@ class LessonOverviewTab extends StatelessWidget {
               height: 1.7,
             ),
           ),
-
-          // Key Takeaways
           if (keyTakeaways.isNotEmpty) ...[
             const SizedBox(height: 24),
             const Divider(height: 1),
             const SizedBox(height: 20),
-
             Row(
               children: [
                 const Icon(
@@ -152,69 +148,111 @@ class LessonOverviewTab extends StatelessWidget {
   }
 }
 
-class DiscussionTab extends StatelessWidget {
-  final List<Discussion> discussions;
-  final Function(String) onPostComment;
+class DiscussionTab extends StatefulWidget {
+  final String lessonId;
+  final List<Discussion> initialDiscussions;
 
   const DiscussionTab({
     super.key,
-    required this.discussions,
-    required this.onPostComment,
+    required this.lessonId,
+    this.initialDiscussions = const [],
   });
+
+  @override
+  State<DiscussionTab> createState() => _DiscussionTabState();
+}
+
+class _DiscussionTabState extends State<DiscussionTab> {
+  final TextEditingController _commentController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  List<Discussion> _discussions = [];
+  bool _isLoading = false;
+  bool _isPosting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _discussions = List.from(widget.initialDiscussions);
+    _fetchDiscussions();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchDiscussions() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final (messages, _) = await LmsService.getChatMessages(widget.lessonId);
+      setState(() {
+        _discussions = messages;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Không thể tải bình luận';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _postComment() async {
+    final content = _commentController.text.trim();
+    if (content.isEmpty) return;
+
+    setState(() {
+      _isPosting = true;
+    });
+
+    try {
+      final newMessage = await LmsService.sendChatMessage(widget.lessonId, content);
+      _commentController.clear();
+
+      if (newMessage != null) {
+        setState(() {
+          _discussions.insert(0, newMessage);
+          _isPosting = false;
+        });
+      } else {
+        setState(() {
+          _isPosting = false;
+        });
+        if (mounted) {
+          context.showAppToast('Không thể gửi bình luận');
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isPosting = false;
+      });
+      if (mounted) {
+        context.showAppToast('Không thể gửi bình luận');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Comment input
-        _buildCommentInput(context),
+        _buildCommentInput(),
         const SizedBox(height: 20),
-        // Discussions
-        if (discussions.isEmpty)
-          _buildEmptyState()
-        else
-          ...discussions.map((d) => _buildDiscussionItem(d)),
+        _buildDiscussionsList(),
       ],
     );
   }
 
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: const Center(
-        child: Column(
-          children: [
-            Icon(Icons.forum_outlined, size: 48, color: Color(0xFFCBD5E1)),
-            SizedBox(height: 12),
-            Text(
-              'Chưa có bình luận nào',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Hãy là người đầu tiên đặt câu hỏi!',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF94A3B8),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCommentInput(BuildContext context) {
+  Widget _buildCommentInput() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -260,7 +298,9 @@ class DiscussionTab extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           TextField(
+            controller: _commentController,
             maxLines: 3,
+            enabled: !_isPosting,
             decoration: InputDecoration(
               hintText: 'Viết bình luận của bạn...',
               hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
@@ -285,7 +325,7 @@ class DiscussionTab extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton(
-              onPressed: () => onPostComment('New comment'),
+              onPressed: _isPosting ? null : _postComment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF137FEC),
                 foregroundColor: Colors.white,
@@ -294,14 +334,114 @@ class DiscussionTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 elevation: 0,
+                disabledBackgroundColor: const Color(0xFF137FEC).withValues(alpha: 0.5),
               ),
-              child: const Text(
-                'Gửi bình luận',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              child: _isPosting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Gửi bình luận',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDiscussionsList() {
+    if (_isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.error_outline, size: 40, color: Color(0xFFEF4444)),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _fetchDiscussions,
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_discussions.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Column(
+      children: _discussions.map((d) => _buildDiscussionItem(d)).toList(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: const Center(
+        child: Column(
+          children: [
+            Icon(Icons.forum_outlined, size: 48, color: Color(0xFFCBD5E1)),
+            SizedBox(height: 12),
+            Text(
+              'Chưa có bình luận nào',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Hãy là người đầu tiên đặt câu hỏi!',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -325,16 +465,15 @@ class DiscussionTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // User info
           Row(
             children: [
               CircleAvatar(
                 radius: 22,
                 backgroundColor: const Color(0xFF137FEC).withValues(alpha: 0.1),
-                backgroundImage: discussion.avatarUrl != null
-                    ? NetworkImage(discussion.avatarUrl!)
+                backgroundImage: discussion.senderAvatarUrl != null
+                    ? NetworkImage(discussion.senderAvatarUrl!)
                     : null,
-                child: discussion.avatarUrl == null
+                child: discussion.senderAvatarUrl == null
                     ? const Icon(Icons.person, size: 20,
                         color: Color(0xFF137FEC))
                     : null,
@@ -345,7 +484,7 @@ class DiscussionTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      discussion.userName,
+                      discussion.senderName,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -366,8 +505,6 @@ class DiscussionTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-
-          // Comment bubble
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -375,7 +512,7 @@ class DiscussionTab extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              discussion.comment,
+              discussion.content,
               style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF475569),
@@ -383,8 +520,6 @@ class DiscussionTab extends StatelessWidget {
               ),
             ),
           ),
-
-          // Reply count
           if (discussion.replyCount > 0) ...[
             const SizedBox(height: 12),
             Row(

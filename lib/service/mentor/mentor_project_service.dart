@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/project_model.dart';
-import 'package:smet/model/project_member_model.dart';
 import 'dart:developer';
 
 class MentorProjectService {
@@ -216,6 +215,52 @@ class MentorProjectService {
       }
     } catch (e) {
       log('MentorProjectService.getMembersProgress failed: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // POST /api/projects/{id}/approve/pm
+  // PM duyet du an - chi PM moi goi duoc
+  // ============================================================
+  static Future<void> approveByPM(int projectId) async {
+    try {
+      final headers = await _headers;
+      final url = Uri.parse('$_baseEndpoint/$projectId/approve/pm');
+
+      final response = await http.post(url, headers: headers);
+
+      log('APPROVE PM STATUS: ${response.statusCode}, projectId=$projectId');
+
+      if (response.statusCode != 200) {
+        final body = jsonDecode(response.body);
+        throw Exception(body['message'] ?? 'Khong the duyet du an');
+      }
+    } catch (e) {
+      log('MentorProjectService.approveByPM failed: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // POST /api/projects/{id}/reject/pm
+  // PM tu choi du an - chi PM moi goi duoc
+  // ============================================================
+  static Future<void> rejectByPM(int projectId, String reason) async {
+    try {
+      final headers = await _headers;
+      final url = Uri.parse('$_baseEndpoint/$projectId/reject/pm?reason=$reason');
+
+      final response = await http.post(url, headers: headers);
+
+      log('REJECT PM STATUS: ${response.statusCode}, projectId=$projectId');
+
+      if (response.statusCode != 200) {
+        final body = jsonDecode(response.body);
+        throw Exception(body['message'] ?? 'Khong the tu choi du an');
+      }
+    } catch (e) {
+      log('MentorProjectService.rejectByPM failed: $e');
       rethrow;
     }
   }
