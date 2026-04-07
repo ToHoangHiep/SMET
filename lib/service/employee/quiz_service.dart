@@ -23,6 +23,43 @@ class QuizService {
   // ATTEMPT MANAGEMENT
   // ============================================================
 
+  static Future<QuizInfo> getQuizInfo(String quizId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/quizzes/$quizId");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("GET QUIZ INFO STATUS: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return QuizInfo(
+          id: data['id']?.toString() ?? quizId,
+          title: data['title'] ?? 'Bài kiểm tra',
+          description: data['description'] ?? data['content'] ?? '',
+          timeLimitMinutes: data['timeLimitMinutes'] ?? data['timeLimit'] ?? 10,
+          passingScore: data['passingScore'] ?? data['passing_score'] ?? 70,
+          questionCount: data['questionCount'] ?? data['totalQuestions'] ?? data['questions']?.length ?? 0,
+          maxAttempts: data['maxAttempts'] ?? data['max_attempts'],
+          showAnswer: data['showAnswer'] ?? data['show_answer'] ?? false,
+          isFinalQuiz: data['isFinalQuiz'] ?? data['is_final_quiz'] ?? false,
+        );
+      } else {
+        throw Exception("Không thể tải thông tin bài quiz");
+      }
+    } catch (e) {
+      log("QuizService.getQuizInfo failed: $e");
+      rethrow;
+    }
+  }
+
   /// Bắt đầu làm bài — POST /api/lms/attempts/start/{quizId}
   /// Trả về attemptId để dùng cho các bước tiếp theo
   static Future<AttemptStartResult> startAttempt(String quizId) async {
@@ -43,9 +80,15 @@ class QuizService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
+        final quizData = data['quiz'] as Map<String, dynamic>?;
         return AttemptStartResult(
           attemptId: data['id']?.toString() ?? '',
-          quizId: data['quiz']?['id']?.toString() ?? quizId,
+          quizId: quizData?['id']?.toString() ?? quizId,
+          quizTitle: quizData?['title'],
+          quizDescription: quizData?['description'] ?? quizData?['content'],
+          timeLimitMinutes: quizData?['timeLimitMinutes'] ?? quizData?['timeLimit'] ?? 10,
+          passingScore: quizData?['passingScore'] ?? quizData?['passing_score'] ?? 70,
+          questionCount: quizData?['questionCount'] ?? quizData?['questions']?.length ?? 0,
           status: data['status'] ?? 'IN_PROGRESS',
         );
       } else {
@@ -135,8 +178,10 @@ class QuizService {
     String attemptId,
     String quizId,
     Map<String, List<String>> answers,
-    Duration timeSpent,
-  ) async {
+    Duration timeSpent, {
+    /// Số câu thực tế đang làm (khi backend không trả totalQuestions trong body submit)
+    int? questionCountFallback,
+  }) async {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse("$baseUrl/lms/attempts/$attemptId/submit");
@@ -154,7 +199,12 @@ class QuizService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return _parseQuizResult(data, quizId, timeSpent);
+        return _parseQuizResult(
+          data,
+          quizId,
+          timeSpent,
+          questionCountFallback: questionCountFallback,
+        );
       } else {
         throw Exception("Nộp bài thất bại");
       }
@@ -169,8 +219,9 @@ class QuizService {
     String attemptId,
     String quizId,
     Map<String, List<String>> answers,
-    Duration timeSpent,
-  ) async {
+    Duration timeSpent, {
+    int? questionCountFallback,
+  }) async {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse("$baseUrl/lms/attempts/$attemptId/auto-submit");
@@ -187,7 +238,12 @@ class QuizService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return _parseQuizResult(data, quizId, timeSpent);
+        return _parseQuizResult(
+          data,
+          quizId,
+          timeSpent,
+          questionCountFallback: questionCountFallback,
+        );
       } else {
         throw Exception("Auto submit failed");
       }
@@ -237,7 +293,33 @@ class QuizService {
     }
   }
 
-  /// Tổng kết kết quả — GET /api/lms/attempts/summary/{quizId}
+  /// Kiểm tra trạng thái hoàn thành khóa học — GET /api/lms/courses/{courseId}/completion
+  static Future<bool> checkCourseCompletion(String courseId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/courses/$courseId/completion");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("CHECK COURSE COMPLETION STATUS: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data == true || data['completed'] == true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      log("QuizService.checkCourseCompletion failed: $e");
+      return false;
+    }
+  }
   static Future<QuizSummary> getQuizSummary(String quizId) async {
     try {
       final token = await AuthService.getToken();
@@ -305,29 +387,63 @@ class QuizService {
   static QuizResult _parseQuizResult(
     Map<String, dynamic> data,
     String quizId,
-    Duration timeSpent,
-  ) {
+    Duration timeSpent, {
+    int? questionCountFallback,
+  }) {
+    final totalQuestions = _resolveTotalQuestions(data, questionCountFallback);
     return QuizResult(
       quizId: quizId,
       totalScore: ((data['score'] ?? 0) as num).round(),
       maxScore: 100,
       passed: data['passed'] ?? false,
-      correctCount: _calcCorrectCount(data),
-      totalQuestions: _calcTotalQuestions(data),
+      correctCount: _calcCorrectCount(data, totalQuestions),
+      totalQuestions: totalQuestions,
       timeSpent: timeSpent,
       questionResults: [],
     );
   }
 
-  static int _calcCorrectCount(Map<String, dynamic> data) {
-    // Backend trả score dạng phần trăm
-    final score = (data['score'] ?? 0).toDouble();
-    // Ước tính: score >= passingScore → đạt
-    return (score / 100 * (data['totalQuestions'] ?? 10)).round();
+  static int? _parseIntField(Map<String, dynamic> data, List<String> keys) {
+    for (final k in keys) {
+      final v = data[k];
+      if (v == null) continue;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v);
+    }
+    return null;
   }
 
-  static int _calcTotalQuestions(Map<String, dynamic> data) {
-    return data['totalQuestions'] ?? 10;
+  static int _resolveTotalQuestions(
+    Map<String, dynamic> data,
+    int? questionCountFallback,
+  ) {
+    final fromApi = _parseIntField(data, [
+      'totalQuestions',
+      'totalQuestionCount',
+      'questionCount',
+      'numberOfQuestions',
+      'total',
+    ]);
+    if (fromApi != null && fromApi > 0) return fromApi;
+    if (questionCountFallback != null && questionCountFallback > 0) {
+      return questionCountFallback;
+    }
+    return 0;
+  }
+
+  static int _calcCorrectCount(Map<String, dynamic> data, int totalQuestions) {
+    final explicit = _parseIntField(data, [
+      'correctCount',
+      'correctAnswers',
+      'correctQuestionCount',
+      'rightAnswers',
+    ]);
+    if (explicit != null) return explicit;
+
+    if (totalQuestions <= 0) return 0;
+    final score = (data['score'] ?? 0).toDouble();
+    return (score / 100 * totalQuestions).round();
   }
 }
 
@@ -338,11 +454,21 @@ class QuizService {
 class AttemptStartResult {
   final String attemptId;
   final String quizId;
+  final String? quizTitle;
+  final String? quizDescription;
+  final int timeLimitMinutes;
+  final int passingScore;
+  final int questionCount;
   final String status;
 
   AttemptStartResult({
     required this.attemptId,
     required this.quizId,
+    this.quizTitle,
+    this.quizDescription,
+    this.timeLimitMinutes = 10,
+    this.passingScore = 70,
+    this.questionCount = 0,
     required this.status,
   });
 }
@@ -380,5 +506,29 @@ class QuizSummary {
     required this.totalAttempts,
     required this.bestScore,
     required this.passed,
+  });
+}
+
+class QuizInfo {
+  final String id;
+  final String title;
+  final String description;
+  final int timeLimitMinutes;
+  final int passingScore;
+  final int questionCount;
+  final int? maxAttempts;
+  final bool showAnswer;
+  final bool isFinalQuiz;
+
+  QuizInfo({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.timeLimitMinutes,
+    required this.passingScore,
+    required this.questionCount,
+    this.maxAttempts,
+    this.showAnswer = false,
+    this.isFinalQuiz = false,
   });
 }

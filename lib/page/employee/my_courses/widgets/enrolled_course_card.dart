@@ -16,11 +16,13 @@ String _formatDate(DateTime date) {
 class EnrolledCourseCard extends StatefulWidget {
   final EnrolledCourse course;
   final VoidCallback? onTap;
+  final VoidCallback? onViewCertificate;
 
   const EnrolledCourseCard({
     super.key,
     required this.course,
     this.onTap,
+    this.onViewCertificate,
   });
 
   @override
@@ -154,7 +156,10 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
                     Positioned(
                       top: 10,
                       right: 10,
-                      child: _StatusBadge(status: widget.course.status),
+                      child: _StatusBadge(
+                        status: widget.course.status,
+                        allQuizPassed: widget.course.allQuizPassed,
+                      ),
                     ),
                   ],
                 ),
@@ -284,7 +289,11 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
                           width: double.infinity,
                           child: _ActionButton(
                             progress: widget.course.progressPercent,
+                            isCompleted: widget.course.status == EnrollmentStatus.completed,
+                            allQuizPassed: widget.course.allQuizPassed,
+                            hasCertificate: widget.course.certificateAvailable,
                             onTap: widget.onTap,
+                            onViewCertificate: widget.onViewCertificate,
                           ),
                         ),
                       ],
@@ -341,9 +350,21 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
 
 class _ActionButton extends StatefulWidget {
   final double progress;
+  final bool isCompleted;
+  /// Chỉ true khi progress=100% VÀ tất cả quiz đều đạt → hiển thị "Hoàn thành"
+  final bool allQuizPassed;
+  final bool hasCertificate;
   final VoidCallback? onTap;
+  final VoidCallback? onViewCertificate;
 
-  const _ActionButton({required this.progress, this.onTap});
+  const _ActionButton({
+    required this.progress,
+    required this.isCompleted,
+    required this.allQuizPassed,
+    required this.hasCertificate,
+    this.onTap,
+    this.onViewCertificate,
+  });
 
   @override
   State<_ActionButton> createState() => _ActionButtonState();
@@ -354,15 +375,90 @@ class _ActionButtonState extends State<_ActionButton> {
 
   @override
   Widget build(BuildContext context) {
-    final label = widget.progress >= 100
+    // Hoàn thành thật sự = enrollment COMPLETED + progress 100% + tất cả quiz đạt
+    final isCompleted = widget.isCompleted && widget.progress >= 100 && widget.allQuizPassed;
+    final showCertButton = isCompleted && widget.hasCertificate;
+
+    final label = isCompleted
         ? 'Hoàn thành'
         : widget.progress > 0
             ? 'Tiếp tục học'
             : 'Bắt đầu học';
 
-    final color = widget.progress >= 100
+    final color = isCompleted
         ? const Color(0xFF22C55E)
         : const Color(0xFF137FEC);
+
+    if (showCertButton) {
+      return Row(
+        children: [
+          Expanded(
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _isHovered = true),
+              onExit: (_) => setState(() => _isHovered = false),
+              child: GestureDetector(
+                onTap: widget.onViewCertificate,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _isHovered
+                        ? const Color(0xFFCA8A04).withValues(alpha: 0.9)
+                        : const Color(0xFFCA8A04),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.workspace_premium, size: 14, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text(
+                          'Xem chứng chỉ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _isHovered = true),
+              onExit: (_) => setState(() => _isHovered = false),
+              child: GestureDetector(
+                onTap: widget.onTap,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _isHovered ? color.withValues(alpha: 0.9) : color,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -394,16 +490,26 @@ class _ActionButtonState extends State<_ActionButton> {
 
 class _StatusBadge extends StatelessWidget {
   final EnrollmentStatus status;
+  /// Nếu true → progress=100% nhưng quiz chưa đạt hết → hiển thị "Đang học"
+  final bool allQuizPassed;
 
-  const _StatusBadge({required this.status});
+  const _StatusBadge({
+    required this.status,
+    this.allQuizPassed = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Nếu enrollment là COMPLETED nhưng quiz chưa đạt hết → coi như đang học
+    final effectiveStatus = (status == EnrollmentStatus.completed && !allQuizPassed)
+        ? EnrollmentStatus.inProgress
+        : status;
+
     Color color;
     Color bgColor;
     String label;
 
-    switch (status) {
+    switch (effectiveStatus) {
       case EnrollmentStatus.notStarted:
         color = const Color(0xFF64748B);
         bgColor = const Color(0xFFF1F5F9);

@@ -212,20 +212,35 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     }
   }
 
+  /// Điều hướng tới bài học, giữ ngữ cảnh breadcrumb (danh mục / khóa của tôi / lộ trình).
+  String _locationForLearnLesson(String lessonId) {
+    final path = '/employee/learn/${widget.courseId}/$lessonId';
+    final lpId = widget.learningPathId;
+    final Map<String, String> q = {};
+    if (lpId != null && lpId.isNotEmpty) {
+      q['learningPathId'] = lpId;
+      q['from'] = 'learning_path';
+    } else if (widget.from != null && widget.from!.isNotEmpty) {
+      q['from'] = widget.from!;
+    }
+    if (q.isEmpty) return path;
+    return Uri(path: path, queryParameters: q).toString();
+  }
+
   void _onJumpToLesson(Lesson lesson) {
     if (lesson.lessonType == LessonType.quiz) {
       _onTakeQuiz(lesson.id);
     } else {
-      context.go('/employee/learn/${widget.courseId}/${lesson.id}?learningPathId=${widget.learningPathId}&from=learning_path');
+      context.go(_locationForLearnLesson(lesson.id));
     }
   }
 
   void _onTakeQuiz(String quizId) {
-    context.go('/employee/quiz/$quizId');
+    context.go('/employee/quiz-detail/$quizId?courseId=${widget.courseId}');
   }
 
   void _onQuizTap(String quizId) {
-    context.go('/employee/quiz/$quizId');
+    context.go('/employee/quiz-detail/$quizId?courseId=${widget.courseId}');
   }
 
   void _onCourseInPathTap(String courseId) {

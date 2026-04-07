@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/Employee_learning_model.dart';
+import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 
 /// Course Outline Sidebar — modern Coursera-style:
 /// - Progress pill per module
@@ -33,7 +34,6 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
   static const _primary = Color(0xFF137FEC);
   static const _border = Color(0xFFE2E8F0);
   static const _slate500 = Color(0xFF64748B);
-  static const _slate600 = Color(0xFF475569);
   static const _success = Color(0xFF22C55E);
 
   @override
@@ -179,6 +179,32 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
   Widget _buildFinalQuizSection() {
     final isActive = widget.currentQuizId != null;
     final isLocked = widget.course.progressPercent < 80;
+    final isPassed = widget.course.finalQuizPassed;
+
+    IconData icon() {
+      if (isLocked) return Icons.lock_outline;
+      if (isPassed) return Icons.check_circle;
+      return Icons.cancel_outlined;
+    }
+
+    Color iconColor() {
+      if (isLocked) return const Color(0xFFCBD5E1);
+      if (isPassed) return _success;
+      return QuizExamTheme.error;
+    }
+
+    String subtitleText() {
+      if (isLocked) return 'Hoàn thành 80% khóa học để mở';
+      if (isPassed) return 'Đã đạt';
+      return 'Chưa đạt – Làm lại';
+    }
+
+    Color subtitleColor() {
+      if (isLocked) return const Color(0xFF94A3B8);
+      if (isPassed) return _success;
+      return QuizExamTheme.error;
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -215,18 +241,13 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                             ? _primary.withValues(alpha: 0.1)
                             : isLocked
                             ? const Color(0xFFF1F5F9)
-                            : const Color(0xFF22C55E).withValues(alpha: 0.1),
+                            : iconColor().withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    isLocked
-                        ? Icons.lock_outline
-                        : Icons.workspace_premium_outlined,
+                    icon(),
                     size: 22,
-                    color:
-                        isActive
-                            ? _primary
-                            : (isLocked ? const Color(0xFFCBD5E1) : _success),
+                    color: iconColor(),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -245,13 +266,11 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        isLocked
-                            ? 'Hoàn thành 80% khóa học để mở'
-                            : 'Hoàn thành tất cả module để mở khóa',
+                        subtitleText(),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: isLocked ? const Color(0xFF94A3B8) : _slate600,
+                          color: subtitleColor(),
                         ),
                       ),
                     ],
@@ -565,6 +584,7 @@ class _ModuleSectionState extends State<_ModuleSection>
                   _ModuleQuizRow(
                     quizId: widget.module.quizId!,
                     isCompleted: widget.module.isCompleted,
+                    quizPassed: widget.module.quizPassed,
                     isActive: widget.currentQuizId == widget.module.quizId,
                     moduleProgress: widget.module.progress,
                     onTap: widget.onQuizTap,
@@ -746,7 +766,10 @@ class _LessonRowState extends State<_LessonRow> {
 
 class _ModuleQuizRow extends StatefulWidget {
   final String quizId;
+  /// Module đã hoàn thành (lesson + quiz pass)
   final bool isCompleted;
+  /// Quiz đã pass (điểm >= passingScore)
+  final bool quizPassed;
   final bool isActive;
   final double moduleProgress; // 0.0 - 1.0
   final void Function(String) onTap;
@@ -754,6 +777,7 @@ class _ModuleQuizRow extends StatefulWidget {
   const _ModuleQuizRow({
     required this.quizId,
     required this.isCompleted,
+    required this.quizPassed,
     required this.isActive,
     required this.moduleProgress,
     required this.onTap,
@@ -766,6 +790,30 @@ class _ModuleQuizRow extends StatefulWidget {
 class _ModuleQuizRowState extends State<_ModuleQuizRow> {
   bool _isHovered = false;
   bool get _isLocked => widget.moduleProgress < 0.8;
+
+  IconData get _icon {
+    if (_isLocked) return Icons.lock_outline;
+    if (widget.quizPassed) return Icons.check_circle;
+    return Icons.cancel_outlined;
+  }
+
+  Color get _iconColor {
+    if (_isLocked) return const Color(0xFFCBD5E1);
+    if (widget.quizPassed) return const Color(0xFF22C55E);
+    return QuizExamTheme.error;
+  }
+
+  String get _labelText {
+    if (_isLocked) return 'Hoàn thành 80% bài học để mở';
+    if (widget.quizPassed) return 'Kiểm tra Module';
+    return 'Chưa đạt – Làm lại';
+  }
+
+  Color get _textColor {
+    if (_isLocked) return const Color(0xFF94A3B8);
+    if (widget.quizPassed) return const Color(0xFF22C55E);
+    return QuizExamTheme.error;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -797,28 +845,11 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      widget.isCompleted
-                          ? Icons.check_circle
-                          : (_isLocked
-                              ? Icons.lock_outline
-                              : Icons.quiz_outlined),
-                      size: 20,
-                      color:
-                          widget.isCompleted
-                              ? const Color(0xFF22C55E)
-                              : (_isLocked
-                                  ? const Color(0xFFCBD5E1)
-                                  : const Color(0xFF137FEC)),
-                    ),
+                    Icon(_icon, size: 20, color: _iconColor),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        widget.isCompleted
-                            ? 'Kiểm tra Module'
-                            : (_isLocked
-                                ? 'Hoàn thành 80% bài học để mở'
-                                : 'Kiểm tra Module'),
+                        _labelText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -827,12 +858,7 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
                               widget.isActive
                                   ? FontWeight.w600
                                   : FontWeight.w500,
-                          color:
-                              widget.isCompleted
-                                  ? const Color(0xFF22C55E)
-                                  : (_isLocked
-                                      ? const Color(0xFF94A3B8)
-                                      : const Color(0xFF475569)),
+                          color: _textColor,
                           height: 1.35,
                         ),
                       ),

@@ -17,8 +17,9 @@ import 'package:smet/page/employee/quiz/widgets/quiz_result_dialog.dart';
 
 class QuizPage extends StatelessWidget {
   final String quizId;
+  final String? courseId;
 
-  const QuizPage({super.key, required this.quizId});
+  const QuizPage({super.key, required this.quizId, this.courseId});
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +37,13 @@ class QuizPage extends StatelessWidget {
 class QuizBasePage extends StatefulWidget {
   final String quizId;
   final bool isWebLayout;
+  final String? courseId;
 
   const QuizBasePage({
     super.key,
     required this.quizId,
     this.isWebLayout = false,
+    this.courseId,
   });
 
   @override
@@ -53,7 +56,10 @@ class _QuizBasePageState extends State<QuizBasePage> {
   @override
   void initState() {
     super.initState();
-    _controller = QuizInternalController(quizId: widget.quizId);
+    _controller = QuizInternalController(
+      quizId: widget.quizId,
+      courseId: widget.courseId,
+    );
   }
 
   @override
@@ -81,7 +87,9 @@ class _QuizBasePageState extends State<QuizBasePage> {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _QuizTopNavBar extends StatelessWidget {
-  const _QuizTopNavBar();
+  final String? quizTitle;
+
+  const _QuizTopNavBar({this.quizTitle});
 
   @override
   Widget build(BuildContext context) {
@@ -93,10 +101,32 @@ class _QuizTopNavBar extends StatelessWidget {
           bottom: BorderSide(color: QuizExamTheme.outlineVariant, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          const Spacer(),
+          IconButton(
+            onPressed: () => context.pop(),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: QuizExamTheme.onSurfaceVariant,
+            ),
+            tooltip: 'Quay lại',
+          ),
+          if (quizTitle != null) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                quizTitle!,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: QuizExamTheme.onSurface,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ] else
+            const Spacer(),
           IconButton(
             onPressed: () {},
             icon: const Icon(
@@ -127,7 +157,7 @@ class _QuizWebView extends StatelessWidget {
       backgroundColor: QuizExamTheme.background,
       body: Column(
         children: [
-          const _QuizTopNavBar(),
+          _QuizTopNavBar(quizTitle: controller.quiz?.title),
           Expanded(
             child: ListenableBuilder(
               listenable: controller,
@@ -1173,6 +1203,7 @@ class _MobileNavBar extends StatelessWidget {
 
 class QuizInternalController extends ChangeNotifier {
   final String quizId;
+  final String? courseId;
   String? _attemptId;
   Quiz? _quiz;
   bool _isLoading = true;
@@ -1184,8 +1215,9 @@ class QuizInternalController extends ChangeNotifier {
   DateTime? _startTime;
   bool _showResult = false;
   QuizResult? _quizResult;
+  bool _courseCompleted = false;
 
-  QuizInternalController({required this.quizId}) {
+  QuizInternalController({required this.quizId, this.courseId}) {
     loadQuiz();
   }
 
@@ -1198,6 +1230,7 @@ class QuizInternalController extends ChangeNotifier {
   int get answeredCount => _answeredQuestions.length;
   bool get isCurrentFlagged => _flaggedQuestions.contains(_currentIndex);
   String? get attemptId => _attemptId;
+  bool get courseCompleted => _courseCompleted;
 
   QuizQuestion? get currentQuestion =>
       _quiz != null && _currentIndex < _quiz!.questions.length
@@ -1305,8 +1338,15 @@ class QuizInternalController extends ChangeNotifier {
         _quiz!.id,
         _answers,
         timeSpent,
+        questionCountFallback: _quiz!.questions.length,
       );
       _showResult = true;
+
+      // Sau khi nộp bài thành công và pass → kiểm tra hoàn thành khóa học
+      if (_quizResult!.passed && courseId != null) {
+        _courseCompleted = await QuizService.checkCourseCompletion(courseId!);
+      }
+
       _isLoading = false;
       notifyListeners();
 
@@ -1330,6 +1370,17 @@ class QuizInternalController extends ChangeNotifier {
       barrierDismissible: false,
       builder: (ctx) => QuizResultDialog(
         result: _quizResult!,
+        courseCompleted: _courseCompleted,
+        courseId: courseId,
+        onViewCertificate: courseId != null
+            ? () {
+                Navigator.pop(ctx);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!context.mounted) return;
+                  GoRouter.of(context).go('/employee/certificates?courseId=$courseId');
+                });
+              }
+            : null,
         onRetry: () {
           Navigator.pop(ctx);
           reset();
@@ -1339,13 +1390,7 @@ class QuizInternalController extends ChangeNotifier {
           Navigator.pop(ctx);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted) return;
-            final router = GoRouter.of(context);
-            // Avoid Navigator.pop(page): with go_router + go(), that pops the page off-stack while URL unchanged.
-            if (router.canPop()) {
-              router.pop();
-            } else {
-              router.go('/employee/my-courses');
-            }
+            GoRouter.of(context).go('/employee/quiz-detail/${_quiz!.id}?courseId=${courseId ?? ''}');
           });
         },
       ),

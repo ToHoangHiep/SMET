@@ -343,6 +343,9 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                         return EnrolledCourseCard(
                           course: course,
                           onTap: () => context.go('/employee/learn/${course.id}?from=my_courses'),
+                          onViewCertificate: course.certificateAvailable
+                              ? () => context.go('/employee/certificates?courseId=${course.id}')
+                              : null,
                         );
                       },
                     ),

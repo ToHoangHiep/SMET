@@ -11,6 +11,8 @@ class LearningCourse {
   final double progressPercent;
   final List<LearningModule> modules;
   final String? finalQuizId; // quiz cuối khóa
+  /// Final quiz đã pass (điểm >= passingScore)
+  final bool finalQuizPassed;
 
   const LearningCourse({
     required this.id,
@@ -19,6 +21,7 @@ class LearningCourse {
     required this.progressPercent,
     required this.modules,
     this.finalQuizId,
+    this.finalQuizPassed = false,
   });
 }
 
@@ -31,6 +34,9 @@ class LearningModule {
   final double progress; // 0.0 - 1.0
   final List<Lesson> lessons;
   final String? quizId; // quiz ở cuối module
+  /// Quiz đã pass (điểm >= passingScore) → hiển thị xanh ✓
+  /// Quiz chưa làm / chưa pass → hiển thị xám / đỏ
+  final bool quizPassed;
   final VoidCallback? onToggle;
 
   const LearningModule({
@@ -42,6 +48,7 @@ class LearningModule {
     this.progress = 0.0,
     required this.lessons,
     this.quizId,
+    this.quizPassed = false,
     this.onToggle,
   });
 }

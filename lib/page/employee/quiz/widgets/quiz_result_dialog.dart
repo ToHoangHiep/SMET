@@ -4,14 +4,20 @@ import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 
 class QuizResultDialog extends StatelessWidget {
   final QuizResult result;
+  final bool courseCompleted;
+  final String? courseId;
   final VoidCallback onRetry;
   final VoidCallback onClose;
+  final VoidCallback? onViewCertificate;
 
   const QuizResultDialog({
     super.key,
     required this.result,
+    this.courseCompleted = false,
+    this.courseId,
     required this.onRetry,
     required this.onClose,
+    this.onViewCertificate,
   });
 
   @override
@@ -61,7 +67,9 @@ class QuizResultDialog extends StatelessWidget {
         gradient: LinearGradient(
           colors:
               result.passed
-                  ? [QuizExamTheme.primary, QuizExamTheme.primaryContainer]
+                  ? courseCompleted
+                      ? [const Color(0xFF22C55E), const Color(0xFF16A34A)]
+                      : [QuizExamTheme.primary, QuizExamTheme.primaryContainer]
                   : [QuizExamTheme.error, const Color(0xFFD32F2F)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -88,7 +96,11 @@ class QuizResultDialog extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            result.passed ? 'Chúc mừng!' : 'Chưa đạt',
+            result.passed
+                ? courseCompleted
+                    ? 'Chúc mừng bạn!'
+                    : 'Chúc mừng!'
+                : 'Chưa đạt',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
@@ -98,7 +110,9 @@ class QuizResultDialog extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             result.passed
-                ? 'Bạn đã hoàn thành bài quiz!'
+                ? courseCompleted
+                    ? 'Bạn đã hoàn thành khóa học!'
+                    : 'Bạn đã hoàn thành bài quiz!'
                 : 'Hãy thử lại để cải thiện điểm số',
             style: const TextStyle(fontSize: 14, color: Colors.white70),
             textAlign: TextAlign.center,
@@ -215,20 +229,18 @@ class QuizResultDialog extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        if (!result.passed) ...[
-          Expanded(
+        if (courseCompleted && courseId != null && onViewCertificate != null) ...[
+          SizedBox(
+            width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Làm lại'),
+              onPressed: onViewCertificate,
+              icon: const Icon(Icons.workspace_premium, size: 18),
+              label: const Text('Xem chứng chỉ'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: QuizExamTheme.primary,
-                side: const BorderSide(
-                  color: QuizExamTheme.primary,
-                  width: 1.5,
-                ),
+                foregroundColor: const Color(0xFFCA8A04),
+                side: const BorderSide(color: Color(0xFFCA8A04), width: 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -236,28 +248,57 @@ class QuizResultDialog extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(height: 12),
         ],
-        Expanded(
-          child: ElevatedButton(
-            onPressed: onClose,
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
+        Row(
+          children: [
+            if (!result.passed) ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Làm lại'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: QuizExamTheme.primary,
+                    side: const BorderSide(
+                      color: QuizExamTheme.primary,
+                      width: 1.5,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: ElevatedButton(
+                onPressed: onClose,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      result.passed
+                          ? QuizExamTheme.primary
+                          : QuizExamTheme.secondary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
                   result.passed
-                      ? QuizExamTheme.primary
-                      : QuizExamTheme.secondary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                      ? courseCompleted
+                          ? 'Hoàn thành'
+                          : 'Tiếp tục'
+                      : 'Đóng',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
-            child: Text(
-              result.passed ? 'Tiếp tục' : 'Đóng',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
+          ],
         ),
       ],
     );

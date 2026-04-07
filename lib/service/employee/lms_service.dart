@@ -72,6 +72,7 @@ class LmsService {
           isExpanded: false,
           lessons: lessons,
           quizId: m['quizId']?.toString(),
+          quizPassed: m['quizPassed'] == true || m['quizPassed'] == 'true',
         ));
       }
 
@@ -104,6 +105,7 @@ class LmsService {
               progress: progressValue,
               lessons: modules[i].lessons,
               quizId: modules[i].quizId,
+              quizPassed: modules[i].quizPassed,
             );
           }
         } catch (_) {
@@ -113,6 +115,18 @@ class LmsService {
 
       final courseProgress = modules.isEmpty ? 0.0 : (totalProgress / modules.length * 100);
 
+      // Final quiz: lấy từ module cuối cùng không có lessons (module kiểu "final quiz")
+      String? finalQuizId;
+      bool finalQuizPassed = false;
+      for (final m in modulesJson) {
+        final hasLessons = (m['lessons'] as List?)?.isNotEmpty ?? false;
+        if (!hasLessons && m['quizId'] != null) {
+          finalQuizId = m['quizId']?.toString();
+          finalQuizPassed = m['quizPassed'] == true || m['quizPassed'] == 'true';
+          break;
+        }
+      }
+
       log("GET COURSE PROGRESS SUCCESS: courseId=$courseId, modules=${modules.length}, progress=$courseProgress%");
 
       return LearningCourse(
@@ -121,6 +135,8 @@ class LmsService {
         courseId: courseId,
         progressPercent: courseProgress,
         modules: modules,
+        finalQuizId: finalQuizId,
+        finalQuizPassed: finalQuizPassed,
       );
     } catch (e) {
       log("LmsService.getCourseProgress failed: $e");
@@ -620,25 +636,84 @@ class LmsService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data is List) {
-          return PageResponse(
-            content: data.map((c) => _parseEnrolledCourse(c as Map<String, dynamic>)).toList(),
-            totalElements: data.length,
-            totalPages: 1,
-            number: 0,
-            size: size,
-            first: true,
-            last: true,
-          );
-        } else if (data is Map) {
-          final Map<String, dynamic> typedData = Map<String, dynamic>.from(data);
-          return PageResponse.fromJson(typedData, _parseEnrolledCourse);
+        List<EnrolledCourse> parseCourses(List<dynamic> list) {
+          return list.map((c) => _parseEnrolledCourse(c as Map<String, dynamic>)).toList();
         }
 
-        log("GET MY COURSES PARSE ERROR: unexpected response type, data=$data");
+        List<EnrolledCourse> courses;
+        if (data is List) {
+          courses = parseCourses(data);
+        } else if (data is Map) {
+          final Map<String, dynamic> typedData = Map<String, dynamic>.from(data);
+          final parsed = PageResponse.fromJson(typedData, _parseEnrolledCourse);
+          courses = parsed.content;
+        } else {
+          log("GET MY COURSES PARSE ERROR: unexpected response type, data=$data");
+          return PageResponse(
+            content: [], totalElements: 0, totalPages: 0,
+            number: 0, size: size, first: true, last: true,
+          );
+        }
+
+        // ── Với mỗi khóa COMPLETED, gọi getCourseProgress để kiểm tra quiz ──
+        final completedCourses = <int, EnrolledCourse>{};
+        for (int i = 0; i < courses.length; i++) {
+          if (courses[i].status == EnrollmentStatus.completed) {
+            completedCourses[i] = courses[i];
+          }
+        }
+
+        if (completedCourses.isNotEmpty) {
+          // Gọi song song — không chặn lẫn nhau
+          final progressFutures = completedCourses.entries.map((entry) async {
+            final course = entry.value;
+            try {
+              final lc = await getCourseProgress(course.id, 'me');
+              final allPassed = lc.modules.every((m) => m.quizPassed) &&
+                  (lc.finalQuizId == null || lc.finalQuizPassed);
+              return (entry.key, allPassed);
+            } catch (_) {
+              return (entry.key, false);
+            }
+          }).toList();
+
+          final results = await Future.wait(progressFutures);
+          final passedIndices = results
+              .where((r) => r.$2)
+              .map((r) => r.$1)
+              .toSet();
+
+          for (int i = 0; i < courses.length; i++) {
+            if (completedCourses.containsKey(i) && passedIndices.contains(i)) {
+              final original = courses[i];
+              courses[i] = EnrolledCourse(
+                id: original.id,
+                title: original.title,
+                imageUrl: original.imageUrl,
+                progressPercent: original.progressPercent,
+                enrolledAt: original.enrolledAt,
+                status: original.status,
+                certificateAvailable: original.certificateAvailable,
+                deadline: original.deadline,
+                deadlineStatus: original.deadlineStatus,
+                allQuizPassed: true,
+              );
+            }
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
+        final totalElements = data is Map ? (data['totalElements'] ?? courses.length) : courses.length;
+        final tp = data is Map ? (data['totalPages'] ?? 1) : 1;
+
         return PageResponse(
-          content: [], totalElements: 0, totalPages: 0,
-          number: 0, size: size, first: true, last: true,
+          content: courses,
+          totalElements: totalElements is int ? totalElements : courses.length,
+          totalPages: tp is int ? tp : 1,
+          number: page,
+          size: size,
+          first: page == 0,
+          last: page >= (tp is int ? tp : 1) - 1,
         );
       }
       log("GET MY COURSES FAILED: status=${response.statusCode}, page=$page");
@@ -893,6 +968,60 @@ class LmsService {
       return null;
     } catch (e) {
       log("LmsService.verifyCertificate: $e");
+      return null;
+    }
+  }
+
+  /// Tải chứng chỉ PDF — GET /api/lms/certificates/{code}
+  static Future<List<int>?> downloadCertificatePdf(String code) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/certificates/$code");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/pdf",
+        },
+      );
+
+      log("DOWNLOAD CERTIFICATE PDF STATUS: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+      log("DOWNLOAD CERTIFICATE PDF FAILED: status=${response.statusCode}");
+      return null;
+    } catch (e) {
+      log("LmsService.downloadCertificatePdf failed: $e");
+      return null;
+    }
+  }
+
+  /// Tải chứng chỉ PDF theo courseId — GET /api/lms/courses/{courseId}/download
+  static Future<List<int>?> downloadCertificateByCourseId(String courseId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/courses/$courseId/download");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/pdf",
+        },
+      );
+
+      log("DOWNLOAD CERTIFICATE BY COURSE ID STATUS: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+      log("DOWNLOAD CERTIFICATE BY COURSE ID FAILED: status=${response.statusCode}");
+      return null;
+    } catch (e) {
+      log("LmsService.downloadCertificateByCourseId failed: $e");
       return null;
     }
   }
@@ -1256,7 +1385,7 @@ class LmsService {
   static CertificateInfo _parseCertificate(Map<String, dynamic> data) {
     return CertificateInfo(
       id: data['id']?.toString() ?? '',
-      code: data['code'] ?? data['certificateCode'] ?? '',
+      code: data['code'] ?? data['certificateCode'] ?? data['verificationCode'] ?? '',
       courseName: data['courseName'] ?? data['course']?['title'] ?? '',
       userName: data['userName'] ?? data['user']?['name'] ?? '',
       issuedAt:
@@ -1266,6 +1395,7 @@ class LmsService {
           data['expiresAt'] != null
               ? DateTime.tryParse(data['expiresAt'])
               : null,
+      courseId: data['courseId']?.toString() ?? data['course']?['id']?.toString(),
     );
   }
 
@@ -1463,6 +1593,9 @@ class EnrolledCourse {
   final bool certificateAvailable;
   final DateTime? deadline;
   final DeadlineStatus deadlineStatus;
+  /// Chỉ true khi tất cả quiz module VÀ final quiz đều đạt.
+  /// Dùng để override hiển thị badge/nút thay vì dùng enrollment status.
+  final bool allQuizPassed;
 
   EnrolledCourse({
     required this.id,
@@ -1474,6 +1607,7 @@ class EnrolledCourse {
     required this.certificateAvailable,
     this.deadline,
     required this.deadlineStatus,
+    this.allQuizPassed = false,
   });
 }
 
@@ -1484,6 +1618,7 @@ class CertificateInfo {
   final String userName;
   final DateTime issuedAt;
   final DateTime? expiresAt;
+  final String? courseId;
 
   CertificateInfo({
     required this.id,
@@ -1492,6 +1627,7 @@ class CertificateInfo {
     required this.userName,
     required this.issuedAt,
     this.expiresAt,
+    this.courseId,
   });
 }
 

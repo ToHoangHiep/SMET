@@ -15,6 +15,7 @@ import 'package:smet/page/employee/dashboard/screen/employee_dashboard_base.dart
 import 'package:smet/page/employee/learning_workspace/screen/learning_workspace_base.dart';
 import 'package:smet/page/employee/quiz/screen/quiz_page.dart';
 import 'package:smet/page/employee/quiz/screen/quiz_history_page.dart';
+import 'package:smet/page/employee/quiz/screen/quiz_detail_page.dart';
 import 'package:smet/page/employee/learning_path/screen/learning_path_page.dart';
 import 'package:smet/page/employee/my_courses/screen/my_courses_base.dart';
 import 'package:smet/page/employee/certificate/screen/certificate_page.dart';
@@ -496,7 +497,21 @@ class AppPages {
             pageBuilder:
                 (context, state) {
                   final quizId = state.pathParameters['quizId'] ?? '';
-                  return NoTransitionPage(child: QuizPage(quizId: quizId));
+                  final courseId = state.uri.queryParameters['courseId'];
+                  return NoTransitionPage(
+                    child: QuizPage(quizId: quizId, courseId: courseId),
+                  );
+                },
+          ),
+          GoRoute(
+            path: '/employee/quiz-detail/:quizId',
+            pageBuilder:
+                (context, state) {
+                  final quizId = state.pathParameters['quizId'] ?? '';
+                  final courseId = state.uri.queryParameters['courseId'];
+                  return NoTransitionPage(
+                    child: QuizDetailPage(quizId: quizId, courseId: courseId),
+                  );
                 },
           ),
           GoRoute(

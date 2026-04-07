@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/my_courses/widgets/enrolled_course_card.dart';
 import 'package:smet/page/employee/my_courses/widgets/filter_tabs.dart';
 import 'package:smet/service/employee/lms_service.dart';
@@ -252,13 +253,18 @@ class MyCoursesMobile extends StatelessWidget {
                   child: Column(
                     children: courses
                         .map(
-                          (course) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SizedBox(
-                              height: 280,
-                              child: EnrolledCourseCard(
-                                course: course,
-                                onTap: () => onCourseTap(course.id),
+                          (course) => Builder(
+                            builder: (ctx) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: SizedBox(
+                                height: 280,
+                                child: EnrolledCourseCard(
+                                  course: course,
+                                  onTap: () => onCourseTap(course.id),
+                                  onViewCertificate: course.certificateAvailable
+                                      ? () => ctx.go('/employee/certificates?courseId=${course.id}')
+                                      : null,
+                                ),
                               ),
                             ),
                           ),
