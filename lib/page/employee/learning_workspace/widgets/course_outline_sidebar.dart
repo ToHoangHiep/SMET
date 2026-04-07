@@ -180,111 +180,167 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
     final isActive = widget.currentQuizId != null;
     final isLocked = widget.course.progressPercent < 80;
     final isPassed = widget.course.finalQuizPassed;
+    final progress = widget.course.progressPercent / 100;
 
-    IconData icon() {
+    IconData finalIcon() {
       if (isLocked) return Icons.lock_outline;
       if (isPassed) return Icons.check_circle;
       return Icons.cancel_outlined;
     }
 
-    Color iconColor() {
+    Color finalIconColor() {
       if (isLocked) return const Color(0xFFCBD5E1);
       if (isPassed) return _success;
       return QuizExamTheme.error;
     }
 
-    String subtitleText() {
-      if (isLocked) return 'Hoàn thành 80% khóa học để mở';
-      if (isPassed) return 'Đã đạt';
-      return 'Chưa đạt – Làm lại';
-    }
-
-    Color subtitleColor() {
+    Color finalTextColor() {
       if (isLocked) return const Color(0xFF94A3B8);
       if (isPassed) return _success;
       return QuizExamTheme.error;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _border, width: 1)),
-        color: Color(0xFFF8FAFC),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap:
-              isLocked
-                  ? null
-                  : () => widget.onQuizTap(widget.course.finalQuizId!),
-          borderRadius: BorderRadius.circular(10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: isActive ? _primary.withValues(alpha: 0.08) : Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isActive ? _primary : const Color(0xFFE2E8F0),
-                width: isActive ? 1.5 : 1,
-              ),
-            ),
+    String finalSubtitle() {
+      if (isLocked) return 'Hoàn thành 80% khóa học để mở';
+      if (isPassed) return 'Đã đạt';
+      return 'Chưa đạt – Làm lại';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: [
+          // Divider-like separator
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color:
-                        isActive
-                            ? _primary.withValues(alpha: 0.1)
-                            : isLocked
-                            ? const Color(0xFFF1F5F9)
-                            : iconColor().withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    icon(),
-                    size: 22,
-                    color: iconColor(),
+                const Expanded(child: Divider(height: 1, color: Color(0xFFE2E8F0))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'Cuối khóa',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF94A3B8),
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                const Expanded(child: Divider(height: 1, color: Color(0xFFE2E8F0))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Final Quiz Row — giống _ModuleSection header
+          MouseRegion(
+            onEnter: (_) => setState(() {}),
+            onExit: (_) => setState(() {}),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: isLocked ? null : () => widget.onQuizTap(widget.course.finalQuizId!),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? _primary.withValues(alpha: 0.08)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border(
+                      left: BorderSide(
+                        color: isActive ? _primary : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                  child: Row(
                     children: [
-                      const Text(
-                        'BÀI KIỂM TRA CUỐI KHÓA',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6,
-                          color: _slate500,
+                      // Module icon
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: finalIconColor().withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(finalIcon(), size: 20, color: finalIconColor()),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Bài kiểm tra cuối khóa',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: isActive
+                                          ? _primary
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: progress >= 1.0
+                                        ? _success.withValues(alpha: 0.1)
+                                        : _primary.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${(progress * 100).round()}%',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: progress >= 1.0 ? _success : _primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child:                                 Text(
+                                  finalSubtitle(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: finalTextColor(),
+                                  ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitleText(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: subtitleColor(),
-                        ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: isActive ? _primary : const Color(0xFF94A3B8),
                       ),
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right,
-                  size: 22,
-                  color: isActive ? _primary : _slate500,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

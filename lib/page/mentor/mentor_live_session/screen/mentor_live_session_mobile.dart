@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:smet/model/mentor_live_session_model.dart';
+import 'package:smet/service/mentor/mentor_live_session_service.dart';
+import 'package:smet/model/course_model.dart';
 
 /// Mentor Live Session - Mobile Layout
 class MentorLiveSessionMobile extends StatefulWidget {
@@ -11,68 +14,59 @@ class MentorLiveSessionMobile extends StatefulWidget {
 class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _showCreateModal = false;
 
-  // Mock data
-  final List<_LiveSessionData> _sessions = [
-    _LiveSessionData(
-      id: '1',
-      title: 'Kỹ năng Quản lý Đội ngũ',
-      course: 'Khóa học UX/UI Design',
-      courseColor: const Color(0xff0074DB),
-      startTime: DateTime(2026, 3, 13, 8, 30),
-      endTime: DateTime(2026, 3, 13, 10, 30),
-      meetingUrl: 'https://meet.google.com/abc-defg-hij',
-      description: 'Buổi học về kỹ năng quản lý đội ngũ hiệu quả trong doanh nghiệp',
-      status: _SessionStatus.upcoming,
-      attendeeCount: 24,
-      maxAttendees: 30,
-    ),
-    _LiveSessionData(
-      id: '2',
-      title: 'Văn hóa Doanh nghiệp 4.0',
-      course: 'Khóa học Frontend Dev',
-      courseColor: const Color(0xffBC5700),
-      startTime: DateTime(2026, 3, 16, 9, 0),
-      endTime: DateTime(2026, 3, 16, 12, 0),
-      meetingUrl: 'https://meet.google.com/xyz-uvwx-yz',
-      description: 'Workshop về văn hóa doanh nghiệp trong kỷ nguyên số',
-      status: _SessionStatus.upcoming,
-      attendeeCount: 18,
-      maxAttendees: 25,
-    ),
-    _LiveSessionData(
-      id: '3',
-      title: 'Buổi học Live số 1 - Giới thiệu React',
-      course: 'Khóa học Frontend Dev',
-      courseColor: const Color(0xffBC5700),
-      startTime: DateTime(2026, 3, 10, 14, 0),
-      endTime: DateTime(2026, 3, 10, 16, 0),
-      meetingUrl: '',
-      description: 'Buổi giới thiệu tổng quan về React và các khái niệm cơ bản',
-      status: _SessionStatus.past,
-      attendeeCount: 30,
-      maxAttendees: 30,
-    ),
-    _LiveSessionData(
-      id: '4',
-      title: 'Buổi học thực hành Node.js',
-      course: 'Khóa học Backend Nodejs',
-      courseColor: const Color(0xff455F89),
-      startTime: DateTime(2026, 3, 8, 10, 0),
-      endTime: DateTime(2026, 3, 8, 12, 0),
-      meetingUrl: '',
-      description: 'Thực hành xây dựng API với Node.js và Express',
-      status: _SessionStatus.past,
-      attendeeCount: 20,
-      maxAttendees: 25,
-    ),
-  ];
+  // API state
+  final MentorLiveSessionService _sessionService = MentorLiveSessionService();
+  List<CourseResponse> _courses = [];
+  CourseResponse? _selectedCourse;
+  List<LiveSessionInfo> _sessions = [];
+  List<LiveSessionInfo> _upcomingSessions = [];
+  List<LiveSessionInfo> _pastSessions = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    try {
+      final response = await _sessionService.getMyCourses();
+      setState(() {
+        _courses = response.content;
+        if (_courses.isNotEmpty && _selectedCourse == null) {
+          _selectedCourse = _courses.first;
+        }
+      });
+      if (_selectedCourse != null) {
+        _loadSessions();
+      }
+    } catch (e) {
+      // Handle error silently for now
+    }
+  }
+
+  Future<void> _loadSessions() async {
+    if (_selectedCourse == null) return;
+
+    try {
+      final sessions = await _sessionService.getSessionsByCourse(_selectedCourse!.id);
+      final now = DateTime.now();
+      setState(() {
+        _sessions = sessions;
+        _upcomingSessions = sessions.where((s) {
+          final startTime = s.startTime;
+          return startTime != null && startTime.isAfter(now);
+        }).toList();
+        _pastSessions = sessions.where((s) {
+          final startTime = s.startTime;
+          return startTime != null && startTime.isBefore(now);
+        }).toList();
+      });
+    } catch (e) {
+      // Handle error silently for now
+    }
   }
 
   @override
@@ -163,7 +157,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      '${_sessions.where((s) => s.status == _SessionStatus.upcoming).length}',
+                      '${_upcomingSessions.length}',
                       style: const TextStyle(color: Colors.white, fontSize: 10),
                     ),
                   ),
@@ -196,20 +190,22 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildSessionList(_sessions.where((s) => s.status == _SessionStatus.upcoming).toList()),
-          _buildSessionList(_sessions.where((s) => s.status == _SessionStatus.past).toList()),
+          _buildSessionList(_upcomingSessions),
+          _buildSessionList(_pastSessions),
           _buildSessionList(_sessions),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => setState(() => _showCreateModal = true),
+        onPressed: () {
+          // TODO: implement create session modal
+        },
         backgroundColor: const Color(0xff005BAF),
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildSessionList(List<_LiveSessionData> sessions) {
+  Widget _buildSessionList(List<LiveSessionInfo> sessions) {
     if (sessions.isEmpty) {
       return Center(
         child: Column(
@@ -243,10 +239,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
     );
   }
 
-  Widget _buildMiniStats(List<_LiveSessionData> sessions) {
-    final upcoming = _sessions.where((s) => s.status == _SessionStatus.upcoming).length;
-    final past = _sessions.where((s) => s.status == _SessionStatus.past).length;
-
+  Widget _buildMiniStats(List<LiveSessionInfo> sessions) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -274,7 +267,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$upcoming',
+                        '${_upcomingSessions.length}',
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -315,7 +308,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$past',
+                        '${_pastSessions.length}',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -337,8 +330,13 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
     );
   }
 
-  Widget _buildSessionCard(_LiveSessionData session) {
-    final isUpcoming = session.status == _SessionStatus.upcoming;
+  Widget _buildSessionCard(LiveSessionInfo session) {
+    final startTime = session.startTime ?? DateTime.now();
+    final endTime = session.endTime ?? DateTime.now();
+    final meetingUrl = session.meetingUrl ?? session.hangoutLink ?? '';
+    final isUpcoming = startTime.isAfter(DateTime.now());
+    final courseColor = _getCourseColorById(session.courseId);
+    final courseName = _getCourseName(session.courseId);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -360,7 +358,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
           Container(
             height: 4,
             decoration: BoxDecoration(
-              color: session.courseColor,
+              color: courseColor,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -397,7 +395,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: session.courseColor.withOpacity(0.1),
+                        color: courseColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -407,15 +405,15 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: session.courseColor,
+                              color: courseColor,
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            session.course,
+                            courseName,
                             style: TextStyle(
-                              color: session.courseColor,
+                              color: courseColor,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
@@ -446,14 +444,14 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                     Icon(Icons.calendar_today, size: 13, color: Colors.grey[600]),
                     const SizedBox(width: 6),
                     Text(
-                      _formatDate(session.startTime),
+                      _formatDate(startTime),
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                     const SizedBox(width: 12),
                     Icon(Icons.access_time, size: 13, color: Colors.grey[600]),
                     const SizedBox(width: 6),
                     Text(
-                      '${_formatTime(session.startTime)} - ${_formatTime(session.endTime)}',
+                      '${_formatTime(startTime)} - ${_formatTime(endTime)}',
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
@@ -464,17 +462,10 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                 // Attendees
                 Row(
                   children: [
-                    Icon(Icons.people_outline, size: 13, color: Colors.grey[600]),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${session.attendeeCount}/${session.maxAttendees} học viên',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(width: 12),
                     Icon(Icons.timer_outlined, size: 13, color: Colors.grey[600]),
                     const SizedBox(width: 6),
                     Text(
-                      _getDuration(session.startTime, session.endTime),
+                      _getDuration(startTime, endTime),
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
@@ -487,7 +478,7 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
                 // Action buttons
                 Row(
                   children: [
-                    if (session.meetingUrl.isNotEmpty)
+                    if (meetingUrl.isNotEmpty)
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {},
@@ -561,36 +552,40 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
       ),
     );
   }
-}
 
-// ========================= INNER CLASSES =========================
+  Color _getCourseColorById(Long courseId) {
+    final course = _courses.cast<CourseResponse?>().firstWhere(
+      (c) => c?.id.value == courseId.value,
+      orElse: () => null,
+    );
+    if (course == null) {
+      final colors = [
+        const Color(0xff0074DB),
+        const Color(0xffBC5700),
+        const Color(0xff455F89),
+        const Color(0xff16A34A),
+        const Color(0xff9333EA),
+        const Color(0xffDC2626),
+      ];
+      return colors[courseId.value.abs() % colors.length];
+    }
+    final hash = course.title.hashCode;
+    final colors = [
+      const Color(0xff0074DB),
+      const Color(0xffBC5700),
+      const Color(0xff455F89),
+      const Color(0xff16A34A),
+      const Color(0xff9333EA),
+      const Color(0xffDC2626),
+    ];
+    return colors[hash.abs() % colors.length];
+  }
 
-enum _SessionStatus { upcoming, past, all }
-
-class _LiveSessionData {
-  final String id;
-  final String title;
-  final String course;
-  final Color courseColor;
-  final DateTime startTime;
-  final DateTime endTime;
-  final String meetingUrl;
-  final String description;
-  final _SessionStatus status;
-  final int attendeeCount;
-  final int maxAttendees;
-
-  _LiveSessionData({
-    required this.id,
-    required this.title,
-    required this.course,
-    required this.courseColor,
-    required this.startTime,
-    required this.endTime,
-    required this.meetingUrl,
-    required this.description,
-    required this.status,
-    required this.attendeeCount,
-    required this.maxAttendees,
-  });
+  String _getCourseName(Long courseId) {
+    final course = _courses.cast<CourseResponse?>().firstWhere(
+      (c) => c?.id.value == courseId.value,
+      orElse: () => null,
+    );
+    return course?.title ?? 'Khóa học';
+  }
 }

@@ -185,6 +185,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
           ...course.modules.map((module) {
             return _buildModuleItem(module);
           }),
+          if (course.finalQuizId != null) _buildFinalQuizItem(course),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Color(0xFF64748B)),
@@ -278,6 +279,42 @@ class LearningWorkspaceMobile extends StatelessWidget {
                 : null,
           ),
       ],
+    );
+  }
+
+  Widget _buildFinalQuizItem(LearningCourse course) {
+    final isLocked = course.progressPercent < 80;
+    final isPassed = course.finalQuizPassed;
+
+    IconData finalIcon() {
+      if (isLocked) return Icons.lock_outline;
+      if (isPassed) return Icons.check_circle;
+      return Icons.cancel_outlined;
+    }
+
+    Color finalIconColor() {
+      if (isLocked) return const Color(0xFF94A3B8);
+      if (isPassed) return const Color(0xFF22C55E);
+      return const Color(0xFFBA1A1A);
+    }
+
+    String finalSubtitle() {
+      if (isLocked) return 'Hoàn thành 80% khóa học để mở';
+      if (isPassed) return 'Đã đạt';
+      return 'Chưa đạt – Làm lại';
+    }
+
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 56, right: 16),
+      leading: Icon(finalIcon(), size: 20, color: finalIconColor()),
+      title: const Text(
+        'Bài kiểm tra cuối khóa',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(finalSubtitle(),
+          style: TextStyle(fontSize: 11, color: finalIconColor())),
+      trailing: const Icon(Icons.chevron_right, size: 18),
+      onTap: isLocked ? null : () => onQuizTap(course.finalQuizId!),
     );
   }
 

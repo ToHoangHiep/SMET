@@ -2,22 +2,10 @@
 // MODELS - Learning Path Models
 // ============================================
 
-/// Wrapper cho số nguyên (vì JS ko có Long)
-class Long {
-  final int value;
-  Long(this.value);
+import 'course_model.dart';
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Long && runtimeType == other.runtimeType && value == other.value;
-
-  @override
-  int get hashCode => value.hashCode;
-
-  @override
-  String toString() => value.toString();
-}
+// Re-export Long from course_model.dart for convenience
+export 'course_model.dart' show Long;
 
 /// Parse int/long từ JSON (backend có thể trả int hoặc double)
 int _parseInt(dynamic value) {

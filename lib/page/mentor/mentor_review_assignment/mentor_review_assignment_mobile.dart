@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:smet/model/mentor_attempt_model.dart';
+import 'package:smet/model/quiz_model.dart';
+import 'package:smet/service/mentor/mentor_attempt_service.dart';
+import 'package:smet/service/mentor/quiz_service.dart';
 
 /// Mentor Review Assignment - Mobile Layout
 class MentorReviewAssignmentMobile extends StatefulWidget {
@@ -11,76 +15,87 @@ class MentorReviewAssignmentMobile extends StatefulWidget {
 
 class _MentorReviewAssignmentMobileState
     extends State<MentorReviewAssignmentMobile> {
+  // API state
+  final MentorAttemptService _attemptService = MentorAttemptService();
+  final MentorQuizService _quizService = MentorQuizService();
+
+  bool _isLoadingQuizzes = true;
+  bool _isLoadingSubmissions = false;
+
+  List<QuizModel> _quizzes = [];
+  QuizModel? _selectedQuiz;
+  List<MentorAttemptInfo> _submissions = [];
+  List<MentorAttemptInfo> _pendingSubmissions = [];
+  List<MentorAttemptInfo> _reviewedSubmissions = [];
+
   int _selectedIndex = 0;
   bool _showReviewDetail = false;
+  MentorAttemptInfo? _selectedSubmission;
+  List<AttemptQuestionInfo> _submissionQuestions = [];
   final _commentController = TextEditingController();
+  bool _isLoadingDetail = false;
 
-  // Mock data
-  final List<_SubmissionData> _submissions = [
-    _SubmissionData(
-      id: '1',
-      initials: 'LB',
-      studentName: 'Lê Thị B',
-      dateText: '14:30 · Hôm nay',
-      status: _SubmissionStatus.pending,
-      testTitle: 'Kiểm tra kiến thức UX Research',
-      courseTitle: 'UX/UI Design Advanced',
-      score: 85,
-    ),
-    _SubmissionData(
-      id: '2',
-      initials: 'TM',
-      studentName: 'Trần Minh A',
-      dateText: '09:00 · Hôm nay',
-      status: _SubmissionStatus.pending,
-      testTitle: 'Final Assignment - React',
-      courseTitle: 'Frontend Development Basics',
-      score: 72,
-    ),
-    _SubmissionData(
-      id: '3',
-      initials: 'NH',
-      studentName: 'Nguyễn Hương H',
-      dateText: '18:00 · Hôm qua',
-      status: _SubmissionStatus.reviewed,
-      testTitle: 'Bài tập về nhà Module 3',
-      courseTitle: 'Frontend Development Basics',
-      score: 90,
-    ),
-    _SubmissionData(
-      id: '4',
-      initials: 'PV',
-      studentName: 'Phạm Văn C',
-      dateText: '15:30 · Hôm qua',
-      status: _SubmissionStatus.reviewed,
-      testTitle: 'Final Assignment - React',
-      courseTitle: 'Frontend Development Basics',
-      score: 60,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadQuizzes();
+  }
 
-  final List<_QuestionData> _questions = [
-    _QuestionData(
-      question: 'Câu 1: Mục đích chính của User Interview là gì?',
-      studentAnswer: 'Hiểu sâu về hành vi và nhu cầu',
-      correctAnswer: 'Hiểu sâu về hành vi và nhu cầu',
-      isCorrect: true,
-    ),
-    _QuestionData(
-      question:
-          'Câu 2: Số lượng người tham gia tối thiểu cho một buổi Usability Testing cơ bản là bao nhiêu?',
-      studentAnswer: '15 người',
-      correctAnswer: '5 người',
-      isCorrect: false,
-    ),
-    _QuestionData(
-      question:
-          'Câu 3: Phương pháp nào được sử dụng để thu thập dữ liệu định lượng?',
-      studentAnswer: 'Khảo sát trực tuyến (Survey)',
-      correctAnswer: 'Khảo sát trực tuyến (Survey)',
-      isCorrect: true,
-    ),
-  ];
+  Future<void> _loadQuizzes() async {
+    try {
+      final quizzes = await _quizService.getMyQuizzes();
+      setState(() {
+        _quizzes = quizzes;
+        _isLoadingQuizzes = false;
+        if (_quizzes.isNotEmpty && _selectedQuiz == null) {
+          _selectedQuiz = _quizzes.first;
+        }
+      });
+      if (_selectedQuiz != null) {
+        _loadSubmissions();
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingQuizzes = false;
+      });
+    }
+  }
+
+  Future<void> _loadSubmissions() async {
+    if (_selectedQuiz == null) return;
+
+    try {
+      final attempts = await _attemptService.getAttemptsByQuiz(_selectedQuiz!.id!);
+      setState(() {
+        _submissions = attempts;
+        _pendingSubmissions = attempts.where((a) => a.status == AttemptStatus.IN_PROGRESS).toList();
+        _reviewedSubmissions = attempts.where((a) => a.status == AttemptStatus.SUBMITTED).toList();
+        _isLoadingSubmissions = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingSubmissions = false;
+      });
+    }
+  }
+
+  Future<void> _loadSubmissionDetail(MentorAttemptInfo submission) async {
+    setState(() {
+      _isLoadingDetail = true;
+    });
+
+    try {
+      final questions = await _attemptService.getAttemptQuestions(submission.attemptId);
+      setState(() {
+        _submissionQuestions = questions;
+        _isLoadingDetail = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingDetail = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -113,9 +128,11 @@ class _MentorReviewAssignmentMobileState
           ),
         ],
       ),
-      body: _showReviewDetail
-          ? _buildReviewDetailView()
-          : _buildSubmissionListView(),
+      body: _isLoadingQuizzes
+          ? const Center(child: CircularProgressIndicator())
+          : _showReviewDetail
+              ? _buildReviewDetailView()
+              : _buildSubmissionListView(),
       bottomNavigationBar: _showReviewDetail
           ? _buildBottomActions()
           : null,
@@ -125,9 +142,57 @@ class _MentorReviewAssignmentMobileState
   Widget _buildSubmissionListView() {
     return Column(
       children: [
+        // Quiz selector
+        if (_quizzes.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xffE2E8F0)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<QuizModel>(
+                  value: _selectedQuiz,
+                  isExpanded: true,
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xff0074DB)),
+                  items: _quizzes.map((quiz) {
+                    return DropdownMenuItem(
+                      value: quiz,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.quiz_outlined, size: 18, color: Color(0xff0074DB)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              quiz.title,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (quiz) {
+                    if (quiz != null) {
+                      setState(() {
+                        _selectedQuiz = quiz;
+                        _showReviewDetail = false;
+                      });
+                      _loadSubmissions();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ),
+
         // Search bar
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             decoration: InputDecoration(
               hintText: 'Tìm kiếm bài nộp...',
@@ -143,16 +208,24 @@ class _MentorReviewAssignmentMobileState
           ),
         ),
 
+        const SizedBox(height: 12),
+
         // Tab filter
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _buildTabChip('Tất cả (4)', true),
+              _buildTabChip('Tất cả (${_submissions.length})', _selectedIndex == 0, () {
+                setState(() => _selectedIndex = 0);
+              }),
               const SizedBox(width: 8),
-              _buildTabChip('Chờ xem (2)', false),
+              _buildTabChip('Chờ xem (${_pendingSubmissions.length})', _selectedIndex == 1, () {
+                setState(() => _selectedIndex = 1);
+              }),
               const SizedBox(width: 8),
-              _buildTabChip('Đã xem (2)', false),
+              _buildTabChip('Đã xem (${_reviewedSubmissions.length})', _selectedIndex == 2, () {
+                setState(() => _selectedIndex = 2);
+              }),
             ],
           ),
         ),
@@ -161,68 +234,96 @@ class _MentorReviewAssignmentMobileState
 
         // List
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _submissions.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final sub = _submissions[index];
-              final isActive = _selectedIndex == index;
-              return _buildSubmissionCard(sub, isActive, index);
-            },
-          ),
+          child: _isLoadingSubmissions
+              ? const Center(child: CircularProgressIndicator())
+              : _submissions.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment_outlined, size: 64, color: Colors.grey[300]),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Chưa có bài nộp nào',
+                            style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _buildFilteredSubmissions(),
         ),
       ],
     );
   }
 
-  Widget _buildTabChip(String label, bool active) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: active ? const Color(0xff0074DB) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: active ? const Color(0xff0074DB) : const Color(0xffE2E8F0),
+  Widget _buildFilteredSubmissions() {
+    List<MentorAttemptInfo> filtered;
+    switch (_selectedIndex) {
+      case 1:
+        filtered = _pendingSubmissions;
+        break;
+      case 2:
+        filtered = _reviewedSubmissions;
+        break;
+      default:
+        filtered = _submissions;
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final sub = filtered[index];
+        return _buildSubmissionCard(sub, index);
+      },
+    );
+  }
+
+  Widget _buildTabChip(String label, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xff0074DB) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? const Color(0xff0074DB) : const Color(0xffE2E8F0),
+          ),
         ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: active ? Colors.white : const Color(0xff64748B),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: active ? Colors.white : const Color(0xff64748B),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSubmissionCard(
-      _SubmissionData sub, bool isActive, int index) {
-    final statusBg = sub.status == _SubmissionStatus.pending
-        ? const Color(0xffFEF3C7)
-        : const Color(0xffDCFCE7);
-    final statusTextColor = sub.status == _SubmissionStatus.pending
-        ? const Color(0xffB45309)
-        : const Color(0xff15803D);
-    final statusText =
-        sub.status == _SubmissionStatus.pending ? 'Chờ xem' : 'Đã xem';
+  Widget _buildSubmissionCard(MentorAttemptInfo sub, int index) {
+    final isPending = sub.status == AttemptStatus.IN_PROGRESS;
+    final statusBg = isPending ? const Color(0xffFEF3C7) : const Color(0xffDCFCE7);
+    final statusTextColor = isPending ? const Color(0xffB45309) : const Color(0xff15803D);
+    final statusText = isPending ? 'Chờ xem' : 'Đã xem';
 
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedIndex = index;
+          _selectedSubmission = sub;
           _showReviewDetail = true;
         });
+        _loadSubmissionDetail(sub);
       },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: isActive
-              ? Border.all(color: const Color(0xff0074DB), width: 2)
-              : null,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -259,7 +360,7 @@ class _MentorReviewAssignmentMobileState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        sub.studentName,
+                        sub.userName,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -273,7 +374,7 @@ class _MentorReviewAssignmentMobileState
                               size: 13, color: Color(0xff94A3B8)),
                           const SizedBox(width: 4),
                           Text(
-                            sub.dateText,
+                            _formatDateTime(sub.startedAt),
                             style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xff64748B),
@@ -305,7 +406,7 @@ class _MentorReviewAssignmentMobileState
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${sub.score}/100',
+                      sub.score != null ? '${sub.score!.toInt()}/100' : '--/100',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -327,7 +428,7 @@ class _MentorReviewAssignmentMobileState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    sub.testTitle,
+                    sub.quizTitle,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -360,8 +461,29 @@ class _MentorReviewAssignmentMobileState
     );
   }
 
+  String _formatDateTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} phút trước';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} giờ trước';
+    } else if (diff.inDays == 1) {
+      return 'Hôm qua';
+    } else {
+      return '${dt.day}/${dt.month}/${dt.year}';
+    }
+  }
+
   Widget _buildReviewDetailView() {
-    final selected = _submissions[_selectedIndex];
+    if (_isLoadingDetail) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final selected = _selectedSubmission;
+    if (selected == null) {
+      return const Center(child: Text('Không có dữ liệu'));
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -387,7 +509,7 @@ class _MentorReviewAssignmentMobileState
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  selected.studentName,
+                  selected.userName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -443,7 +565,7 @@ class _MentorReviewAssignmentMobileState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            selected.studentName,
+                            selected.userName,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -478,7 +600,7 @@ class _MentorReviewAssignmentMobileState
                       child: Column(
                         children: [
                           Text(
-                            '${selected.score}',
+                            selected.score != null ? '${selected.score!.toInt()}' : '--',
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w900,
@@ -512,7 +634,7 @@ class _MentorReviewAssignmentMobileState
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          selected.testTitle,
+                          selected.quizTitle,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -548,10 +670,25 @@ class _MentorReviewAssignmentMobileState
 
           const SizedBox(height: 12),
 
-          ..._questions.map((q) => Padding(
+          if (_submissionQuestions.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: const Center(
+                child: Text(
+                  'Không có chi tiết câu hỏi',
+                  style: TextStyle(color: Color(0xff64748B)),
+                ),
+              ),
+            )
+          else
+            ..._submissionQuestions.asMap().entries.map((entry) {
+              final index = entry.key + 1;
+              final q = entry.value;
+              return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _buildQuestionCard(q),
-              )),
+                child: _buildQuestionCard(q, index),
+              );
+            }),
 
           const SizedBox(height: 20),
 
@@ -597,7 +734,7 @@ class _MentorReviewAssignmentMobileState
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Học viên nắm vững lý thuyết nhưng cần xem lại Usability Testing.',
+                    'Vui lòng nhập nhận xét cho học viên sau khi xem chi tiết bài làm.',
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.4,
@@ -615,7 +752,7 @@ class _MentorReviewAssignmentMobileState
     );
   }
 
-  Widget _buildQuestionCard(_QuestionData q) {
+  Widget _buildQuestionCard(AttemptQuestionInfo q, int index) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -645,7 +782,7 @@ class _MentorReviewAssignmentMobileState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  q.question,
+                  'Câu $index: ${q.questionText}',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -668,7 +805,7 @@ class _MentorReviewAssignmentMobileState
               ),
               Expanded(
                 child: Text(
-                  q.studentAnswer,
+                  q.studentAnswer ?? 'Không chọn',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -693,7 +830,7 @@ class _MentorReviewAssignmentMobileState
               ),
               Expanded(
                 child: Text(
-                  q.correctAnswer,
+                  q.correctAnswer ?? '-',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -757,44 +894,4 @@ class _MentorReviewAssignmentMobileState
       ),
     );
   }
-}
-
-// ============ Data models ============
-
-enum _SubmissionStatus { pending, reviewed }
-
-class _SubmissionData {
-  final String id;
-  final String initials;
-  final String studentName;
-  final String dateText;
-  final _SubmissionStatus status;
-  final String testTitle;
-  final String courseTitle;
-  final int score;
-
-  _SubmissionData({
-    required this.id,
-    required this.initials,
-    required this.studentName,
-    required this.dateText,
-    required this.status,
-    required this.testTitle,
-    required this.courseTitle,
-    required this.score,
-  });
-}
-
-class _QuestionData {
-  final String question;
-  final String studentAnswer;
-  final String correctAnswer;
-  final bool isCorrect;
-
-  _QuestionData({
-    required this.question,
-    required this.studentAnswer,
-    required this.correctAnswer,
-    required this.isCorrect,
-  });
 }

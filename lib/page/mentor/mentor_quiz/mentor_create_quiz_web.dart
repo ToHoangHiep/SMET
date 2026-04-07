@@ -51,6 +51,8 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   bool _isSaving = false;
   bool _isLoading = true;
   String? _loadError;
+  /// Được set từ quiz data khi edit — dùng cho breadcrumb/title thay vì widget.isFinalQuiz
+  bool? _quizIsFinal;
 
   final List<_EditableQuestion> _questions = [];
 
@@ -76,6 +78,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
       _passingScoreController.text = quiz.passingScore.toString();
       _maxAttemptsController.text = (quiz.maxAttempts ?? 1).toString();
       _showAnswer = quiz.showAnswer;
+      _quizIsFinal = quiz.isFinalQuiz;
 
       if (quiz.questions != null) {
         for (final q in quiz.questions!) {
@@ -219,7 +222,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
           questionCount: _questions.length,
           showAnswer: _showAnswer,
-          isFinalQuiz: widget.isFinalQuiz,
+          isFinalQuiz: _quizIsFinal ?? widget.isFinalQuiz,
           moduleId:
               widget.moduleId != null
                   ? Long(int.parse(widget.moduleId!))
@@ -317,7 +320,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
           questionCount: _questions.length,
           showAnswer: _showAnswer,
-          isFinalQuiz: widget.isFinalQuiz,
+          isFinalQuiz: _quizIsFinal ?? widget.isFinalQuiz,
           moduleId:
               widget.moduleId != null
                   ? Long(int.parse(widget.moduleId!))
@@ -466,7 +469,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
             child: BreadcrumbPageHeader(
               pageTitle:
                   _isEditMode
-                      ? 'Sửa Quiz'
+                      ? (_quizIsFinal == true ? 'Sửa Final Quiz' : 'Sửa Quiz')
                       : (widget.isFinalQuiz ? 'Tạo Final Quiz' : 'Tạo Quiz'),
               pageIcon: Icons.quiz_rounded,
               breadcrumbs: [
@@ -482,7 +485,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
                 BreadcrumbItem(
                   label:
                       _isEditMode
-                          ? 'Sửa quiz'
+                          ? (_quizIsFinal == true ? 'Final Quiz' : 'Quiz module')
                           : (widget.isFinalQuiz ? 'Final Quiz' : 'Quiz module'),
                 ),
               ],

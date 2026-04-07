@@ -59,7 +59,7 @@ class MentorSidebar extends StatelessWidget {
           _menuItem(context, Icons.account_tree_rounded, "Lộ trình", 2),
           _menuItem(context, Icons.assessment_rounded, "Báo cáo", 3),
           _menuItem(context, Icons.calendar_month_rounded, "Lịch mentor", 4),
-          _menuItem(context, Icons.rate_review_rounded, "Chấm bài", 5),
+          _menuItem(context, Icons.rate_review_rounded, "Quiz Review", 5),
           _menuItem(context, Icons.people_rounded, "Học viên", 6),
           _menuItem(context, Icons.chat_bubble_rounded, "Tin nhắn", 7),
 

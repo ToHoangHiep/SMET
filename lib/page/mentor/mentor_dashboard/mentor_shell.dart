@@ -48,9 +48,9 @@ class MentorShell extends StatefulWidget {
     ),
     SidebarMenuItem(
       icon: Icons.rate_review_rounded,
-      title: 'Chấm bài',
-      route: '/mentor/review-assignments',
-      tooltip: 'Chấm bài',
+      title: 'Quiz Review',
+      route: '/mentor/quiz-review',
+      tooltip: 'Xem kết quả quiz',
     ),
     SidebarMenuItem(
       icon: Icons.people_rounded,
@@ -81,7 +81,8 @@ class MentorShell extends StatefulWidget {
     if (path.startsWith('/mentor/learning-paths')) return 2;
     if (path.startsWith('/mentor/course-report')) return 3;
     if (path.startsWith('/mentor/live-sessions')) return 4;
-    if (path.startsWith('/mentor/review-assignments')) return 5;
+    if (path.startsWith('/mentor/review-assignments') ||
+        path.startsWith('/mentor/quiz-review')) return 5;
     if (path.startsWith('/mentor/students')) return 6;
     if (path.startsWith('/mentor/projects')) return 7;
     if (path.startsWith('/mentor/messages')) return 8;

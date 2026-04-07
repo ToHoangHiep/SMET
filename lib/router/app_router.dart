@@ -55,6 +55,7 @@ import 'package:smet/page/mentor/mentor_course_report_detail/mentor_course_repor
 import 'package:smet/page/mentor/mentor_live_session/screen/mentor_live_session.dart';
 import 'package:smet/page/mentor/mentor_review_assignment/mentor_review_assignment.dart';
 import 'package:smet/page/mentor/mentor_students/mentor_students.dart';
+import 'package:smet/page/mentor/mentor_quiz_review/mentor_quiz_review.dart';
 import 'package:smet/page/employee/projects/screen/employee_projects_base.dart';
 import 'package:smet/page/mentor/projects/screen/mentor_projects_base.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
@@ -246,6 +247,14 @@ class AppPages {
             pageBuilder:
                 (context, state) =>
                     const NoTransitionPage(child: MentorReviewAssignment()),
+          ),
+
+          // Mentor Quiz Review
+          GoRoute(
+            path: '/mentor/quiz-review',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: MentorQuizReview()),
           ),
 
           // Mentor Students

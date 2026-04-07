@@ -1212,18 +1212,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             actions: [
               if (_isEditMode && _course != null) ...[
                 OutlinedButton.icon(
-                  onPressed: () {
-                    final cid = _course!.id.value;
-                    if (_finalQuizId != null) {
-                      context.go(
-                        '/mentor/quizzes/create?quizId=${_finalQuizId!.value}&courseId=$cid&final=true',
-                      );
-                    } else {
-                      context.go(
-                        '/mentor/quizzes/create?courseId=$cid&final=true',
-                      );
-                    }
-                  },
+                  onPressed: () => _openFinalQuiz(context),
                   icon: const Icon(Icons.quiz_outlined, size: 18),
                   label: Text(_finalQuizId != null ? 'Sửa Final Quiz' : 'Tạo Final Quiz'),
                   style: OutlinedButton.styleFrom(
@@ -1588,9 +1577,156 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                 return _buildModuleCard(_modules[index], index, ValueKey(_modules[index].id));
               },
             ),
+          _buildFinalQuizCard(),
         ],
       ),
     );
+  }
+
+  Widget _buildFinalQuizCard() {
+    final hasFinalQuiz = _finalQuizId != null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE5E7EB),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _openFinalQuiz(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                // Trophy icon
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: hasFinalQuiz
+                        ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.workspace_premium_outlined,
+                    color: hasFinalQuiz
+                        ? const Color(0xFF6366F1)
+                        : const Color(0xFF94A3B8),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Final Quiz',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: hasFinalQuiz
+                                  ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                                  : const Color(0xFFE5E7EB),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              hasFinalQuiz ? 'Đã tạo' : 'Chưa tạo',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: hasFinalQuiz
+                                    ? const Color(0xFF6366F1)
+                                    : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Bài kiểm tra cuối khóa học',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        hasFinalQuiz ? Icons.edit_outlined : Icons.add,
+                        size: 16,
+                        color: const Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        hasFinalQuiz ? 'Sửa' : 'Tạo',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openFinalQuiz(BuildContext context) {
+    final cid = _course!.id.value;
+    if (_finalQuizId != null) {
+      context.go(
+        '/mentor/quizzes/create?quizId=${_finalQuizId!.value}&courseId=$cid&final=true',
+      );
+    } else {
+      context.go(
+        '/mentor/quizzes/create?courseId=$cid&final=true',
+      );
+    }
   }
 
   Widget _buildModuleCard(ModuleResponse module, int index, ValueKey itemKey) {
