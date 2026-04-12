@@ -271,35 +271,10 @@ class DepartmentService {
 
   /// ================= GET MEMBERS =================
   /// GET /api/departments/{id}/members
-  Future<List<Map<String, dynamic>>> getDepartmentMembers(int departmentId) async {
-    try {
-      final url = "$baseUrl/departments/$departmentId/members";
-
-      _logRequest("GET DEPARTMENT MEMBERS", url);
-
-      final token = await _getToken();
-      final response = await http.get(
-        Uri.parse(url),
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-      }
-
-      return [];
-    } catch (e) {
-      log("GET DEPARTMENT MEMBERS ERROR: $e");
-      return [];
-    }
-  }
-
-  /// ================= GET PROJECT MANAGERS FOR DEPARTMENT =================
-  /// GET /api/departments/department/managers
-  Future<Map<String, dynamic>> getProjectManagersForDepartment({
+  Future<Map<String, dynamic>> getDepartmentMembers({
+    required int departmentId,
     String? keyword,
+    String? role,
     int page = 0,
     int size = 10,
   }) async {
@@ -310,6 +285,67 @@ class DepartmentService {
       };
       if (keyword != null && keyword.isNotEmpty) {
         queryParams['keyword'] = keyword;
+      }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+
+      final uri = Uri.parse("$baseUrl/departments/$departmentId/members").replace(
+        queryParameters: queryParams,
+      );
+
+      _logRequest("GET DEPARTMENT MEMBERS", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) {
+          return {
+            'members': data,
+            'totalElements': data.length,
+            'totalPages': 1,
+          };
+        }
+        return {
+          'members': data['content'] ?? data['data'] ?? data,
+          'totalElements': data['totalElements'] ?? (data['content'] ?? data['data'] ?? []).length,
+          'totalPages': data['totalPages'] ?? 1,
+        };
+      }
+
+      return {'members': [], 'totalElements': 0, 'totalPages': 0};
+    } catch (e) {
+      log("GET DEPARTMENT MEMBERS ERROR: $e");
+      return {'members': [], 'totalElements': 0, 'totalPages': 0};
+    }
+  }
+
+  /// ================= GET PROJECT MANAGERS FOR DEPARTMENT =================
+  /// GET /api/departments/department/managers
+  /// assigned: true = đã có phòng ban, false = chưa có phòng ban, null = tất cả
+  Future<Map<String, dynamic>> getProjectManagersForDepartment({
+    String? keyword,
+    bool? assigned,
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (assigned != null) {
+        queryParams['assigned'] = assigned.toString();
       }
 
       final uri = Uri.parse("$baseUrl/users/department/managers").replace(
@@ -339,8 +375,11 @@ class DepartmentService {
 
   /// ================= GET PROJECT MEMBERS FOR DEPARTMENT =================
   /// GET /api/departments/department/members
+  /// assigned: true = đã tham gia dự án, false = chưa tham gia dự án, null = tất cả
   Future<Map<String, dynamic>> getProjectMembersForDepartment({
     String? keyword,
+    String? role,
+    bool? assigned,
     int page = 0,
     int size = 10,
   }) async {
@@ -351,6 +390,12 @@ class DepartmentService {
       };
       if (keyword != null && keyword.isNotEmpty) {
         queryParams['keyword'] = keyword;
+      }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+      if (assigned != null) {
+        queryParams['assigned'] = assigned.toString();
       }
 
       final uri = Uri.parse("$baseUrl/users/department/members").replace(
@@ -422,14 +467,28 @@ class DepartmentService {
 
   /// ================= GET DEPARTMENT COURSES =================
   /// GET /api/lms/courses?departmentId={id}
-  Future<List<Map<String, dynamic>>> getDepartmentCourses(int departmentId) async {
+  Future<Map<String, dynamic>> getDepartmentCourses({
+    required int departmentId,
+    String? keyword,
+    String? level,
+    int page = 0,
+    int size = 10,
+  }) async {
     try {
+      final queryParams = <String, String>{
+        'departmentId': departmentId.toString(),
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (level != null && level.isNotEmpty) {
+        queryParams['level'] = level;
+      }
+
       final uri = Uri.parse("$baseUrl/lms/courses").replace(
-        queryParameters: {
-          'departmentId': departmentId.toString(),
-          'page': '0',
-          'size': '100',
-        },
+        queryParameters: queryParams,
       );
 
       _logRequest("GET DEPARTMENT COURSES", uri.toString());
@@ -444,16 +503,25 @@ class DepartmentService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final content = data['content'] as List<dynamic>? ??
-            data['data'] as List<dynamic>? ??
-            data as List<dynamic>;
-        return List<Map<String, dynamic>>.from(content);
+        List<dynamic> content;
+        if (data is List) {
+          content = data;
+        } else {
+          content = data['content'] as List<dynamic>? ??
+              data['data'] as List<dynamic>? ??
+              [];
+        }
+        return {
+          'courses': List<Map<String, dynamic>>.from(content),
+          'totalElements': data is Map ? (data['totalElements'] ?? content.length) : content.length,
+          'totalPages': data is Map ? (data['totalPages'] ?? 1) : 1,
+        };
       }
 
-      return [];
+      return {'courses': [], 'totalElements': 0, 'totalPages': 0};
     } catch (e) {
       log("GET DEPARTMENT COURSES ERROR: $e");
-      return [];
+      return {'courses': [], 'totalElements': 0, 'totalPages': 0};
     }
   }
 

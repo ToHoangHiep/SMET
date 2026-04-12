@@ -57,6 +57,10 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   List<ModuleResponse> _modules = [];
   Long? _finalQuizId;
 
+  bool get _canEdit =>
+      _course != null &&
+      _course!.courseStatus == CourseStatus.DRAFT;
+
   @override
   void initState() {
     super.initState();
@@ -1211,30 +1215,34 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             primaryColor: _primary,
             actions: [
               if (_isEditMode && _course != null) ...[
-                OutlinedButton.icon(
-                  onPressed: () => _openFinalQuiz(context),
-                  icon: const Icon(Icons.quiz_outlined, size: 18),
-                  label: Text(_finalQuizId != null ? 'Sửa Final Quiz' : 'Tạo Final Quiz'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF64748B),
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                if (_canEdit) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => _openFinalQuiz(context),
+                    icon: const Icon(Icons.quiz_outlined, size: 18),
+                    label: Text(_finalQuizId != null ? 'Sửa Final Quiz' : 'Tạo Final Quiz'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                OutlinedButton.icon(
-                  onPressed: _archiveCourse,
-                  icon: const Icon(Icons.archive_outlined, size: 18),
-                  label: const Text("Lưu trữ"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFF59E0B),
-                    side: const BorderSide(color: Color(0xFFF59E0B)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  const SizedBox(width: 10),
+                ],
+                if (_course!.courseStatus != CourseStatus.ARCHIVED) ...[
+                  OutlinedButton.icon(
+                    onPressed: _archiveCourse,
+                    icon: const Icon(Icons.archive_outlined, size: 18),
+                    label: const Text("Lưu trữ"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFF59E0B),
+                      side: const BorderSide(color: Color(0xFFF59E0B)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                ],
                 if (!_course!.isPublished) ...[
                   OutlinedButton.icon(
                     onPressed: _publishCourse,
@@ -1249,24 +1257,26 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   ),
                   const SizedBox(width: 10),
                 ],
-                ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _saveCourse,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                if (_canEdit) ...[
+                  ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _saveCourse,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    ),
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save, size: 18),
+                    label: const Text("Lưu thay đổi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   ),
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.save, size: 18),
-                  label: const Text("Lưu thay đổi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                ),
+                ],
               ],
             ],
           ),
@@ -1351,11 +1361,13 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   const SizedBox(height: 16),
                   TextField(
                     controller: _titleController,
+                    enabled: _canEdit,
                     decoration: _field("Tên khóa học *", icon: Icons.school_outlined),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _descriptionController,
+                    enabled: _canEdit,
                     decoration: _field("Mô tả khóa học", icon: Icons.description_outlined),
                     maxLines: 5,
                   ),
@@ -1446,7 +1458,9 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   label: "Tương đối",
                   icon: Icons.schedule,
                   isSelected: _deadlineType == DeadlineType.RELATIVE,
-                  onTap: () => setState(() => _deadlineType = DeadlineType.RELATIVE),
+                  onTap: _canEdit
+                      ? () => setState(() => _deadlineType = DeadlineType.RELATIVE)
+                      : () {},
                   primaryColor: _primary,
                 ),
               ),
@@ -1456,7 +1470,9 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   label: "Ngày cố định",
                   icon: Icons.event,
                   isSelected: _deadlineType == DeadlineType.FIXED,
-                  onTap: () => setState(() => _deadlineType = DeadlineType.FIXED),
+                  onTap: _canEdit
+                      ? () => setState(() => _deadlineType = DeadlineType.FIXED)
+                      : () {},
                   primaryColor: _primary,
                 ),
               ),
@@ -1468,10 +1484,11 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             children: [
               SizedBox(
                 width: 90,
-                child: TextField(
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  decoration: InputDecoration(
+                child:                   TextField(
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    enabled: _canEdit,
+                    decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.numbers, size: 18, color: Color(0xFF94A3B8)),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1501,6 +1518,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           _DatePickerButton(
             selectedDate: _fixedDeadline,
             primaryColor: _primary,
+            enabled: _canEdit,
             onPicked: (date) => setState(() => _fixedDeadline = date),
           ),
         ],
@@ -1514,6 +1532,30 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (!_canEdit)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 18, color: Color(0xFFF59E0B)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _course!.courseStatus == CourseStatus.ARCHIVED
+                          ? 'Khóa học đã lưu trữ. Không thể chỉnh sửa cấu trúc.'
+                          : 'Khóa học đã xuất bản. Không thể chỉnh sửa module, bài học và quiz.',
+                      style: const TextStyle(fontSize: 13, color: Color(0xFFF59E0B)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1535,18 +1577,19 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   ),
                 ],
               ),
-              ElevatedButton.icon(
-                onPressed: _showAddModuleDialog,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text("Thêm Chương", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              if (_canEdit)
+                ElevatedButton.icon(
+                  onPressed: _showAddModuleDialog,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text("Thêm Chương", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1559,7 +1602,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
               physics: const NeverScrollableScrollPhysics(),
               buildDefaultDragHandles: false,
               itemCount: _modules.length,
-              onReorder: _onModulesReorder,
+              onReorder: _canEdit ? _onModulesReorder : (_, __) {},
               proxyDecorator: (child, index, animation) {
                 return AnimatedBuilder(
                   animation: animation,
@@ -1607,7 +1650,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _openFinalQuiz(context),
+          onTap: _canEdit ? () => _openFinalQuiz(context) : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Row(
@@ -1682,32 +1725,33 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        hasFinalQuiz ? Icons.edit_outlined : Icons.add,
-                        size: 16,
-                        color: const Color(0xFF6366F1),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        hasFinalQuiz ? 'Sửa' : 'Tạo',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF6366F1),
+                if (_canEdit)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          hasFinalQuiz ? Icons.edit_outlined : Icons.add,
+                          size: 16,
+                          color: const Color(0xFF6366F1),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          hasFinalQuiz ? 'Sửa' : 'Tạo',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6366F1),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1778,23 +1822,25 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ReorderDragHandle(
+            if (_canEdit) ReorderDragHandle(
               index: index,
               onReorder: _onModulesReorder,
             ),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              tooltip: "Sửa chương",
-              onPressed: () => _showEditModuleDialog(module),
-              style: IconButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              tooltip: "Xóa chương",
-              onPressed: () => _deleteModule(module),
-              style: IconButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
-            ),
+            if (_canEdit) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                tooltip: "Sửa chương",
+                onPressed: () => _showEditModuleDialog(module),
+                style: IconButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                tooltip: "Xóa chương",
+                onPressed: () => _deleteModule(module),
+                style: IconButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+              ),
+            ],
           ],
         ),
         children: [
@@ -1833,16 +1879,21 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   ],
                 ),
                 TextButton.icon(
-                  onPressed: () async {
-                    setState(() => _isLessonDialogOpen = true);
-                    await Future.delayed(const Duration(milliseconds: 50));
-                    await _showAddLessonDialog(module);
-                    if (!mounted) return;
-                    setState(() => _isLessonDialogOpen = false);
-                  },
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text("Thêm bài học", style: TextStyle(fontSize: 13)),
-                  style: TextButton.styleFrom(foregroundColor: _primary),
+                  onPressed: _canEdit
+                      ? () async {
+                          setState(() => _isLessonDialogOpen = true);
+                          await Future.delayed(const Duration(milliseconds: 50));
+                          await _showAddLessonDialog(module);
+                          if (!mounted) return;
+                          setState(() => _isLessonDialogOpen = false);
+                        }
+                      : null,
+                  icon: Icon(Icons.add, size: 18, color: _canEdit ? _primary : const Color(0xFFE5E7EB)),
+                  label: Text(
+                    "Thêm bài học",
+                    style: TextStyle(fontSize: 13, color: _canEdit ? _primary : const Color(0xFFE5E7EB)),
+                  ),
+                  style: TextButton.styleFrom(foregroundColor: _canEdit ? _primary : const Color(0xFFE5E7EB)),
                 ),
               ],
             ),
@@ -1905,27 +1956,39 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   ],
                 ),
                 TextButton.icon(
-                  onPressed: () {
-                    if (module.quizId != null) {
-                      context.go(
-                        '/mentor/quizzes/create?quizId=${module.quizId!.value}&moduleId=${module.id.value}&courseId=${_course!.id.value}',
-                      );
-                    } else {
-                      context.go(
-                        '/mentor/quizzes/create?moduleId=${module.id.value}&courseId=${_course!.id.value}',
-                      );
-                    }
-                  },
+                  onPressed: _canEdit
+                      ? () {
+                          if (module.quizId != null) {
+                            context.go(
+                              '/mentor/quizzes/create?quizId=${module.quizId!.value}&moduleId=${module.id.value}&courseId=${_course!.id.value}',
+                            );
+                          } else {
+                            context.go(
+                              '/mentor/quizzes/create?moduleId=${module.id.value}&courseId=${_course!.id.value}',
+                            );
+                          }
+                        }
+                      : null,
                   icon: Icon(
                     module.quizId != null ? Icons.edit_outlined : Icons.add,
                     size: 18,
+                    color: module.quizId != null
+                        ? const Color(0xFF6366F1)
+                        : (_canEdit ? _primary : const Color(0xFFE5E7EB)),
                   ),
                   label: Text(
                     module.quizId != null ? "Sửa quiz" : "Tạo quiz",
-                    style: const TextStyle(fontSize: 13),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: module.quizId != null
+                          ? const Color(0xFF6366F1)
+                          : (_canEdit ? _primary : const Color(0xFFE5E7EB)),
+                    ),
                   ),
                   style: TextButton.styleFrom(
-                    foregroundColor: module.quizId != null ? const Color(0xFF6366F1) : _primary,
+                    foregroundColor: module.quizId != null
+                        ? const Color(0xFF6366F1)
+                        : (_canEdit ? _primary : const Color(0xFFE5E7EB)),
                   ),
                 ),
               ],
@@ -1945,11 +2008,11 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           IconButton(
             icon: const Icon(Icons.arrow_upward, size: 16),
             tooltip: "Di chuyển lên",
-            onPressed: lessonIndex > 0
+            onPressed: _canEdit && lessonIndex > 0
                 ? () => _moveLesson(module, lessonIndex, -1)
                 : null,
             style: IconButton.styleFrom(
-              foregroundColor: lessonIndex > 0
+              foregroundColor: _canEdit && lessonIndex > 0
                   ? const Color(0xFF64748B)
                   : const Color(0xFFE5E7EB),
             ),
@@ -1957,11 +2020,11 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           IconButton(
             icon: const Icon(Icons.arrow_downward, size: 16),
             tooltip: "Di chuyển xuống",
-            onPressed: lessonIndex < module.lessons.length - 1
+            onPressed: _canEdit && lessonIndex < module.lessons.length - 1
                 ? () => _moveLesson(module, lessonIndex, 1)
                 : null,
             style: IconButton.styleFrom(
-              foregroundColor: lessonIndex < module.lessons.length - 1
+              foregroundColor: _canEdit && lessonIndex < module.lessons.length - 1
                   ? const Color(0xFF64748B)
                   : const Color(0xFFE5E7EB),
             ),
@@ -1990,7 +2053,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
+          if (_canEdit) IconButton(
             icon: const Icon(Icons.edit_outlined, size: 18),
             tooltip: "Sửa bài học",
             onPressed: () async {
@@ -2002,7 +2065,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             },
             style: IconButton.styleFrom(foregroundColor: const Color(0xFF64748B)),
           ),
-          IconButton(
+          if (_canEdit) IconButton(
             icon: const Icon(Icons.delete_outline, size: 18),
             tooltip: "Xóa bài học",
             onPressed: () => _deleteLesson(module, lesson),
@@ -2185,11 +2248,13 @@ class _DatePickerButton extends StatelessWidget {
   final DateTime? selectedDate;
   final Color primaryColor;
   final ValueChanged<DateTime> onPicked;
+  final bool enabled;
 
   const _DatePickerButton({
     required this.selectedDate,
     required this.primaryColor,
     required this.onPicked,
+    this.enabled = true,
   });
 
   String _format(DateTime date) {
@@ -2199,28 +2264,30 @@ class _DatePickerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 30)),
-          firstDate: DateTime.now(),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
-          builder: (context, child) {
-            return Theme(
-              data: Theme.of(context).copyWith(
-                colorScheme: ColorScheme.light(
-                  primary: primaryColor,
-                  onPrimary: Colors.white,
-                  surface: Colors.white,
-                  onSurface: const Color(0xFF0F172A),
-                ),
-              ),
-              child: child!,
-            );
-          },
-        );
-        if (picked != null) onPicked(picked);
-      },
+      onTap: enabled
+          ? () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 30)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: ColorScheme.light(
+                        primary: primaryColor,
+                        onPrimary: Colors.white,
+                        surface: Colors.white,
+                        onSurface: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (picked != null) onPicked(picked);
+            }
+          : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

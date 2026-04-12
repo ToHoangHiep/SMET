@@ -1253,7 +1253,7 @@ class _WeekView extends StatelessWidget {
 
     final days = _weekDays();
     final today = _calendarDateOnly(DateTime.now());
-    final hours = List.generate(14, (index) => 7 + index);
+    final hours = List.generate(24, (index) => index);
 
     final bool hasContent = sessions.isNotEmpty;
 

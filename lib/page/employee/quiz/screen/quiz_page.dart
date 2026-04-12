@@ -18,8 +18,14 @@ import 'package:smet/page/employee/quiz/widgets/quiz_result_dialog.dart';
 class QuizPage extends StatelessWidget {
   final String quizId;
   final String? courseId;
+  final String? attemptId; // Thêm: để resume attempt cũ
 
-  const QuizPage({super.key, required this.quizId, this.courseId});
+  const QuizPage({
+    super.key,
+    required this.quizId,
+    this.courseId,
+    this.attemptId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +36,8 @@ class QuizPage extends StatelessWidget {
     return QuizBasePage(
       quizId: quizId,
       isWebLayout: isWebOrDesktop,
+      courseId: courseId,
+      resumeAttemptId: attemptId,
     );
   }
 }
@@ -38,12 +46,14 @@ class QuizBasePage extends StatefulWidget {
   final String quizId;
   final bool isWebLayout;
   final String? courseId;
+  final String? resumeAttemptId; // Thêm: attempt cần resume
 
   const QuizBasePage({
     super.key,
     required this.quizId,
     this.isWebLayout = false,
     this.courseId,
+    this.resumeAttemptId,
   });
 
   @override
@@ -59,6 +69,7 @@ class _QuizBasePageState extends State<QuizBasePage> {
     _controller = QuizInternalController(
       quizId: widget.quizId,
       courseId: widget.courseId,
+      resumeAttemptId: widget.resumeAttemptId,
     );
   }
 
@@ -199,42 +210,110 @@ class _QuizWebView extends StatelessWidget {
   }
 
   Widget _buildErrorState(BuildContext context) {
+    final isResetProgress = controller.error == 'RESET_PROGRESS';
+
     return Center(
       child: Container(
         padding: const EdgeInsets.all(32),
+        constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
           color: QuizExamTheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: QuizExamTheme.error.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: isResetProgress
+                ? QuizExamTheme.tertiary.withValues(alpha: 0.5)
+                : QuizExamTheme.error.withValues(alpha: 0.3),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
-              size: 48,
-              color: QuizExamTheme.error,
+              isResetProgress ? Icons.replay_rounded : Icons.error_outline,
+              size: 56,
+              color: isResetProgress ? QuizExamTheme.tertiary : QuizExamTheme.error,
             ),
             const SizedBox(height: 16),
             Text(
-              controller.error ?? 'Đã xảy ra lỗi',
+              isResetProgress
+                  ? 'Bạn cần học lại bài học'
+                  : (controller.error ?? 'Đã xảy ra lỗi'),
               style: const TextStyle(
-                fontSize: 15,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
                 color: QuizExamTheme.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: controller.loadQuiz,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Thử lại'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: QuizExamTheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            const SizedBox(height: 8),
+            Text(
+              isResetProgress
+                  ? 'Bạn đã hết lượt thi và tiến trình đã được reset. Vui lòng học lại các bài học trước khi làm bài kiểm tra.'
+                  : 'Vui lòng thử lại sau.',
+              style: TextStyle(
+                fontSize: 14,
+                color: QuizExamTheme.onSurfaceVariant,
               ),
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 24),
+            if (isResetProgress) ...[
+              // Nút quay về khóa học
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Quay về learning workspace
+                    GoRouter.of(context).go(
+                      '/employee/learn/${controller.courseId ?? ''}',
+                    );
+                  },
+                  icon: const Icon(Icons.school_rounded, size: 20),
+                  label: const Text(' Quay về khóa học'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: QuizExamTheme.tertiary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Nút tải lại trang
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    GoRouter.of(context).go(
+                      '/employee/quiz-detail/${controller.quizId}?courseId=${controller.courseId ?? ''}',
+                    );
+                  },
+                  icon: const Icon(Icons.refresh, size: 20),
+                  label: const Text(' Kiểm tra lại'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: QuizExamTheme.onSurface,
+                    side: const BorderSide(color: QuizExamTheme.outlineVariant),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...[
+              ElevatedButton.icon(
+                onPressed: controller.loadQuiz,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Thử lại'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: QuizExamTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -346,7 +425,7 @@ class _QuizMainContent extends StatelessWidget {
           if (controller.quiz != null)
             QuizTimer(
               totalSeconds: controller.quiz!.timeLimitMinutes * 60,
-              onTimeUp: () => controller.submitQuizWithConfirm(context),
+              onTimeUp: () => controller.handleAutoSubmit(context),
             ),
           const SizedBox(width: 12),
           // Flag button
@@ -1089,7 +1168,7 @@ class _QuizMobileView extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: QuizTimer(
                     totalSeconds: controller.quiz!.timeLimitMinutes * 60,
-                    onTimeUp: () => controller.submitQuizWithConfirm(context),
+                    onTimeUp: () => controller.handleAutoSubmit(context),
                   ),
                 ),
               ),
@@ -1204,6 +1283,7 @@ class _MobileNavBar extends StatelessWidget {
 class QuizInternalController extends ChangeNotifier {
   final String quizId;
   final String? courseId;
+  final String? resumeAttemptId;
   String? _attemptId;
   Quiz? _quiz;
   bool _isLoading = true;
@@ -1217,7 +1297,11 @@ class QuizInternalController extends ChangeNotifier {
   QuizResult? _quizResult;
   bool _courseCompleted = false;
 
-  QuizInternalController({required this.quizId, this.courseId}) {
+  QuizInternalController({
+    required this.quizId,
+    this.courseId,
+    this.resumeAttemptId,
+  }) {
     loadQuiz();
   }
 
@@ -1248,16 +1332,38 @@ class QuizInternalController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      String? activeAttemptId = resumeAttemptId;
+
+      // Nếu không có attemptId được truyền vào → kiểm tra attempt đang làm
+      if (activeAttemptId == null) {
+        final activeAttempt = await QuizService.getActiveAttempt(quizId);
+        activeAttemptId = activeAttempt?.attemptId;
+      }
+
+      // Bước 1: Start attempt (hoặc lấy attempt đang làm)
       final startResult = await QuizService.startAttempt(quizId);
       _attemptId = startResult.attemptId;
+
+      // Bước 2: Lấy câu hỏi của attempt
       _quiz = await QuizService.getAttemptQuestions(_attemptId!, startResult.quizId);
+
+      // Bước 3: Tính thời gian bắt đầu
       _startTime = DateTime.now();
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      _error = 'Không thể tải bài quiz: $e';
       _isLoading = false;
+      // Xử lý lỗi cụ thể
+      final errorMsg = e.toString().toLowerCase();
+      
+      if (errorMsg.contains('required lessons') || 
+          errorMsg.contains('must complete')) {
+        // User bị reset progress → cần học lại bài
+        _error = 'RESET_PROGRESS';
+      } else {
+        _error = 'Không thể tải bài quiz: $e';
+      }
       notifyListeners();
     }
   }
@@ -1362,7 +1468,46 @@ class QuizInternalController extends ChangeNotifier {
     }
   }
 
-  void _showResultDialog(BuildContext context) {
+  /// Xử lý auto-submit khi hết giờ (không cần confirm dialog)
+  Future<void> handleAutoSubmit(BuildContext context) async {
+    if (_quiz == null || _startTime == null) return;
+
+    final timeSpent = DateTime.now().difference(_startTime!);
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      _quizResult = await QuizService.autoSubmit(
+        _attemptId ?? 'mock_attempt_${_quiz!.id}',
+        _quiz!.id,
+        _answers,
+        timeSpent,
+        questionCountFallback: _quiz!.questions.length,
+      );
+      _showResult = true;
+
+      // Sau khi nộp bài thành công và pass → kiểm tra hoàn thành khóa học
+      if (_quizResult!.passed && courseId != null) {
+        _courseCompleted = await QuizService.checkCourseCompletion(courseId!);
+      }
+
+      _isLoading = false;
+      notifyListeners();
+
+      if (context.mounted) {
+        _showResultDialog(context, isAutoSubmit: true);
+      }
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        context.showAppToast('Auto submit thất bại: $e', variant: AppToastVariant.error);
+      }
+    }
+  }
+
+  void _showResultDialog(BuildContext context, {bool isAutoSubmit = false}) {
     if (_quizResult == null || !context.mounted) return;
 
     showDialog(
@@ -1372,6 +1517,7 @@ class QuizInternalController extends ChangeNotifier {
         result: _quizResult!,
         courseCompleted: _courseCompleted,
         courseId: courseId,
+        isAutoSubmit: isAutoSubmit,
         onViewCertificate: courseId != null
             ? () {
                 Navigator.pop(ctx);
@@ -1381,8 +1527,26 @@ class QuizInternalController extends ChangeNotifier {
                 });
               }
             : null,
-        onRetry: () {
+        onRetry: () async {
           Navigator.pop(ctx);
+          
+          // Kiểm tra eligibility trước khi retry
+          final eligibility = await QuizService.checkQuizEligibility(quizId);
+          if (!eligibility.canStart) {
+            if (ctx.mounted) {
+              context.showAppToast(
+                'Bạn đã hết lượt thi!',
+                variant: AppToastVariant.error,
+              );
+            }
+            // Quay về quiz detail
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!context.mounted) return;
+              GoRouter.of(context).go('/employee/quiz-detail/$quizId?courseId=${courseId ?? ''}');
+            });
+            return;
+          }
+          
           reset();
           loadQuiz();
         },

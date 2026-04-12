@@ -3,12 +3,15 @@ import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_content.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_header.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_tabs.dart';
+import 'package:smet/page/employee/learning_workspace/widgets/quiz_lesson_view.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/resources_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart';
 
 class LearningWorkspaceMobile extends StatelessWidget {
   final LearningCourse course;
-  final LessonContent lessonContent;
+  final LessonContent? lessonContent;
+  final String? quizId;
+  final String? courseId;
   final LessonTab selectedTab;
   final ValueChanged<LessonTab> onTabChanged;
   final VoidCallback onMarkComplete;
@@ -20,7 +23,9 @@ class LearningWorkspaceMobile extends StatelessWidget {
   const LearningWorkspaceMobile({
     super.key,
     required this.course,
-    required this.lessonContent,
+    this.lessonContent,
+    this.quizId,
+    this.courseId,
     required this.selectedTab,
     required this.onTabChanged,
     required this.onMarkComplete,
@@ -29,6 +34,8 @@ class LearningWorkspaceMobile extends StatelessWidget {
     required this.onNavigate,
     required this.onLogout,
   });
+
+  bool get _isQuizMode => quizId != null && quizId!.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -75,43 +82,55 @@ class LearningWorkspaceMobile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Video Player hoặc Text Content
-            _buildContentArea(lessonContent),
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Lesson Header
-                  LessonHeader(
-                    title: lessonContent.title,
-                    durationMinutes: lessonContent.videoDurationSeconds ~/ 60,
-                    level: lessonContent.level,
-                    lessonId: lessonContent.id,
-                    isCompleted: lessonContent.isCompleted,
-                    onMarkComplete: onMarkComplete,
-                  ),
-                  const SizedBox(height: 20),
-                  // Tabs
-                  LessonTabs(
-                    selectedTab: selectedTab,
-                    onTabChanged: onTabChanged,
-                    discussionCount: lessonContent.discussions.length,
-                  ),
-                  const SizedBox(height: 20),
-                  // Tab Content
-                  _buildTabContent(),
-                  if (lessonContent.nextLesson != null) ...[
+            // Quiz Mode: hiển thị quiz ngay trong workspace
+            if (_isQuizMode)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: QuizLessonView(
+                  quizId: quizId!,
+                  courseId: courseId,
+                ),
+              )
+            else ...[
+              // Video Player hoặc Text Content
+              _buildContentArea(lessonContent),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Lesson Header
+                    if (lessonContent != null)
+                      LessonHeader(
+                        title: lessonContent!.title,
+                        durationMinutes: lessonContent!.videoDurationSeconds ~/ 60,
+                        level: lessonContent!.level,
+                        lessonId: lessonContent!.id,
+                        isCompleted: lessonContent!.isCompleted,
+                        onMarkComplete: onMarkComplete,
+                      ),
                     const SizedBox(height: 20),
-                    ResourcesSidebar(
-                      nextLesson: lessonContent.nextLesson,
-                      onJumpToLesson: onLessonTap,
+                    // Tabs
+                    LessonTabs(
+                      selectedTab: selectedTab,
+                      onTabChanged: onTabChanged,
+                      discussionCount: lessonContent?.discussions.length ?? 0,
                     ),
+                    const SizedBox(height: 20),
+                    // Tab Content
+                    _buildTabContent(),
+                    if (lessonContent?.nextLesson != null) ...[
+                      const SizedBox(height: 20),
+                      ResourcesSidebar(
+                        nextLesson: lessonContent!.nextLesson,
+                        onJumpToLesson: onLessonTap,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -119,15 +138,17 @@ class LearningWorkspaceMobile extends StatelessWidget {
   }
 
   Widget _buildTabContent() {
+    if (lessonContent == null) return const SizedBox.shrink();
+
     switch (selectedTab) {
       case LessonTab.overview:
         return LessonOverviewTab(
-          description: lessonContent.description,
-          keyTakeaways: lessonContent.keyTakeaways,
+          description: lessonContent!.description,
+          keyTakeaways: lessonContent!.keyTakeaways,
         );
       case LessonTab.discussion:
         return DiscussionTab(
-          lessonId: lessonContent.id,
+          lessonId: lessonContent!.id,
           initialDiscussions: const [],
         );
     }
@@ -322,7 +343,9 @@ class LearningWorkspaceMobile extends StatelessWidget {
     Scaffold.of(context).openDrawer();
   }
 
-  static Widget _buildContentArea(LessonContent lessonContent) {
+  static Widget _buildContentArea(LessonContent? lessonContent) {
+    if (lessonContent == null) return const SizedBox.shrink();
+
     final isVideo = lessonContent.contentType == 'VIDEO' &&
         lessonContent.youtubeVideoId != null &&
         lessonContent.youtubeVideoId!.isNotEmpty;

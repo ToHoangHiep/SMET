@@ -443,6 +443,8 @@ class _ProjectDetailMemberDialogState extends State<ProjectDetailMemberDialog> {
         return const Color(0xFF137FEC);
       case ProjectStatus.INACTIVE:
         return const Color(0xFF94A3B8);
+      case ProjectStatus.REVIEW_PENDING:
+        return const Color(0xFFF59E0B);
     }
   }
 }

@@ -15,6 +15,7 @@ class LearningWorkspaceWeb extends StatelessWidget {
   final Function(String) onNavigate;
   final VoidCallback onLogout;
   final List<BreadcrumbItem>? breadcrumbs;
+  final bool isQuizMode;
 
   const LearningWorkspaceWeb({
     super.key,
@@ -27,6 +28,7 @@ class LearningWorkspaceWeb extends StatelessWidget {
     required this.onNavigate,
     required this.onLogout,
     this.breadcrumbs,
+    this.isQuizMode = false,
   });
 
   @override
@@ -54,25 +56,27 @@ class LearningWorkspaceWeb extends StatelessWidget {
                       contentArea,
                       const SizedBox(height: 28),
                       lessonHeader,
-                      const SizedBox(height: 20),
-                      tabs,
-                      const SizedBox(height: 24),
-                      resourcesSidebar == null
-                          ? tabContent
-                          : Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: tabContent,
-                                ),
-                                const SizedBox(width: 28),
-                                SizedBox(
-                                  width: 300,
-                                  child: resourcesSidebar!,
-                                ),
-                              ],
-                            ),
+                      if (!isQuizMode) ...[
+                        const SizedBox(height: 20),
+                        tabs,
+                        const SizedBox(height: 24),
+                        resourcesSidebar == null
+                            ? tabContent
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: tabContent,
+                                  ),
+                                  const SizedBox(width: 28),
+                                  SizedBox(
+                                    width: 300,
+                                    child: resourcesSidebar!,
+                                  ),
+                                ],
+                              ),
+                      ],
                     ],
                   ),
                 ),

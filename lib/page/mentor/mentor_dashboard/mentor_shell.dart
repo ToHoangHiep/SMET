@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/page/sidebar/shared_sidebar.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
@@ -36,8 +37,14 @@ class MentorShell extends StatefulWidget {
     ),
     SidebarMenuItem(
       icon: Icons.assessment_rounded,
-      title: 'Báo cáo',
+      title: 'Báo cáo khóa học',
       route: '/mentor/course-report',
+      tooltip: 'Báo cáo khóa học',
+    ),
+    SidebarMenuItem(
+      icon: Icons.description_rounded,
+      title: 'Báo cáo',
+      route: '/reports',
       tooltip: 'Báo cáo',
     ),
     SidebarMenuItem(
@@ -64,12 +71,6 @@ class MentorShell extends StatefulWidget {
       route: '/mentor/projects',
       tooltip: 'Dự án hướng dẫn',
     ),
-    SidebarMenuItem(
-      icon: Icons.chat_bubble_rounded,
-      title: 'Tin nhắn',
-      route: '/mentor/messages',
-      tooltip: 'Tin nhắn',
-    ),
   ];
 
   /// Map route path → index để highlight sidebar item đúng
@@ -80,12 +81,12 @@ class MentorShell extends StatefulWidget {
       return 1;
     if (path.startsWith('/mentor/learning-paths')) return 2;
     if (path.startsWith('/mentor/course-report')) return 3;
-    if (path.startsWith('/mentor/live-sessions')) return 4;
+    if (path.startsWith('/reports')) return 4;
+    if (path.startsWith('/mentor/live-sessions')) return 5;
     if (path.startsWith('/mentor/review-assignments') ||
-        path.startsWith('/mentor/quiz-review')) return 5;
-    if (path.startsWith('/mentor/students')) return 6;
-    if (path.startsWith('/mentor/projects')) return 7;
-    if (path.startsWith('/mentor/messages')) return 8;
+        path.startsWith('/mentor/quiz-review')) return 6;
+    if (path.startsWith('/mentor/students')) return 7;
+    if (path.startsWith('/mentor/projects')) return 8;
     return 0;
   }
 
@@ -141,29 +142,42 @@ class _MentorShellState extends State<MentorShell> {
     final location = GoRouterState.of(context).uri.path;
 
     return Scaffold(
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
         children: [
-          SharedSidebar(
-            primaryColor: MentorShell.mentorPrimaryColor,
-            logoIcon: Icons.school,
-            logoText: 'SMETS',
-            subtitle: 'Mentor Portal',
-            menuItems: MentorShell.mentorMenuItems,
-            activeRoute: location,
-            userDisplayName: _userDisplayName.isEmpty ? '…' : _userDisplayName,
-            userRole: _userRoleLabel.isEmpty ? '…' : _userRoleLabel,
-            onProfileTap: () => context.go('/profile'),
-            onLogout: () async {
-              await AuthService.logout();
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đăng xuất thành công')),
-              );
-              context.go('/login');
-            },
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SharedSidebar(
+                primaryColor: MentorShell.mentorPrimaryColor,
+                logoIcon: Icons.school,
+                logoText: 'SMETS',
+                subtitle: 'Mentor Portal',
+                menuItems: MentorShell.mentorMenuItems,
+                activeRoute: location,
+                userDisplayName: _userDisplayName.isEmpty ? '…' : _userDisplayName,
+                userRole: _userRoleLabel.isEmpty ? '…' : _userRoleLabel,
+                onProfileTap: () => context.go('/profile'),
+                onLogout: () async {
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đăng xuất thành công')),
+                  );
+                  context.go('/login');
+                },
+              ),
+              Expanded(child: widget.child),
+            ],
           ),
-          Expanded(child: widget.child),
+          // Floating chat button cho mentor - xuất hiện xuyên suốt mọi trang
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: FloatingChatButton(
+              primaryColor: MentorShell.mentorPrimaryColor,
+              rolePrefix: 'mentor',
+            ),
+          ),
         ],
       ),
     );

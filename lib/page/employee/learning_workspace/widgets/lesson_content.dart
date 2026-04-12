@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smet/model/Employee_learning_model.dart';
+import 'package:smet/model/chat/chat_message_model.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
-import 'package:smet/service/employee/lms_service.dart';
+import 'package:smet/service/chat/chat_service.dart';
 
 /// Lesson content tabs — modern Coursera-style:
 /// - Overview: key takeaways with numbered circles + dividers
@@ -166,7 +168,8 @@ class _DiscussionTabState extends State<DiscussionTab> {
   final TextEditingController _commentController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  List<Discussion> _discussions = [];
+  int? _roomId;
+  List<ChatMessageModel> _messages = [];
   bool _isLoading = false;
   bool _isPosting = false;
   String? _error;
@@ -174,8 +177,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
   @override
   void initState() {
     super.initState();
-    _discussions = List.from(widget.initialDiscussions);
-    _fetchDiscussions();
+    _fetchRoomAndMessages();
   }
 
   @override
@@ -185,16 +187,28 @@ class _DiscussionTabState extends State<DiscussionTab> {
     super.dispose();
   }
 
-  Future<void> _fetchDiscussions() async {
+  Future<void> _fetchRoomAndMessages() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final (messages, _) = await LmsService.getChatMessages(widget.lessonId);
+      final lessonIdInt = int.tryParse(widget.lessonId) ?? 0;
+
+      // Tạo/lấy room với LESSON context (mentorId = 0 cho group chat)
+      final roomId = await ChatService.createOrGetRoom(
+        mentorId: 0,
+        contextType: ChatContextType.LESSON,
+        contextId: lessonIdInt,
+      );
+
+      // Lấy messages
+      final messages = await ChatService.getMessages(roomId: roomId);
+
       setState(() {
-        _discussions = messages;
+        _roomId = roomId;
+        _messages = messages;
         _isLoading = false;
       });
     } catch (e) {
@@ -207,29 +221,26 @@ class _DiscussionTabState extends State<DiscussionTab> {
 
   Future<void> _postComment() async {
     final content = _commentController.text.trim();
-    if (content.isEmpty) return;
+    if (content.isEmpty || _roomId == null) return;
 
     setState(() {
       _isPosting = true;
     });
 
     try {
-      final newMessage = await LmsService.sendChatMessage(widget.lessonId, content);
+      final clientMessageId = '${DateTime.now().millisecondsSinceEpoch}_${content.hashCode}';
+      final newMessage = await ChatService.sendMessage(
+        roomId: _roomId!,
+        content: content,
+        clientMessageId: clientMessageId,
+      );
+
       _commentController.clear();
 
-      if (newMessage != null) {
-        setState(() {
-          _discussions.insert(0, newMessage);
-          _isPosting = false;
-        });
-      } else {
-        setState(() {
-          _isPosting = false;
-        });
-        if (mounted) {
-          context.showAppToast('Không thể gửi bình luận');
-        }
-      }
+      setState(() {
+        _messages.insert(0, newMessage);
+        _isPosting = false;
+      });
     } catch (e) {
       setState(() {
         _isPosting = false;
@@ -286,12 +297,36 @@ class _DiscussionTabState extends State<DiscussionTab> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Đặt câu hỏi hoặc chia sẻ suy nghĩ',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
+              const Expanded(
+                child: Text(
+                  'Đặt câu hỏi hoặc chia sẻ suy nghĩ',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              // Nút Chat với Mentor
+              OutlinedButton.icon(
+                onPressed: () {
+                  context.go('/employee/chat');
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF6366F1),
+                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                label: const Text(
+                  'Chat với Mentor',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -379,22 +414,26 @@ class _DiscussionTabState extends State<DiscussionTab> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        child: Center(
+        child: const Center(
           child: Column(
             children: [
-              const Icon(Icons.error_outline, size: 40, color: Color(0xFFEF4444)),
-              const SizedBox(height: 8),
+              Icon(Icons.forum_outlined, size: 48, color: Color(0xFFCBD5E1)),
+              SizedBox(height: 12),
               Text(
-                _error!,
-                style: const TextStyle(
+                'Diễn đàn bài học',
+                style: TextStyle(
                   fontSize: 14,
+                  fontWeight: FontWeight.w600,
                   color: Color(0xFF64748B),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _fetchDiscussions,
-                child: const Text('Thử lại'),
+              SizedBox(height: 4),
+              Text(
+                'Đang được phát triển',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF94A3B8),
+                ),
               ),
             ],
           ),
@@ -402,12 +441,12 @@ class _DiscussionTabState extends State<DiscussionTab> {
       );
     }
 
-    if (_discussions.isEmpty) {
+    if (_messages.isEmpty) {
       return _buildEmptyState();
     }
 
     return Column(
-      children: _discussions.map((d) => _buildDiscussionItem(d)).toList(),
+      children: _messages.map((m) => _buildDiscussionItem(m)).toList(),
     );
   }
 
@@ -446,7 +485,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
     );
   }
 
-  Widget _buildDiscussionItem(Discussion discussion) {
+  Widget _buildDiscussionItem(ChatMessageModel message) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
@@ -470,13 +509,8 @@ class _DiscussionTabState extends State<DiscussionTab> {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: const Color(0xFF137FEC).withValues(alpha: 0.1),
-                backgroundImage: discussion.senderAvatarUrl != null
-                    ? NetworkImage(discussion.senderAvatarUrl!)
-                    : null,
-                child: discussion.senderAvatarUrl == null
-                    ? const Icon(Icons.person, size: 20,
-                        color: Color(0xFF137FEC))
-                    : null,
+                child: const Icon(Icons.person, size: 20,
+                    color: Color(0xFF137FEC)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -484,7 +518,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      discussion.senderName,
+                      message.senderName,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -493,7 +527,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      discussion.timeAgo,
+                      message.formattedTime,
                       style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF94A3B8),
@@ -504,7 +538,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -512,7 +546,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              discussion.content,
+              message.content,
               style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF475569),
@@ -520,22 +554,6 @@ class _DiscussionTabState extends State<DiscussionTab> {
               ),
             ),
           ),
-          if (discussion.replyCount > 0) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.reply, size: 16, color: Color(0xFF94A3B8)),
-                const SizedBox(width: 4),
-                Text(
-                  '${discussion.replyCount} trả lời',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );

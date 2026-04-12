@@ -1190,14 +1190,17 @@ class _QuestionCard extends StatelessWidget {
   /// Tìm nội dung option từ cache dựa trên optionId
   String _getOptionContent(Long optionId) {
     final cached = _cachedQuestion;
-    if (cached?.options != null) {
-      for (final opt in cached!.options!) {
+    if (cached?.options != null && cached!.options!.isNotEmpty) {
+      for (final opt in cached.options!) {
         if (opt.id?.value == optionId.value) {
           return opt.content;
         }
       }
+      // Tìm thấy câu hỏi nhưng không tìm thấy option - debug
+      return '[Option ID: ${optionId.value}]';
     }
-    return 'Đáp án ${optionId.value}';
+    // Cache chưa load - debug để biết có đang thiếu data
+    return '[Option ID: ${optionId.value} - loading...]';
   }
 
   @override
@@ -1290,7 +1293,7 @@ class _QuestionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      question.content,
+                      _cachedQuestion?.content ?? question.content,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,

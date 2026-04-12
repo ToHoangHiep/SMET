@@ -4,8 +4,9 @@ import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/page/admin/department_management/widgets/shell/department_info_header.dart';
 import 'package:smet/page/admin/department_management/widgets/department_courses_tab.dart';
-import 'package:smet/page/admin/department_management/widgets/department_learning_paths_tab.dart';
 import 'package:smet/page/admin/department_management/widgets/department_members_tab.dart';
+import 'package:smet/page/admin/department_management/widgets/department_settings_tab.dart';
+import 'package:smet/page/admin/department_management/widgets/department_projects_tab.dart';
 
 class DepartmentDetailPage extends StatefulWidget {
   final int departmentId;
@@ -23,6 +24,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
   bool _isLoading = true;
   String? _error;
   int _selectedTabIndex = 0;
+  int _membersTabRefreshKey = 0;
 
   final Color _primaryColor = const Color(0xFF6366F1);
   final Color _bgLight = const Color(0xFFF3F6FC);
@@ -50,6 +52,13 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
         _error = 'Không thể tải thông tin phòng ban';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _afterSettingsSaved() async {
+    await _loadData();
+    if (mounted) {
+      setState(() => _membersTabRefreshKey++);
     }
   }
 
@@ -129,14 +138,14 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
           ),
         ),
         Expanded(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTabBar(),
                 const SizedBox(height: 20),
-                _buildTabContent(),
+                Expanded(child: _buildTabContent()),
               ],
             ),
           ),
@@ -146,7 +155,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
   }
 
   Widget _buildMobileLayout() {
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +167,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
           const SizedBox(height: 20),
           _buildTabBar(),
           const SizedBox(height: 16),
-          _buildTabContent(),
+          Expanded(child: _buildTabContent()),
         ],
       ),
     );
@@ -167,8 +176,9 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
   Widget _buildTabBar() {
     final tabs = [
       ('Khóa học', Icons.school_outlined, 0),
-      ('Learning Path', Icons.route_outlined, 1),
-      ('Nhân viên', Icons.people_outlined, 2),
+      ('Nhân viên', Icons.people_outlined, 1),
+      ('Dự án', Icons.work_outline, 2),
+      ('Quản lý', Icons.settings_outlined, 3),
     ];
 
     return Container(
@@ -210,16 +220,25 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
               primaryColor: _primaryColor,
             )
           : _selectedTabIndex == 1
-              ? DepartmentLearningPathsTab(
-                  key: const ValueKey('learning_paths'),
+              ? DepartmentMembersTab(
+                  key: ValueKey(
+                    'members_${widget.departmentId}_$_membersTabRefreshKey',
+                  ),
                   departmentId: widget.departmentId,
                   primaryColor: _primaryColor,
                 )
-              : DepartmentMembersTab(
-                  key: const ValueKey('members'),
-                  departmentId: widget.departmentId,
-                  primaryColor: _primaryColor,
-                ),
+              : _selectedTabIndex == 2
+                  ? DepartmentProjectsTab(
+                      key: ValueKey('projects_${widget.departmentId}'),
+                      departmentId: widget.departmentId,
+                      primaryColor: _primaryColor,
+                    )
+                  : DepartmentSettingsTab(
+                      key: const ValueKey('settings'),
+                      departmentId: widget.departmentId,
+                      primaryColor: _primaryColor,
+                      onSaved: _afterSettingsSaved,
+                    ),
     );
   }
 }

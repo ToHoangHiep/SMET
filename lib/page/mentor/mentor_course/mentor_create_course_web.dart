@@ -63,47 +63,19 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
   Future<void> _loadDepartments() async {
     setState(() => _loadingDepartments = true);
 
-    List<DepartmentModel> departments = [];
-    try {
-      final result = await _departmentService.searchDepartments(page: 0, size: 100);
-      departments = result['departments'] as List<DepartmentModel>;
-    } catch (e) {
-      log("Load departments failed: $e");
-    }
-
     try {
       final userData = await AuthService.getMe();
       final userDeptId = userData['departmentId'] as int?;
       final userDeptName = userData['departmentName'] as String?;
 
       if (userDeptId != null && userDeptName != null) {
-        log("auth/me department: id=$userDeptId, name=$userDeptName");
-
-        DepartmentModel? currentDept;
-        if (departments.isNotEmpty) {
-          currentDept = departments.cast<DepartmentModel?>().firstWhere(
-            (d) => d?.id == userDeptId,
-            orElse: () => null,
-          );
-        }
-
-        if (currentDept != null) {
-          log("Auto-selected department from list: ${currentDept.name}");
-          setState(() {
-            _departments = departments;
-            _selectedDepartment = currentDept;
-            _loadingDepartments = false;
-          });
-          return;
-        }
-
         final synthetic = DepartmentModel(
           id: userDeptId,
           name: userDeptName,
           code: userData['departmentCode']?.toString() ?? '',
           isActive: true,
         );
-        log("Using department from auth/me (list not accessible): id=$userDeptId, name=$userDeptName");
+        log("Auto-selected department from auth/me: id=$userDeptId, name=$userDeptName");
         setState(() {
           _departments = [synthetic];
           _selectedDepartment = synthetic;
@@ -116,7 +88,7 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
     }
 
     setState(() {
-      _departments = departments;
+      _departments = [];
       _selectedDepartment = null;
       _loadingDepartments = false;
     });

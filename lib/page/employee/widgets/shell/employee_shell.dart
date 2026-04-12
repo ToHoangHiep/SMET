@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/page/sidebar/shared_sidebar.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
@@ -122,27 +123,40 @@ class _EmployeeShellState extends State<EmployeeShell> {
     }
 
     return Scaffold(
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
         children: [
-          SharedSidebar(
-            primaryColor: EmployeeShell.employeePrimaryColor,
-            logoIcon: Icons.school,
-            logoText: 'SMETS',
-            subtitle: 'EMPLOYEE PORTAL',
-            menuItems: EmployeeShell.employeeMenuItems,
-            activeRoute: location,
-            userDisplayName: _userDisplayName.isEmpty ? '…' : _userDisplayName,
-            userRole: _userRoleLabel.isEmpty ? '…' : _userRoleLabel,
-            onProfileTap: () => context.go('/profile'),
-            onLogout: () async {
-              await AuthService.logout();
-              if (!mounted) return;
-              context.showAppToast('Đăng xuất thành công!');
-              context.go('/login');
-            },
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SharedSidebar(
+                primaryColor: EmployeeShell.employeePrimaryColor,
+                logoIcon: Icons.school,
+                logoText: 'SMETS',
+                subtitle: 'EMPLOYEE PORTAL',
+                menuItems: EmployeeShell.employeeMenuItems,
+                activeRoute: location,
+                userDisplayName: _userDisplayName.isEmpty ? '…' : _userDisplayName,
+                userRole: _userRoleLabel.isEmpty ? '…' : _userRoleLabel,
+                onProfileTap: () => context.go('/profile'),
+                onLogout: () async {
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  context.showAppToast('Đăng xuất thành công!');
+                  context.go('/login');
+                },
+              ),
+              Expanded(child: widget.child),
+            ],
           ),
-          Expanded(child: widget.child),
+          // Floating chat button cho employee - xuất hiện xuyên suốt mọi trang
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: FloatingChatButton(
+              primaryColor: EmployeeShell.employeePrimaryColor,
+              rolePrefix: 'employee',
+            ),
+          ),
         ],
       ),
     );

@@ -14,7 +14,7 @@ import 'course_model.dart';
 
 class LiveSessionInfo {
   final Long id;
-  final Long courseId;
+  final Long? courseId;
   final String title;
   final String? meetingUrl;
   final String? hangoutLink;
@@ -24,7 +24,7 @@ class LiveSessionInfo {
 
   LiveSessionInfo({
     required this.id,
-    required this.courseId,
+    this.courseId,
     required this.title,
     this.meetingUrl,
     this.hangoutLink,
@@ -36,7 +36,7 @@ class LiveSessionInfo {
   factory LiveSessionInfo.fromJson(Map<String, dynamic> json) {
     return LiveSessionInfo(
       id: Long(json['id'] as int),
-      courseId: Long(json['courseId'] as int? ?? 0),
+      courseId: json['courseId'] != null ? Long(json['courseId'] as int) : null,
       title: json['title'] as String? ?? '',
       meetingUrl: json['meetingUrl'] as String?,
       hangoutLink: json['hangoutLink'] as String?,
@@ -49,7 +49,7 @@ class LiveSessionInfo {
   Map<String, dynamic> toJson() {
     return {
       'id': id.value,
-      'courseId': courseId.value,
+      if (courseId != null) 'courseId': courseId!.value,
       'title': title,
       'meetingUrl': meetingUrl,
       'hangoutLink': hangoutLink,

@@ -21,6 +21,7 @@ class ProjectDetailLeadDialog extends StatefulWidget {
 class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
   ProjectDashboardData? _dashboard;
   ProjectReviewStateData? _reviewState;
+  ProjectModel? _projectDetail;
   List<MemberProgressData> _membersProgress = [];
   bool _isLoading = true;
   bool _isSubmitting = false;
@@ -50,6 +51,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
         EmployeeProjectService.getDashboard(widget.project.id),
         EmployeeProjectService.getReviewState(widget.project.id),
         EmployeeProjectService.getMembersProgress(widget.project.id),
+        EmployeeProjectService.getProjectDetail(widget.project.id),
       ]);
 
       if (mounted) {
@@ -57,6 +59,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
           _dashboard = results[0] as ProjectDashboardData;
           _reviewState = results[1] as ProjectReviewStateData;
           _membersProgress = results[2] as List<MemberProgressData>;
+          _projectDetail = results[3] as ProjectModel;
           _isLoading = false;
         });
       }
@@ -88,8 +91,9 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Nop du an thanh cong!')),
         );
+        _linkController.clear();
+        await _loadData();
         widget.onRefresh();
-        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
@@ -122,7 +126,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: dialogWidth,
-        constraints: const BoxConstraints(maxHeight: 700),
+        constraints: const BoxConstraints(maxHeight: 800),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -140,6 +144,8 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
                               _buildProjectInfo(),
                               const SizedBox(height: 20),
                               _buildReviewState(),
+                              const SizedBox(height: 20),
+                              _buildFeedbackSection(),
                               const SizedBox(height: 20),
                               _buildProgressSummary(),
                               const SizedBox(height: 20),
@@ -303,6 +309,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
                 'Mentor duyet',
                 _reviewState!.mentorApproved,
                 Icons.school,
+                isSkipped: !_reviewState!.hasMentor,
               ),
               const SizedBox(width: 8),
               const Icon(Icons.arrow_forward, size: 16, color: Color(0xFF94A3B8)),
@@ -319,24 +326,151 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
     );
   }
 
-  Widget _buildReviewStep(String label, bool isComplete, IconData icon) {
+  Widget _buildReviewStep(String label, bool isComplete, IconData icon, {bool isSkipped = false}) {
+    Color circleColor;
+    Color iconColor;
+    Color textColor;
+
+    if (isComplete) {
+      circleColor = const Color(0xFF22C55E);
+      iconColor = Colors.white;
+      textColor = const Color(0xFF22C55E);
+    } else if (isSkipped) {
+      circleColor = Colors.grey.shade300;
+      iconColor = Colors.grey.shade400;
+      textColor = Colors.grey.shade400;
+    } else {
+      circleColor = const Color(0xFFE2E8F0);
+      iconColor = const Color(0xFF94A3B8);
+      textColor = const Color(0xFF94A3B8);
+    }
+
     return Expanded(
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 24,
-            color: isComplete ? const Color(0xFF22C55E) : const Color(0xFF94A3B8),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: circleColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
           ),
           const SizedBox(height: 4),
           Text(
-            label,
+            isSkipped ? '$label (skip)' : label,
             style: TextStyle(
-              fontSize: 11,
-              color: isComplete ? const Color(0xFF22C55E) : const Color(0xFF94A3B8),
+              fontSize: 10,
+              color: textColor,
               fontWeight: isComplete ? FontWeight.w600 : FontWeight.normal,
             ),
             textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackSection() {
+    final reviewState = _reviewState;
+    final projectDetail = _projectDetail;
+
+    if (reviewState == null) return const SizedBox();
+
+    final mentorFeedback = projectDetail?.mentorFeedback;
+    final pmFeedback = projectDetail?.pmFeedback;
+
+    final showFeedback = (mentorFeedback != null && mentorFeedback.isNotEmpty) ||
+        (pmFeedback != null && pmFeedback.isNotEmpty);
+
+    if (!showFeedback) return const SizedBox();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.feedback_outlined, size: 18, color: Color(0xFF1E293B)),
+              SizedBox(width: 8),
+              Text(
+                'Phan hoi tu he thong',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (mentorFeedback != null && mentorFeedback.isNotEmpty)
+            _buildFeedbackItem(
+              icon: Icons.school_outlined,
+              label: 'Phan hoi tu Mentor',
+              feedback: mentorFeedback,
+              color: Colors.orange,
+            ),
+          if (pmFeedback != null && pmFeedback.isNotEmpty)
+            _buildFeedbackItem(
+              icon: Icons.manage_accounts_outlined,
+              label: 'Phan hoi tu PM',
+              feedback: pmFeedback,
+              color: Colors.red,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackItem({
+    required IconData icon,
+    required String label,
+    required String feedback,
+    required Color color,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  feedback,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -403,7 +537,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -466,7 +600,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: const Color(0xFF137FEC).withOpacity(0.1),
+            backgroundColor: const Color(0xFF137FEC).withValues(alpha: 0.1),
             child: Text(
               member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
               style: const TextStyle(
@@ -512,22 +646,88 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
   }
 
   Widget _buildSubmitSection() {
-    if (_reviewState?.submitted == true) {
+    final reviewState = _reviewState;
+
+    if (reviewState == null) return const SizedBox();
+
+    if (reviewState.pmApproved) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF22C55E).withOpacity(0.1),
+          color: const Color(0xFF22C55E).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.3)),
         ),
         child: const Row(
           children: [
             Icon(Icons.check_circle, color: Color(0xFF22C55E)),
             SizedBox(width: 12),
-            Text(
-              'Da duoc nop - Cho mentor duyet',
-              style: TextStyle(
-                color: Color(0xFF22C55E),
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                'Da hoan thanh - Du an da duoc PM xac nhan',
+                style: TextStyle(
+                  color: Color(0xFF22C55E),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (reviewState.mentorApproved && reviewState.submitted) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.hourglass_empty, color: Color(0xFF3B82F6)),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Da duyet boi Mentor - Dang cho PM xac nhan',
+                style: TextStyle(
+                  color: Color(0xFF3B82F6),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (reviewState.submitted) {
+      final isWaiting = reviewState.hasMentor && !reviewState.mentorApproved;
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isWaiting
+              ? Colors.orange.withValues(alpha: 0.1)
+              : const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isWaiting ? Icons.hourglass_empty : Icons.check_circle,
+              color: isWaiting ? Colors.orange : const Color(0xFFF59E0B),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isWaiting
+                    ? 'Da nop - Dang cho Mentor duyet'
+                    : 'Da nop - Dang cho PM duyet',
+                style: TextStyle(
+                  color: isWaiting ? Colors.orange.shade800 : const Color(0xFF92400E),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -612,6 +812,8 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
         return const Color(0xFF137FEC);
       case ProjectStatus.INACTIVE:
         return const Color(0xFF94A3B8);
+      case ProjectStatus.REVIEW_PENDING:
+        return const Color(0xFFF59E0B);
     }
   }
 

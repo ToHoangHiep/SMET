@@ -456,15 +456,17 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
                 onPressed: () => widget.onEditUser(user),
                 tooltip: 'Chỉnh sửa',
               ),
-              const SizedBox(width: 4),
-              _ActionButton(
-                icon: Icons.swap_horiz_rounded,
-                onPressed: widget.onReassignDepartment != null
-                    ? () => widget.onReassignDepartment!(user)
-                    : null,
-                tooltip: 'Đổi phòng ban',
-                color: Colors.orange,
-              ),
+              if (user.role != UserRole.ADMIN) ...[
+                const SizedBox(width: 4),
+                _ActionButton(
+                  icon: Icons.swap_horiz_rounded,
+                  onPressed: widget.onReassignDepartment != null
+                      ? () => widget.onReassignDepartment!(user)
+                      : null,
+                  tooltip: 'Đổi phòng ban',
+                  color: Colors.orange,
+                ),
+              ],
             ],
           ),
         ),

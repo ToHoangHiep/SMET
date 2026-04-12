@@ -45,9 +45,9 @@ import 'package:smet/page/profile/screen/profile.dart';
 import 'package:smet/page/project_manager/dashboard/screen/pm_dashboard_base.dart';
 import 'package:smet/page/project_manager/learning_path/screen/learning_path_base.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_base.dart';
+import 'package:smet/page/project_manager/project_review/screen/pm_project_reviews_page.dart';
 import 'package:smet/page/project_manager/project_member/screen/project_member_base.dart';
 import 'package:smet/page/project_manager/project_progress/screen/project_progress_base.dart';
-import 'package:smet/page/project_manager/assignment/screen/pm_assignment_base.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
 import 'package:smet/page/mentor/mentor_quiz/mentor_create_quiz_web.dart';
 import 'package:smet/page/mentor/mentor_course_report/mentor_course_report.dart';
@@ -58,6 +58,13 @@ import 'package:smet/page/mentor/mentor_students/mentor_students.dart';
 import 'package:smet/page/mentor/mentor_quiz_review/mentor_quiz_review.dart';
 import 'package:smet/page/employee/projects/screen/employee_projects_base.dart';
 import 'package:smet/page/mentor/projects/screen/mentor_projects_base.dart';
+import 'package:smet/page/report/screens/report_list_screen.dart';
+import 'package:smet/page/report/screens/report_detail_screen.dart';
+import 'package:smet/page/report/screens/edit_report_screen.dart';
+import 'package:smet/page/report/screens/version_history_screen.dart';
+import 'package:smet/page/report/shared/report_shell.dart';
+import 'package:smet/page/chat/screen/chat_list_page.dart';
+import 'package:smet/page/chat/screen/chat_page.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 
@@ -273,6 +280,27 @@ class AppPages {
                     const NoTransitionPage(child: MentorProjectsPage()),
           ),
 
+          // Mentor Chat
+          GoRoute(
+            path: '/mentor/chat',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: ChatListPage(primaryColor: Color(0xFF6366F1), rolePrefix: 'mentor')),
+            routes: [
+              GoRoute(
+                path: ':roomId',
+                builder: (context, state) {
+                  final roomId = int.tryParse(state.pathParameters['roomId'] ?? '') ?? 0;
+                  return ChatPage(
+                    roomId: roomId,
+                    primaryColor: const Color(0xFF6366F1),
+                    rolePrefix: 'mentor',
+                  );
+                },
+              ),
+            ],
+          ),
+
           // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module / final)
           GoRoute(
             path: '/mentor/quizzes/create',
@@ -392,6 +420,11 @@ class AppPages {
                 const NoTransitionPage(child: ProjectManagementPage()),
           ),
           GoRoute(
+            path: '/pm/project-reviews',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PmProjectReviewsPage()),
+          ),
+          GoRoute(
             path: '/pm/project_members',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ProjectMemberPage()),
@@ -406,10 +439,79 @@ class AppPages {
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: LearningPathPage()),
           ),
+        ],
+      ),
+
+      // Report Routes — unified shell with dynamic role-based sidebar
+      ShellRoute(
+        builder: (context, state, child) => ReportShell(child: child),
+        routes: [
+          // Report List
           GoRoute(
-            path: '/pm/assign',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: PmAssignmentPage()),
+            path: '/reports',
+            pageBuilder: (context, state) {
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportListScreen(
+                  currentRole: role,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Report Detail
+          GoRoute(
+            path: '/report/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportDetailScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Edit Report
+          GoRoute(
+            path: '/report/edit/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: EditReportScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Version History
+          GoRoute(
+            path: '/report/history/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: VersionHistoryScreen(
+                  reportId: id,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -507,8 +609,13 @@ class AppPages {
                 (context, state) {
                   final quizId = state.pathParameters['quizId'] ?? '';
                   final courseId = state.uri.queryParameters['courseId'];
+                  final attemptId = state.uri.queryParameters['attemptId'];
                   return NoTransitionPage(
-                    child: QuizPage(quizId: quizId, courseId: courseId),
+                    child: QuizPage(
+                      quizId: quizId,
+                      courseId: courseId,
+                      attemptId: attemptId,
+                    ),
                   );
                 },
           ),
@@ -587,8 +694,58 @@ class AppPages {
                 (context, state) =>
                     const NoTransitionPage(child: SearchPage()),
           ),
+
+          // Employee Chat
+          GoRoute(
+            path: '/employee/chat',
+            pageBuilder:
+                (context, state) =>
+                    const NoTransitionPage(child: ChatListPage(primaryColor: Color(0xFF137FEC), rolePrefix: 'employee')),
+            routes: [
+              GoRoute(
+                path: ':roomId',
+                builder: (context, state) {
+                  final roomId = int.tryParse(state.pathParameters['roomId'] ?? '') ?? 0;
+                  return ChatPage(
+                    roomId: roomId,
+                    primaryColor: const Color(0xFF137FEC),
+                    rolePrefix: 'employee',
+                  );
+                },
+              ),
+            ],
+          ),
         ],
       ),
     ],
   );
+}
+
+// ================================================================
+// REPORT ROUTER HELPERS
+// Shared color + prefix helpers for report screens
+// ================================================================
+
+Color _reportColor(UserRole role) {
+  switch (role) {
+    case UserRole.ADMIN:
+    case UserRole.MENTOR:
+      return const Color(0xFF6366F1);
+    case UserRole.PROJECT_MANAGER:
+    case UserRole.USER:
+      return const Color(0xFF137FEC);
+  }
+}
+
+String _rolePrefix(UserRole role) {
+  switch (role) {
+    case UserRole.ADMIN:
+      return 'admin';
+    case UserRole.PROJECT_MANAGER:
+      return 'pm';
+    case UserRole.MENTOR:
+      return 'mentor';
+    case UserRole.USER:
+      return 'employee';
+  }
 }

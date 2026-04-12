@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:smet/service/chat/websocket_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,10 @@ void main() async {
   if (kIsWeb) {
     usePathUrlStrategy();
   }
+
+  // Initialize chat connection service early (singleton with WidgetsBindingObserver)
+  ChatConnectionService.instance;
+
   runApp(const MyApp());
 }
 

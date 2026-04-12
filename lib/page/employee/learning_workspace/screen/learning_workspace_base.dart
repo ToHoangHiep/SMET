@@ -7,11 +7,15 @@ import 'package:smet/page/employee/learning_workspace/widgets/course_outline_sid
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_content.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_header.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/lesson_tabs.dart';
+import 'package:smet/page/employee/learning_workspace/widgets/quiz_lesson_view.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/resources_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart';
+import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/service/chat/chat_service.dart';
+import 'package:smet/model/chat/chat_models.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
@@ -44,6 +48,8 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   String? _error;
   LearningPathDetail? _learningPath;
   int _discussionCount = 0;
+  // Quiz mode — khi xem thông tin quiz (chưa vào làm bài)
+  bool _isQuizMode = false;
 
   @override
   void initState() {
@@ -111,16 +117,19 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         pathDetail = await LmsService.getLearningPathDetail(widget.learningPathId!);
       }
 
+      // QUIZ MODE: có quizId → không load lesson, hiển thị quiz info ngay trong workspace
       if (widget.quizId != null) {
         setState(() {
           _course = course;
           _lessonContent = null;
           _learningPath = pathDetail;
+          _isQuizMode = true;
           _isLoading = false;
         });
         return;
       }
 
+      _isQuizMode = false;
       String targetLessonId = widget.lessonId ?? '';
       if (targetLessonId.isEmpty) {
         for (var module in course.modules) {
@@ -146,8 +155,16 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
         // Fetch discussion count for the badge
         try {
-          final (_, count) = await LmsService.getChatMessages(targetLessonId, size: 1);
-          fetchedCount = count > 0 ? count : 0;
+          final lessonIdInt = int.tryParse(targetLessonId) ?? 0;
+          if (lessonIdInt > 0) {
+            final roomId = await ChatService.createOrGetRoom(
+              mentorId: 0,
+              contextType: ChatContextType.LESSON,
+              contextId: lessonIdInt,
+            );
+            final messages = await ChatService.getMessages(roomId: roomId);
+            fetchedCount = messages.length;
+          }
         } catch (_) {
           fetchedCount = 0;
         }
@@ -236,11 +253,14 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   }
 
   void _onTakeQuiz(String quizId) {
-    context.go('/employee/quiz-detail/$quizId?courseId=${widget.courseId}');
+    // Chuyển đến learning workspace với quizId để hiển thị quiz ngay trong workspace
+    // giống như lesson - không chuyển sang trang quiz riêng
+    context.go('/employee/learn/${widget.courseId}?quizId=$quizId');
   }
 
   void _onQuizTap(String quizId) {
-    context.go('/employee/quiz-detail/$quizId?courseId=${widget.courseId}');
+    // Chuyển đến learning workspace với quizId để hiển thị quiz ngay trong workspace
+    context.go('/employee/learn/${widget.courseId}?quizId=$quizId');
   }
 
   void _onCourseInPathTap(String courseId) {
@@ -260,8 +280,21 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     if (!mounted) return;
     context.go('/login');
   }
-  // Build content area: video player (VIDEO) hoặc text content (TEXT/LINK)
+  // Build content area: video player (VIDEO) hoặc text content (TEXT/LINK) hoặc quiz
   Widget buildContentArea() {
+    // QUIZ MODE: hiển thị quiz ngay trong workspace như lesson
+    if (_isQuizMode && widget.quizId != null) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: QuizLessonView(
+          quizId: widget.quizId!,
+          courseId: widget.courseId,
+          // isFinalQuiz sẽ được xác định từ API trong QuizLessonView
+          // Không truyền prop này để tránh xung đột
+        ),
+      );
+    }
+
     if (_lessonContent == null) return const SizedBox.shrink();
 
     if (_lessonContent!.contentType == 'VIDEO' &&
@@ -353,7 +386,14 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
   // Build lesson header widget
   Widget buildLessonHeader() {
-    if (_lessonContent == null) return const SizedBox.shrink();
+    if (_lessonContent == null && !_isQuizMode) return const SizedBox.shrink();
+
+    if (_isQuizMode && widget.quizId != null) {
+      return QuizLessonHeader(
+        title: 'Bài kiểm tra',
+        isFinalQuiz: _isFinalQuiz(),
+      );
+    }
 
     return LessonHeader(
       title: _lessonContent!.title,
@@ -365,8 +405,19 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     );
   }
 
+  bool _isFinalQuiz() {
+    if (_course == null || widget.quizId == null) return false;
+    // So sánh cả hai dưới dạng String để tránh type mismatch (int vs String)
+    return _course!.finalQuizId?.toString() == widget.quizId.toString();
+  }
+
   // Build tabs widget
   Widget buildTabs() {
+    // Quiz mode - không có tabs
+    if (_isQuizMode && widget.quizId != null) {
+      return const SizedBox.shrink();
+    }
+
     return LessonTabs(
       selectedTab: _selectedTab,
       onTabChanged: _onTabChanged,
@@ -376,6 +427,11 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
   // Build tab content widget
   Widget buildTabContent() {
+    // Quiz mode - không có tab
+    if (_isQuizMode && widget.quizId != null) {
+      return const SizedBox.shrink();
+    }
+
     if (_lessonContent == null) return const SizedBox.shrink();
 
     switch (_selectedTab) {
@@ -462,48 +518,77 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             if (constraints.maxWidth > 850) {
-              return LearningWorkspaceWeb(
-                sidebarNavigation: buildSidebarNavigation(),
-                contentArea: buildContentArea(),
-                lessonHeader: buildLessonHeader(),
-                tabs: buildTabs(),
-                tabContent: buildTabContent(),
-                resourcesSidebar: buildResourcesSidebar(),
-                onNavigate: _onNavigateTo,
-                onLogout: _handleLogout,
-                breadcrumbs: [
-                  const BreadcrumbItem(
-                    label: 'Trang chủ',
-                    route: '/employee/dashboard',
+              return Stack(
+                children: [
+                  LearningWorkspaceWeb(
+                    sidebarNavigation: buildSidebarNavigation(),
+                    contentArea: buildContentArea(),
+                    lessonHeader: buildLessonHeader(),
+                    tabs: buildTabs(),
+                    tabContent: buildTabContent(),
+                    resourcesSidebar: buildResourcesSidebar(),
+                    onNavigate: _onNavigateTo,
+                    onLogout: _handleLogout,
+                    breadcrumbs: [
+                      const BreadcrumbItem(
+                        label: 'Trang chủ',
+                        route: '/employee/dashboard',
+                      ),
+                      _buildBreadcrumbParent(),
+                      if (_course != null)
+                        BreadcrumbItem(
+                          label:
+                              _course!.title.trim().isEmpty
+                                  ? 'Khóa học'
+                                  : _course!.title.trim(),
+                          route: '/employee/course/${_course!.id}',
+                        ),
+                      BreadcrumbItem(
+                        label:
+                            (_isQuizMode && widget.quizId != null)
+                                ? 'Bài kiểm tra'
+                                : ((_lessonContent?.title ?? '').trim().isEmpty
+                                    ? 'Bài học'
+                                    : _lessonContent!.title.trim()),
+                      ),
+                    ],
+                    isQuizMode: _isQuizMode,
                   ),
-                  _buildBreadcrumbParent(),
-                  if (_course != null)
-                    BreadcrumbItem(
-                      label:
-                          _course!.title.trim().isEmpty
-                              ? 'Khóa học'
-                              : _course!.title.trim(),
-                      route: '/employee/course/${_course!.id}',
+                  Positioned(
+                    right: 20,
+                    bottom: 20,
+                    child: FloatingChatButton(
+                      primaryColor: const Color(0xFF137FEC),
+                      rolePrefix: 'employee',
                     ),
-                  BreadcrumbItem(
-                    label:
-                        (_lessonContent?.title ?? '').trim().isEmpty
-                            ? 'Bài học'
-                            : _lessonContent!.title.trim(),
                   ),
                 ],
               );
             } else {
-              return LearningWorkspaceMobile(
-                course: _course!,
-                lessonContent: _lessonContent!,
-                selectedTab: _selectedTab,
-                onTabChanged: _onTabChanged,
-                onMarkComplete: _onMarkComplete,
-                onLessonTap: _onJumpToLesson,
-                onQuizTap: _onQuizTap,
-                onNavigate: _onNavigateTo,
-                onLogout: _handleLogout,
+              return Stack(
+                children: [
+                  LearningWorkspaceMobile(
+                    course: _course!,
+                    lessonContent: _lessonContent,
+                    quizId: _isQuizMode ? widget.quizId : null,
+                    courseId: widget.courseId,
+                    selectedTab: _selectedTab,
+                    onTabChanged: _onTabChanged,
+                    onMarkComplete: _onMarkComplete,
+                    onLessonTap: _onJumpToLesson,
+                    onQuizTap: _onQuizTap,
+                    onNavigate: _onNavigateTo,
+                    onLogout: _handleLogout,
+                  ),
+                  Positioned(
+                    right: 20,
+                    bottom: 20,
+                    child: FloatingChatButton(
+                      primaryColor: const Color(0xFF137FEC),
+                      rolePrefix: 'employee',
+                    ),
+                  ),
+                ],
               );
             }
           },

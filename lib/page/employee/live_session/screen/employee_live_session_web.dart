@@ -566,7 +566,7 @@ class _EmployeeWeekView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isLoading) return const Center(child: CircularProgressIndicator());
 
-    final hours = List.generate(14, (index) => 7 + index);
+    final hours = List.generate(24, (index) => index);
     final days = _weekDays();
     final today = DateTime.now();
     final todayOnly = DateTime(today.year, today.month, today.day);
@@ -852,12 +852,10 @@ class _EmployeeWeekView extends StatelessWidget {
                                     ),
                                   );
                                 }),
+                                // Render buổi live bất kể giờ nào trong ngày
                                 ...visibleSessions.map((session) {
                                   final local = session.startTime.toLocal();
                                   final et = session.endTime.toLocal();
-                                  if (local.hour < 7 || local.hour > 20) {
-                                    return const SizedBox.shrink();
-                                  }
                                   final day = DateTime(
                                     local.year,
                                     local.month,

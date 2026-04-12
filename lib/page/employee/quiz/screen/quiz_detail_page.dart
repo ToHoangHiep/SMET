@@ -27,25 +27,32 @@ class QuizDetailPage extends StatefulWidget {
 
 class _QuizDetailPageState extends State<QuizDetailPage> {
   QuizInfo? _quizInfo;
+  QuizEligibility? _eligibility;
   bool _isLoading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadQuizInfo();
+    _loadQuizData();
   }
 
-  Future<void> _loadQuizInfo() async {
+  Future<void> _loadQuizData() async {
     try {
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
-      final info = await QuizService.getQuizInfo(widget.quizId);
+      // Load quiz info và eligibility song song
+      final results = await Future.wait([
+        QuizService.getQuizInfo(widget.quizId),
+        QuizService.checkQuizEligibility(widget.quizId),
+      ]);
+
       setState(() {
-        _quizInfo = info;
+        _quizInfo = results[0] as QuizInfo;
+        _eligibility = results[1] as QuizEligibility;
         _isLoading = false;
       });
     } catch (e) {
@@ -62,6 +69,16 @@ class _QuizDetailPageState extends State<QuizDetailPage> {
     );
   }
 
+  void _onResumeQuiz() {
+    if (_eligibility?.activeAttemptId != null) {
+      context.go(
+        '/employee/quiz/${widget.quizId}?courseId=${widget.courseId ?? ''}&attemptId=${_eligibility!.activeAttemptId}',
+      );
+    } else {
+      _onStartQuiz();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWebOrDesktop = kIsWeb ||
@@ -71,21 +88,25 @@ class _QuizDetailPageState extends State<QuizDetailPage> {
     if (isWebOrDesktop) {
       return _QuizDetailWebView(
         quizInfo: _quizInfo,
+        eligibility: _eligibility,
         isLoading: _isLoading,
         error: _error,
         quizId: widget.quizId,
-        onRetry: _loadQuizInfo,
+        onRetry: _loadQuizData,
         onStartQuiz: _onStartQuiz,
+        onResumeQuiz: _onResumeQuiz,
       );
     }
 
     return _QuizDetailMobileView(
       quizInfo: _quizInfo,
+      eligibility: _eligibility,
       isLoading: _isLoading,
       error: _error,
       quizId: widget.quizId,
-      onRetry: _loadQuizInfo,
+      onRetry: _loadQuizData,
       onStartQuiz: _onStartQuiz,
+      onResumeQuiz: _onResumeQuiz,
     );
   }
 }
@@ -96,19 +117,23 @@ class _QuizDetailPageState extends State<QuizDetailPage> {
 
 class _QuizDetailWebView extends StatelessWidget {
   final QuizInfo? quizInfo;
+  final QuizEligibility? eligibility;
   final bool isLoading;
   final String? error;
   final String quizId;
   final VoidCallback onRetry;
   final VoidCallback onStartQuiz;
+  final VoidCallback onResumeQuiz;
 
   const _QuizDetailWebView({
     required this.quizInfo,
+    required this.eligibility,
     required this.isLoading,
     required this.error,
     required this.quizId,
     required this.onRetry,
     required this.onStartQuiz,
+    required this.onResumeQuiz,
   });
 
   @override
@@ -299,6 +324,130 @@ class _QuizDetailWebView extends StatelessWidget {
   }
 
   Widget _buildStartButton(BuildContext context) {
+    // Nếu có active attempt → hiển thị nút Resume
+    if (eligibility?.hasActiveAttempt == true) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: QuizExamTheme.tertiaryFixed,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuizExamTheme.tertiary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.pending_actions_rounded, color: QuizExamTheme.tertiary, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bài thi chưa hoàn thành',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: QuizExamTheme.tertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Bạn có một bài thi đang dở. Tiếp tục làm bài?',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: QuizExamTheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: onResumeQuiz,
+              icon: Icon(
+                Icons.play_arrow_rounded,
+                size: 22,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+              label: const Text(
+                'Tiếp tục làm bài',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: QuizExamTheme.tertiary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Nếu không thể start (hết lượt hoặc lỗi)
+    if (eligibility?.canStart == false) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: QuizExamTheme.errorContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuizExamTheme.error.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.block_rounded, color: QuizExamTheme.error, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Không thể làm bài',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: QuizExamTheme.error,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        eligibility?.maxAttempts != null
+                            ? 'Bạn đã sử dụng hết ${eligibility!.submittedAttempts ?? 0}/${eligibility!.maxAttempts} lượt thi'
+                            : 'Đã xảy ra lỗi. Vui lòng thử lại sau.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: QuizExamTheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Bình thường → hiển thị nút Start
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -309,9 +458,11 @@ class _QuizDetailWebView extends StatelessWidget {
           size: 22,
           color: Colors.white.withValues(alpha: 0.9),
         ),
-        label: const Text(
-          'Bắt đầu làm bài',
-          style: TextStyle(
+        label: Text(
+          eligibility?.remainingAttempts != null
+              ? 'Bắt đầu làm bài (${eligibility!.remainingAttempts} lượt còn lại)'
+              : 'Bắt đầu làm bài',
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             color: Colors.white,
@@ -404,19 +555,23 @@ class _QuizDetailWebView extends StatelessWidget {
 
 class _QuizDetailMobileView extends StatelessWidget {
   final QuizInfo? quizInfo;
+  final QuizEligibility? eligibility;
   final bool isLoading;
   final String? error;
   final String quizId;
   final VoidCallback onRetry;
   final VoidCallback onStartQuiz;
+  final VoidCallback onResumeQuiz;
 
   const _QuizDetailMobileView({
     required this.quizInfo,
+    required this.eligibility,
     required this.isLoading,
     required this.error,
     required this.quizId,
     required this.onRetry,
     required this.onStartQuiz,
+    required this.onResumeQuiz,
   });
 
   @override
@@ -617,6 +772,86 @@ class _QuizDetailMobileView extends StatelessWidget {
   }
 
   Widget _buildBottomBar(BuildContext context) {
+    // Nếu có active attempt → hiển thị nút Resume
+    if (eligibility?.hasActiveAttempt == true) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: QuizExamTheme.surfaceContainerLowest,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: onResumeQuiz,
+              icon: Icon(
+                Icons.play_arrow_rounded,
+                size: 20,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+              label: const Text(
+                'Tiếp tục làm bài',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: QuizExamTheme.tertiary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Nếu không thể start → hiển thị thông báo
+    if (eligibility?.canStart == false) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: QuizExamTheme.errorContainer.withValues(alpha: 0.3),
+          border: Border(
+            top: BorderSide(color: QuizExamTheme.error.withValues(alpha: 0.2)),
+          ),
+        ),
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.block_rounded, color: QuizExamTheme.error, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                eligibility?.maxAttempts != null
+                    ? 'Đã hết lượt thi (${eligibility!.submittedAttempts ?? 0}/${eligibility!.maxAttempts})'
+                    : 'Không thể làm bài',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: QuizExamTheme.error,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Bình thường → hiển thị nút Start
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -640,9 +875,11 @@ class _QuizDetailMobileView extends StatelessWidget {
               size: 20,
               color: Colors.white.withValues(alpha: 0.9),
             ),
-            label: const Text(
-              'Bắt đầu làm bài',
-              style: TextStyle(
+            label: Text(
+              eligibility?.remainingAttempts != null
+                  ? 'Bắt đầu (${eligibility!.remainingAttempts} lượt)'
+                  : 'Bắt đầu làm bài',
+              style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,

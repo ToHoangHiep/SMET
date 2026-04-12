@@ -32,7 +32,7 @@ class ProjectService {
       queryParams['departmentId'] = departmentId.toString();
     }
     
-    final uri = Uri.parse("$_baseUrl/projects/get").replace(queryParameters: queryParams);
+    final uri = Uri.parse("$_baseUrl/projects").replace(queryParameters: queryParams);
 
     final response = await http.get(
       uri,
@@ -43,6 +43,7 @@ class ProjectService {
     );
 
     log("GET ALL PROJECTS STATUS: ${response.statusCode}");
+    log("GET ALL PROJECTS BODY: ${response.body}");
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);

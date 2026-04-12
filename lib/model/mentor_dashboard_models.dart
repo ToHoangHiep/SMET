@@ -1,238 +1,124 @@
 // ============================================
 // MENTOR DASHBOARD - Data Models
-// Tổng hợp dữ liệu từ nhiều nguồn cho dashboard
+// Backend endpoints:
+//   GET /api/mentor/dashboard/summary  → MentorDashboardSummary
+//   GET /api/mentor/dashboard/progress → MentorDashboardProgress
+//   GET /api/lms/live-sessions/course/{courseId} → List<LiveSession>
 // ============================================
 
-import 'package:smet/model/course_model.dart';
-import 'package:smet/model/mentor_enrollment_model.dart';
-import 'package:smet/model/mentor_live_session_model.dart';
-import 'package:smet/model/project_model.dart';
-
 // ============================================
-// MAIN DASHBOARD DATA
-// ============================================
-
-class MentorDashboardData {
-  final String userName;
-  final String userRole;
-  final List<CourseResponse> courses;
-  final List<MentorEnrollmentInfo> allEnrollments;
-  final List<LiveSessionInfo> upcomingSessions;
-  final List<ProjectModel> projects;
-
-  MentorDashboardData({
-    required this.userName,
-    required this.userRole,
-    required this.courses,
-    required this.allEnrollments,
-    required this.upcomingSessions,
-    required this.projects,
-  });
-}
-
-// ============================================
-// STATS CARD
+// BACKEND: GET /api/mentor/dashboard/summary
+// MentorDashboardSummaryResponse.java
+//   long totalCourses
+//   long totalLearners
+//   long unreadNotifications
+//   long upcomingDeadlines
 // ============================================
 
-class MentorDashboardStats {
+class MentorDashboardSummary {
   final int totalCourses;
-  final int publishedCourses;
-  final int draftCourses;
-  final int totalStudents;
-  final int activeStudents;
-  final int completedStudents;
-  final int overdueStudents;
-  final int upcomingSessions;
-  final int totalProjects;
-  final int pendingReviewProjects;
+  final int totalLearners;
+  final int unreadNotifications;
+  final int upcomingDeadlines;
 
-  MentorDashboardStats({
+  MentorDashboardSummary({
     required this.totalCourses,
-    required this.publishedCourses,
-    required this.draftCourses,
-    required this.totalStudents,
-    required this.activeStudents,
-    required this.completedStudents,
-    required this.overdueStudents,
-    required this.upcomingSessions,
-    required this.totalProjects,
-    required this.pendingReviewProjects,
+    required this.totalLearners,
+    required this.unreadNotifications,
+    required this.upcomingDeadlines,
   });
 
-  factory MentorDashboardStats.empty() => MentorDashboardStats(
-        totalCourses: 0,
-        publishedCourses: 0,
-        draftCourses: 0,
-        totalStudents: 0,
-        activeStudents: 0,
-        completedStudents: 0,
-        overdueStudents: 0,
-        upcomingSessions: 0,
-        totalProjects: 0,
-        pendingReviewProjects: 0,
-      );
-
-  factory MentorDashboardStats.fromData({
-    required List<CourseResponse> courses,
-    required List<MentorEnrollmentInfo> enrollments,
-    required List<LiveSessionInfo> sessions,
-    required List<ProjectModel> projects,
-  }) {
-    final now = DateTime.now();
-
-    final published = courses.where((c) => c.published).length;
-    final draft = courses.where((c) => !c.published).length;
-
-    final active = enrollments
-        .where((e) => e.status == EnrollmentStatus.IN_PROGRESS)
-        .length;
-    final completed = enrollments
-        .where((e) => e.status == EnrollmentStatus.COMPLETED)
-        .length;
-    final overdue = enrollments.where((e) => e.isOverdue).length;
-
-    final upcoming = sessions.where((s) {
-      if (s.startTime == null) return false;
-      return s.startTime!.isAfter(now);
-    }).length;
-
-    final pendingProjects = projects.where((p) {
-      return p.status == ProjectStatus.ACTIVE;
-    }).length;
-
-    return MentorDashboardStats(
-      totalCourses: courses.length,
-      publishedCourses: published,
-      draftCourses: draft,
-      totalStudents: enrollments
-          .map((e) => e.userId.value)
-          .toSet()
-          .length,
-      activeStudents: active,
-      completedStudents: completed,
-      overdueStudents: overdue,
-      upcomingSessions: upcoming,
-      totalProjects: projects.length,
-      pendingReviewProjects: pendingProjects,
+  factory MentorDashboardSummary.fromJson(Map<String, dynamic> json) {
+    return MentorDashboardSummary(
+      totalCourses: (json['totalCourses'] as num?)?.toInt() ?? 0,
+      totalLearners: (json['totalLearners'] as num?)?.toInt() ?? 0,
+      unreadNotifications: (json['unreadNotifications'] as num?)?.toInt() ?? 0,
+      upcomingDeadlines: (json['upcomingDeadlines'] as num?)?.toInt() ?? 0,
     );
   }
 }
 
 // ============================================
-// COURSE OVERVIEW ITEM
+// BACKEND: GET /api/mentor/dashboard/progress
+// MentorProgressResponse.java
+//   long notStarted
+//   long inProgress
+//   long completed
 // ============================================
 
-class CourseOverviewItem {
-  final CourseResponse course;
-  final int studentCount;
-  final int avgProgress;
-  final int overdueCount;
+class MentorDashboardProgress {
+  final int notStarted;
+  final int inProgress;
+  final int completed;
 
-  CourseOverviewItem({
-    required this.course,
-    required this.studentCount,
-    required this.avgProgress,
-    required this.overdueCount,
+  MentorDashboardProgress({
+    required this.notStarted,
+    required this.inProgress,
+    required this.completed,
   });
 
-  factory CourseOverviewItem.from(
-    CourseResponse course,
-    List<MentorEnrollmentInfo> enrollments,
-  ) {
-    final courseEnrollments = enrollments
-        .where((e) => e.courseId.value == course.id.value)
-        .toList();
-
-    final studentCount = courseEnrollments.length;
-    final avgProgress = studentCount > 0
-        ? (courseEnrollments.fold<int>(
-                    0, (sum, e) => sum + e.progress) ~/
-                studentCount)
-            .toInt()
-        : 0;
-    final overdueCount =
-        courseEnrollments.where((e) => e.isOverdue).length;
-
-    return CourseOverviewItem(
-      course: course,
-      studentCount: studentCount,
-      avgProgress: avgProgress,
-      overdueCount: overdueCount,
+  factory MentorDashboardProgress.fromJson(Map<String, dynamic> json) {
+    return MentorDashboardProgress(
+      notStarted: (json['notStarted'] as num?)?.toInt() ?? 0,
+      inProgress: (json['inProgress'] as num?)?.toInt() ?? 0,
+      completed: (json['completed'] as num?)?.toInt() ?? 0,
     );
   }
 }
 
 // ============================================
-// OVERDUE STUDENT ITEM
+// BACKEND: GET /api/lms/live-sessions/course/{courseId}
+// LiveSessionResponse.java
+//   Long id, String title, String meetingUrl, String hangoutLink
+//   LocalDateTime startTime, LocalDateTime endTime
 // ============================================
 
-class OverdueStudentItem {
-  final MentorEnrollmentInfo enrollment;
-  final String courseTitle;
+class MentorLiveSession {
+  final int id;
+  final String title;
+  final String? meetingUrl;
+  final String? hangoutLink;
+  final DateTime startTime;
+  final DateTime endTime;
 
-  OverdueStudentItem({
-    required this.enrollment,
-    required this.courseTitle,
-  });
-}
-
-// ============================================
-// UPCOMING SESSION ITEM
-// ============================================
-
-class UpcomingSessionItem {
-  final LiveSessionInfo session;
-  final String courseTitle;
-  final bool isToday;
-  final bool isSoon;
-
-  UpcomingSessionItem({
-    required this.session,
-    required this.courseTitle,
-    required this.isToday,
-    required this.isSoon,
+  MentorLiveSession({
+    required this.id,
+    required this.title,
+    this.meetingUrl,
+    this.hangoutLink,
+    required this.startTime,
+    required this.endTime,
   });
 
-  factory UpcomingSessionItem.from(
-    LiveSessionInfo session,
-    List<CourseResponse> courses,
-  ) {
-    final course = courses.cast<CourseResponse?>().firstWhere(
-          (c) => c?.id.value == session.courseId.value,
-          orElse: () => null,
-        );
-
-    final now = DateTime.now();
-    final start = session.startTime;
-    final diff = start?.difference(now);
-
-    final isToday = start != null &&
-        start.year == now.year &&
-        start.month == now.month &&
-        start.day == now.day;
-    final isSoon = diff != null && diff.inMinutes <= 60 && diff.inMinutes > 0;
-
-    return UpcomingSessionItem(
-      session: session,
-      courseTitle: course?.title ?? '',
-      isToday: isToday,
-      isSoon: isSoon,
+  factory MentorLiveSession.fromJson(Map<String, dynamic> json) {
+    return MentorLiveSession(
+      id: _parseInt(json['id']),
+      title: json['title'] ?? '',
+      meetingUrl: json['meetingUrl'],
+      hangoutLink: json['hangoutLink'],
+      startTime: _parseDateTime(json['startTime']) ?? DateTime.now(),
+      endTime: _parseDateTime(json['endTime']) ?? DateTime.now(),
     );
   }
+
+  String? get joinUrl => meetingUrl ?? hangoutLink;
+
+  bool get isUpcoming => startTime.isAfter(DateTime.now());
+  bool get isOngoing =>
+      DateTime.now().isAfter(startTime) && DateTime.now().isBefore(endTime);
 }
 
-// ============================================
-// PROJECT OVERVIEW ITEM
-// ============================================
+int _parseInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
 
-class ProjectOverviewItem {
-  final ProjectModel project;
-  final int memberCount;
-  final String stageLabel;
-
-  ProjectOverviewItem({
-    required this.project,
-    required this.memberCount,
-    required this.stageLabel,
-  });
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String && value.isNotEmpty) return DateTime.tryParse(value);
+  return null;
 }

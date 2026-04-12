@@ -38,6 +38,10 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
 
   List<ModuleResponse> _modules = [];
 
+  bool get _canEdit =>
+      _course != null &&
+      _course!.courseStatus == CourseStatus.DRAFT;
+
   @override
   void initState() {
     super.initState();
@@ -618,7 +622,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
           ),
         ),
         actions: [
-          if (_isEditMode && _course != null) ...[
+          if (_isEditMode && _canEdit) ...[
             if (!_course!.isPublished)
               TextButton.icon(
                 onPressed: _publishCourse,
@@ -711,6 +715,30 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         children: [
           if (_course != null) ...[
             _buildStatusRow(),
+            if (!_canEdit)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 16, color: Color(0xFFF59E0B)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _course!.courseStatus == CourseStatus.ARCHIVED
+                            ? 'Khóa học đã lưu trữ. Không thể chỉnh sửa cấu trúc.'
+                            : 'Khóa học đã xuất bản. Không thể chỉnh sửa module, bài học và quiz.',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFFF59E0B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 16),
           ],
 
@@ -721,11 +749,13 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
               children: [
                 TextField(
                   controller: _titleController,
+                  enabled: _canEdit,
                   decoration: _field("Tên khóa học *", icon: Icons.school_outlined),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _descriptionController,
+                  enabled: _canEdit,
                   decoration: _field("Mô tả khóa học", icon: Icons.description_outlined),
                   maxLines: 4,
                 ),
@@ -740,7 +770,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
             header: _cardHeader("Hạn nộp bài", Icons.timer_outlined),
             child: Column(
               children: [
-                _buildDeadlineSelector(),
+                _buildDeadlineSelector(enabled: _canEdit),
                 const SizedBox(height: 12),
                 if (_deadlineType == DeadlineType.RELATIVE)
                   Row(
@@ -750,6 +780,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                         child: TextField(
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
+                          enabled: _canEdit,
                           decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.numbers, size: 18, color: Color(0xFF94A3B8)),
                             border: OutlineInputBorder(
@@ -785,6 +816,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                   _DatePickerButton(
                     selectedDate: _fixedDeadline,
                     primaryColor: _primary,
+                    enabled: _canEdit,
                     onPicked: (date) => setState(() => _fixedDeadline = date),
                   ),
               ],
@@ -799,15 +831,16 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
               children: [
                 _cardHeader("Cấu trúc (${_modules.length} chương)", Icons.account_tree_outlined),
                 const Spacer(),
-                TextButton.icon(
-                  onPressed: _showAddModuleDialog,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text("Thêm", style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                if (_canEdit)
+                  TextButton.icon(
+                    onPressed: _showAddModuleDialog,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text("Thêm", style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    ),
                   ),
-                ),
               ],
             ),
             child: _modules.isEmpty
@@ -880,7 +913,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     );
   }
 
-  Widget _buildDeadlineSelector() {
+  Widget _buildDeadlineSelector({bool enabled = true}) {
     return Row(
       children: [
         Expanded(
@@ -888,7 +921,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
             label: "Tương đối",
             icon: Icons.schedule,
             isSelected: _deadlineType == DeadlineType.RELATIVE,
-            onTap: () => setState(() => _deadlineType = DeadlineType.RELATIVE),
+            onTap: enabled ? () => setState(() => _deadlineType = DeadlineType.RELATIVE) : () {},
             primaryColor: _primary,
           ),
         ),
@@ -898,7 +931,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
             label: "Ngày cố định",
             icon: Icons.event,
             isSelected: _deadlineType == DeadlineType.FIXED,
-            onTap: () => setState(() => _deadlineType = DeadlineType.FIXED),
+            onTap: enabled ? () => setState(() => _deadlineType = DeadlineType.FIXED) : () {},
             primaryColor: _primary,
           ),
         ),
@@ -961,13 +994,13 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
+            if (_canEdit) IconButton(
               icon: const Icon(Icons.add, size: 20, color: _primary),
               tooltip: "Thêm bài học",
               onPressed: () => _showAddLessonDialog(module),
               visualDensity: VisualDensity.compact,
             ),
-            IconButton(
+            if (_canEdit) IconButton(
               icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFEF4444)),
               tooltip: "Xóa chương",
               onPressed: () => _deleteModule(module),
@@ -1002,12 +1035,14 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
               ),
               subtitle: _buildLessonContent(lesson),
               dense: true,
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
-                tooltip: "Xóa bài học",
-                onPressed: () => _deleteLesson(module, lesson),
-                visualDensity: VisualDensity.compact,
-              ),
+              trailing: _canEdit
+                  ? IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                      tooltip: "Xóa bài học",
+                      onPressed: () => _deleteLesson(module, lesson),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  : null,
             )),
         ],
       ),
@@ -1170,11 +1205,13 @@ class _DatePickerButton extends StatelessWidget {
   final DateTime? selectedDate;
   final Color primaryColor;
   final ValueChanged<DateTime> onPicked;
+  final bool enabled;
 
   const _DatePickerButton({
     required this.selectedDate,
     required this.primaryColor,
     required this.onPicked,
+    this.enabled = true,
   });
 
   String _format(DateTime date) {
@@ -1184,28 +1221,30 @@ class _DatePickerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 30)),
-          firstDate: DateTime.now(),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
-          builder: (context, child) {
-            return Theme(
-              data: Theme.of(context).copyWith(
-                colorScheme: ColorScheme.light(
-                  primary: primaryColor,
-                  onPrimary: Colors.white,
-                  surface: Colors.white,
-                  onSurface: const Color(0xFF0F172A),
-                ),
-              ),
-              child: child!,
-            );
-          },
-        );
-        if (picked != null) onPicked(picked);
-      },
+      onTap: enabled
+          ? () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 30)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: ColorScheme.light(
+                        primary: primaryColor,
+                        onPrimary: Colors.white,
+                        surface: Colors.white,
+                        onSurface: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (picked != null) onPicked(picked);
+            }
+          : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -9,6 +9,7 @@ class QuizResultDialog extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onClose;
   final VoidCallback? onViewCertificate;
+  final bool isAutoSubmit; // Thêm: thông báo auto-submit
 
   const QuizResultDialog({
     super.key,
@@ -18,6 +19,7 @@ class QuizResultDialog extends StatelessWidget {
     required this.onRetry,
     required this.onClose,
     this.onViewCertificate,
+    this.isAutoSubmit = false,
   });
 
   @override
@@ -113,10 +115,38 @@ class QuizResultDialog extends StatelessWidget {
                 ? courseCompleted
                     ? 'Bạn đã hoàn thành khóa học!'
                     : 'Bạn đã hoàn thành bài quiz!'
-                : 'Hãy thử lại để cải thiện điểm số',
+                : isAutoSubmit
+                    ? 'Hết giờ! Bài đã được nộp tự động'
+                    : 'Hãy thử lại để cải thiện điểm số',
             style: const TextStyle(fontSize: 14, color: Colors.white70),
             textAlign: TextAlign.center,
           ),
+          // Badge auto-submit
+          if (isAutoSubmit) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.timer_off_rounded, size: 14, color: Colors.white),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Tự động nộp bài',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

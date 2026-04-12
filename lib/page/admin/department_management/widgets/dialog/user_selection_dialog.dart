@@ -16,7 +16,8 @@ class UserSelectionDialog extends StatefulWidget {
   final List<UserModel> users;
   final bool isMultiSelect;
   final List<UserModel> preSelectedUsers;
-  final int? excludeDepartmentId; // ID phòng ban cần loại trừ (người đã có phòng ban khác)
+  final int? excludeDepartmentId;
+  final bool allowAssigned; // Cho phép filter assigned
 
   const UserSelectionDialog({
     super.key,
@@ -27,6 +28,7 @@ class UserSelectionDialog extends StatefulWidget {
     this.isMultiSelect = false,
     this.preSelectedUsers = const [],
     this.excludeDepartmentId,
+    this.allowAssigned = false,
   });
 
   static Future<UserModel?> selectManager({
@@ -45,6 +47,7 @@ class UserSelectionDialog extends StatefulWidget {
         users: managers,
         preSelectedUsers: currentManager != null ? [currentManager] : [],
         excludeDepartmentId: excludeDepartmentId,
+        allowAssigned: true,
       ),
     );
   }
@@ -66,6 +69,7 @@ class UserSelectionDialog extends StatefulWidget {
         isMultiSelect: true,
         preSelectedUsers: preSelectedMembers ?? [],
         excludeDepartmentId: excludeDepartmentId,
+        allowAssigned: true,
       ),
     );
   }
@@ -114,13 +118,17 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late String _roleFilter;
+  String _assignedFilter = 'all'; // 'all' | 'assigned' | 'unassigned'
   List<UserModel> _selectedUsers = [];
 
   @override
   void initState() {
     super.initState();
     _selectedUsers = List.from(widget.preSelectedUsers);
-    // Khởi tạo _roleFilter theo option đầu tiên (không dùng ALL)
+    _initRoleFilter();
+  }
+
+  void _initRoleFilter() {
     switch (widget.selectionType) {
       case UserSelectionType.manager:
         _roleFilter = 'PROJECT_MANAGER';
@@ -137,6 +145,18 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       case UserSelectionType.all:
         _roleFilter = 'ALL';
         break;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant UserSelectionDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset assigned filter khi role thay đổi để tránh confusion
+    if (oldWidget.selectionType != widget.selectionType) {
+      _initRoleFilter();
+      _assignedFilter = 'all';
+      _searchQuery = '';
+      _searchController.clear();
     }
   }
 
@@ -158,10 +178,10 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       // Role filter
       final matchesRole = _roleFilter == 'ALL' || user.role.name == _roleFilter;
 
-      // Department filter: only apply for Members (not for Managers)
-      // Backend allows PMs to be assigned to any department, so we skip this filter for managers
+      // Department filter: khi cho phép assigned (chọn user từ phòng ban khác),
+      // hiện tất cả user, không lọc theo department
       bool matchesDepartment = true;
-      if (widget.selectionType != UserSelectionType.manager) {
+      if (!widget.allowAssigned && widget.selectionType != UserSelectionType.manager) {
         final isPreSelected = widget.preSelectedUsers.any((u) => u.id == user.id);
         matchesDepartment = widget.excludeDepartmentId == null ||
             user.departmentId == null ||
@@ -169,7 +189,19 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
             isPreSelected;
       }
 
-      return matchesSearch && matchesRole && matchesDepartment;
+      // Assigned filter: chỉ áp dụng khi cho phép lọc theo assigned
+      bool matchesAssigned = true;
+      if (widget.allowAssigned) {
+        final isAssigned = user.departmentId != null;
+        if (_assignedFilter == 'assigned') {
+          matchesAssigned = isAssigned;
+        } else if (_assignedFilter == 'unassigned') {
+          matchesAssigned = !isAssigned;
+        }
+        // 'all' thì không lọc
+      }
+
+      return matchesSearch && matchesRole && matchesDepartment && matchesAssigned;
     }).toList();
   }
 
@@ -308,72 +340,131 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   Widget _buildSearchAndFilter() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFBFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: 'Tìm kiếm theo tên, email...',
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                  prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, size: 18, color: Colors.grey[400]),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFBFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: 'Tìm kiếm theo tên, email...',
+                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear, size: 18, color: Colors.grey[400]),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFBFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _roleFilter,
-                  isExpanded: true,
-                  icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[400]),
-                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                  items: _roleOptions
-                      .map((item) => DropdownMenuItem(
-                            value: item['value'],
-                            child: Text(
-                              item['label']!,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ))
-                      .toList(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFBFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _roleFilter,
+                      isExpanded: true,
+                      icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[400]),
+                      style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                      items: _roleOptions
+                          .map((item) => DropdownMenuItem(
+                                value: item['value'],
+                                child: Text(
+                                  item['label']!,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
                   onChanged: (value) {
                     if (value != null) {
-                      setState(() => _roleFilter = value);
+                      setState(() {
+                        _roleFilter = value;
+                        _assignedFilter = 'all'; // Reset assigned filter khi đổi role
+                      });
                     }
                   },
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
+          if (widget.allowAssigned) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  'Lọc theo:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _buildAssignedChip('Tất cả', 'all'),
+                const SizedBox(width: 8),
+                _buildAssignedChip('Đã có phòng ban', 'assigned'),
+                const SizedBox(width: 8),
+                _buildAssignedChip('Chưa có phòng ban', 'unassigned'),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildAssignedChip(String label, String value) {
+    final isSelected = _assignedFilter == value;
+    return InkWell(
+      onTap: () => setState(() => _assignedFilter = value),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? widget.primaryColor.withValues(alpha: 0.12)
+              : const Color(0xFFFAFBFC),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? widget.primaryColor.withValues(alpha: 0.4)
+                : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            color: isSelected ? widget.primaryColor : Colors.grey[600],
+          ),
+        ),
       ),
     );
   }
@@ -403,7 +494,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       );
     }
 
-    return Container(
+    return SizedBox(
       height: 350,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -488,7 +579,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   }
 }
 
-class _UserListTile extends StatelessWidget {
+class _UserListTile extends StatefulWidget {
   final UserModel user;
   final bool isSelected;
   final bool isMultiSelect;
@@ -504,160 +595,202 @@ class _UserListTile extends StatelessWidget {
   });
 
   @override
+  State<_UserListTile> createState() => _UserListTileState();
+}
+
+class _UserListTileState extends State<_UserListTile> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    final isSelected = widget.isSelected;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: isSelected ? primaryColor.withValues(alpha: 0.05) : Colors.transparent,
-        child: Row(
-          children: [
-            if (isMultiSelect)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? primaryColor : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected ? primaryColor : Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: isSelected
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : null,
-              )
-            else
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? primaryColor : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected ? primaryColor : Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: isSelected
-                    ? const Icon(Icons.check, size: 14, color: Colors.white)
-                    : null,
-              ),
-            _UserAvatar(user: user, primaryColor: primaryColor),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        duration: const Duration(milliseconds: 120),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? widget.primaryColor.withValues(alpha: 0.06)
+              : _isHovered
+                  ? const Color(0xFFF8F9FB)
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(
+                  color: widget.primaryColor.withValues(alpha: 0.2),
+                  width: 1,
+                )
+              : null,
+        ),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                _buildSelectionIndicator(),
+                const SizedBox(width: 12),
+                _UserAvatar(user: widget.user, primaryColor: widget.primaryColor),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: Text(
-                          user.fullName,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF111827),
-                            fontSize: 14,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.user.fullName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF111827),
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          _RoleBadge(role: widget.user.role),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      _RoleBadge(role: user.role),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _buildInfoChip(
+                            icon: Icons.alternate_email_outlined,
+                            text: widget.user.email,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          _buildInfoChip(
+                            icon: Icons.apartment_outlined,
+                            text: widget.user.department?.isNotEmpty == true
+                                ? widget.user.department!
+                                : 'Chưa phân phòng',
+                            color: widget.user.department?.isNotEmpty == true
+                                ? const Color(0xFF374151)
+                                : const Color(0xFF9CA3AF),
+                          ),
+                          const SizedBox(width: 6),
+                          if (widget.user.departmentId != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 10,
+                                    color: const Color(0xFF10B981),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Đã gán',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: const Color(0xFF10B981),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user.email,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF137FEC),
-                      fontSize: 12,
+                ),
+                if (!widget.isMultiSelect && isSelected)
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: widget.primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 16,
+                      color: Colors.white,
                     ),
                   ),
-                  if (user.department != null && user.department!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.apartment,
-                          size: 12,
-                          color: Color(0xFF137FEC),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            user.department!,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF137FEC),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.apartment_outlined,
-                          size: 12,
-                          color: Color(0xFF137FEC),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Chưa có',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF137FEC),
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (user.userName != null && user.userName!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${user.userName}',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF137FEC),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              ],
             ),
-            if (!isMultiSelect && isSelected)
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check,
-                  size: 16,
-                  color: primaryColor,
-                ),
-              ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSelectionIndicator() {
+    final isSelected = widget.isSelected;
+    final color = isSelected ? widget.primaryColor : const Color(0xFFD1D5DB);
+
+    if (widget.isMultiSelect) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: isSelected ? widget.primaryColor : Colors.transparent,
+          border: Border.all(color: color, width: 1.5),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: isSelected
+            ? const Icon(Icons.check, size: 15, color: Colors.white)
+            : null,
+      );
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: isSelected ? widget.primaryColor : Colors.transparent,
+        border: Border.all(color: color, width: 1.5),
+        shape: BoxShape.circle,
+      ),
+      child: isSelected
+          ? const Icon(Icons.check, size: 13, color: Colors.white)
+          : null,
+    );
+  }
+
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -668,34 +801,44 @@ class _UserAvatar extends StatelessWidget {
 
   const _UserAvatar({required this.user, required this.primaryColor});
 
+  Color get _avatarColor {
+    switch (user.role) {
+      case UserRole.ADMIN:
+        return const Color(0xFF6366F1);
+      case UserRole.PROJECT_MANAGER:
+        return const Color(0xFF10B981);
+      case UserRole.MENTOR:
+        return const Color(0xFFF59E0B);
+      case UserRole.USER:
+        return primaryColor;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final color = _avatarColor;
+    final initials = '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
+        '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}';
+
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            primaryColor.withValues(alpha: 0.15),
-            primaryColor.withValues(alpha: 0.05),
-          ],
-        ),
+        color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
         border: Border.all(
-          color: primaryColor.withValues(alpha: 0.2),
+          color: color.withValues(alpha: 0.25),
           width: 1.5,
         ),
       ),
       child: Center(
         child: Text(
-          '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
-          '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
+          initials.toUpperCase(),
           style: TextStyle(
-            color: primaryColor,
+            color: color,
             fontSize: 14,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
           ),
         ),
       ),

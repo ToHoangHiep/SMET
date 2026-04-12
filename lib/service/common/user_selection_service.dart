@@ -69,6 +69,7 @@ Future<List<UserModel>> fetchSelectableUsers(
   int? departmentId,
   String? keyword,
   List<int>? excludeUserIds,
+  bool? assigned,
   int page = 0,
   int size = 100,
 }) async {
@@ -99,8 +100,13 @@ Future<List<UserModel>> fetchSelectableUsers(
     queryParams['departmentId'] = departmentId.toString();
   }
 
-  // NOTE: Backend /users/department/managers, /users/department/members, /users/for-project
-  // KHONG ho tro param 'role'. Filter theo role se duoc thuc hien phia client.
+  // Thêm filter assigned nếu cần (áp dụng cho department managers và department members)
+  // assigned=true: chỉ user đã được assign (đã có phòng ban)
+  // assigned=false: chỉ user chưa được assign (chưa có phòng ban)
+  // assigned=null: lấy tất cả (để client filter)
+  if (assigned != null) {
+    queryParams['assigned'] = assigned.toString();
+  }
 
   final uri = Uri.parse("$baseUrl${config.endpoint}").replace(
     queryParameters: queryParams,
@@ -127,7 +133,7 @@ Future<List<UserModel>> fetchSelectableUsers(
 
     final users = content.map((e) => UserModel.fromJson(e)).toList();
 
-    // Filter theo role ở phía client — backend khong ho tro role param
+    // Filter theo role ở phía client
     switch (context) {
       case UserSelectionContext.departmentProjectManager:
         return users.where((u) => u.role.name == 'PROJECT_MANAGER').toList();

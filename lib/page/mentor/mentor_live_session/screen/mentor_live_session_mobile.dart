@@ -553,7 +553,8 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
     );
   }
 
-  Color _getCourseColorById(Long courseId) {
+  Color _getCourseColorById(Long? courseId) {
+    if (courseId == null) return const Color(0xff0074DB);
     final course = _courses.cast<CourseResponse?>().firstWhere(
       (c) => c?.id.value == courseId.value,
       orElse: () => null,
@@ -581,7 +582,8 @@ class _MentorLiveSessionMobileState extends State<MentorLiveSessionMobile>
     return colors[hash.abs() % colors.length];
   }
 
-  String _getCourseName(Long courseId) {
+  String _getCourseName(Long? courseId) {
+    if (courseId == null) return 'Khóa học';
     final course = _courses.cast<CourseResponse?>().firstWhere(
       (c) => c?.id.value == courseId.value,
       orElse: () => null,

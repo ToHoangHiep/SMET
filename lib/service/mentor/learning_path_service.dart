@@ -68,15 +68,19 @@ class LearningPathService {
 
   // ============================================
   // GET ALL / SEARCH LEARNING PATHS (paginated)
-  // Backend: GET /api/lms/learning-paths?keyword=&page=0&size=10
+  // Backend: GET /api/lms/learning-paths?keyword=&departmentId=&departmentName=&assignedToMe=&page=0&size=10
+  // Backend trả PageResponse với fields: data[], page, size, totalElements, totalPages, last
   // ============================================
   Future<LearningPathPageResponse> getAllLearningPaths({
     String? keyword,
+    int? departmentId,
+    String? departmentName,
+    bool? assignedToMe,
     int page = 0,
     int size = 10,
   }) async {
     log(
-      "[LearningPathService] getAllLearningPaths() called - page=$page, size=$size, keyword=$keyword",
+      "[LearningPathService] getAllLearningPaths() called - page=$page, size=$size, keyword=$keyword, departmentId=$departmentId, assignedToMe=$assignedToMe",
     );
 
     try {
@@ -92,6 +96,10 @@ class LearningPathService {
         'size': size.toString(),
       };
       if (keyword != null && keyword.isNotEmpty) params['keyword'] = keyword;
+      if (departmentId != null) params['departmentId'] = departmentId.toString();
+      if (departmentName != null && departmentName.isNotEmpty) params['departmentName'] = departmentName;
+      if (assignedToMe != null) params['assignedToMe'] = assignedToMe.toString();
+
       final uri = Uri.parse(
         "$baseUrl/lms/learning-paths",
       ).replace(queryParameters: params);
@@ -142,7 +150,7 @@ class LearningPathService {
   // ============================================
   // GET LEARNING PATH BY ID (DETAIL)
   // Backend: GET /api/lms/learning-paths/{id}
-  // Returns: LearningPathResponse (with courses list)
+  // Backend trả LearningPathDetailResponse (id, title, description, courses[])
   // ============================================
   Future<LearningPathDetailResponse> getLearningPathDetail(Long pathId) async {
     log(
@@ -179,7 +187,7 @@ class LearningPathService {
           for (int i = 0; i < result.courses.length; i++) {
             _logResult(
               "  Course[$i]",
-              "courseId=${result.courses[i].courseId.value}, title=${result.courses[i].title}, order=${result.courses[i].orderIndex}",
+              "relationId=${result.courses[i].relationId.value}, courseId=${result.courses[i].courseId.value}, title=${result.courses[i].title}, order=${result.courses[i].orderIndex}",
             );
           }
           return result;
@@ -362,6 +370,91 @@ class LearningPathService {
   }
 
   // ============================================
+  // UPSERT COURSES (set/replace all courses in path)
+  // Backend: PUT /api/lms/learning-paths/{id}/courses
+  // Body: [{"relationId": 1, "orderIndex": 0}, {"courseId": 5, "orderIndex": 1}]
+  // Backend accepts both existing courses (with relationId) and new courses (with courseId + orderIndex)
+  // ============================================
+  Future<void> upsertCourses(
+    Long pathId,
+    List<Map<String, dynamic>> courses,
+  ) async {
+    log("[LearningPathService] upsertCourses() called - pathId=${pathId.value}, courses=${courses.length}");
+
+    try {
+      _logStep("Getting auth token...");
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/lms/learning-paths/${pathId.value}/courses";
+      _logResult("URL", url);
+      _logResult("Body", courses);
+
+      _logStep("Sending PUT request...");
+      _logRequest(
+        "UPSERT COURSES IN LEARNING PATH",
+        url,
+        headers: _headers(token),
+        body: courses,
+      );
+      final res = await http.put(
+        Uri.parse(url),
+        headers: _headers(token),
+        body: jsonEncode(courses),
+      );
+      _logResponse(res);
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        _logResult("Courses upserted", "pathId=${pathId.value}");
+        return;
+      }
+
+      throw Exception("Upsert courses failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[LearningPathService] upsertCourses() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // UNASSIGN LEARNING PATH FROM USER
+  // Backend: DELETE /api/lms/learning-paths/{lpId}/users/{userId}
+  // ============================================
+  Future<void> unassignLearningPath(Long lpId, Long userId) async {
+    log(
+      "[LearningPathService] unassignLearningPath() called - lpId=${lpId.value}, userId=${userId.value}",
+    );
+
+    try {
+      _logStep("Getting auth token...");
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final url = "$baseUrl/lms/learning-paths/${lpId.value}/users/${userId.value}";
+      _logResult("URL", url);
+
+      _logStep("Sending DELETE request...");
+      _logRequest("UNASSIGN LEARNING PATH FROM USER", url, headers: _headers(token));
+      final res = await http.delete(Uri.parse(url), headers: _headers(token));
+      _logResponse(res);
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        _logResult("Learning path unassigned", "lpId=${lpId.value}, userId=${userId.value}");
+        return;
+      }
+
+      throw Exception("Unassign learning path failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[LearningPathService] unassignLearningPath() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  // ============================================
   // UPDATE LEARNING PATH (title, description)
   // Backend: PUT /api/lms/learning-paths/{pathId}?title=&description=
   // Backend uses @RequestParam (query params), NOT JSON body
@@ -463,7 +556,7 @@ class LearningPathService {
       int totalPages = 1;
 
       while (page < totalPages) {
-        final url = "$baseUrl/lms/courses?page=$page&size=$size";
+        final url = "$baseUrl/lms/courses?page=$page&size=$size&status=PUBLISHED";
         _logResult("URL", url);
 
         _logStep("Sending GET request (page $page)...");

@@ -1,15 +1,15 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:smet/model/course_model.dart';
-import 'package:smet/model/mentor_enrollment_model.dart';
-import 'package:smet/model/mentor_live_session_model.dart';
-import 'package:smet/model/project_model.dart';
 import 'package:smet/model/mentor_dashboard_models.dart';
 import 'package:smet/service/mentor/mentor_dashboard_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 
 /// Mentor Dashboard - Mobile Layout
+/// Backend endpoints:
+///   GET /api/mentor/dashboard/summary
+///   GET /api/mentor/dashboard/progress
+///   GET /api/lms/courses?isMine=true
+///   GET /api/lms/live-sessions/course/{courseId}
 class MentorDashboardMobile extends StatefulWidget {
   const MentorDashboardMobile({super.key});
 
@@ -32,10 +32,6 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
   static const _warning = Color(0xFFF59E0B);
   static const _colorError = Color(0xFFEF4444);
   static const _info = Color(0xFF3B82F6);
-  static const _badgeGreenBg = Color(0xFFDCFCE7);
-  static const _badgeRedBg = Color(0xFFFEE2E2);
-  static const _badgeYellowBg = Color(0xFFFEF3C7);
-  static const _badgeBlueBg = Color(0xFFDBEAFE);
 
   // ============================================
   // SERVICES
@@ -48,50 +44,9 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
   bool _isLoading = true;
   String? _errorMessage;
   String _userName = '';
-
-  List<CourseResponse> _courses = [];
-  List<MentorEnrollmentInfo> _allEnrollments = [];
-  List<LiveSessionInfo> _allSessions = [];
-  List<ProjectModel> _projects = [];
-
-  // ============================================
-  // COMPUTED
-  // ============================================
-  MentorDashboardStats get _stats => MentorDashboardStats.fromData(
-        courses: _courses,
-        enrollments: _allEnrollments,
-        sessions: _allSessions,
-        projects: _projects,
-      );
-
-  List<CourseOverviewItem> get _courseItems => _courses
-      .take(3)
-      .map((c) => CourseOverviewItem.from(c, _allEnrollments))
-      .toList();
-
-  List<OverdueStudentItem> get _overdueStudents => _allEnrollments
-      .where((e) => e.isOverdue)
-      .take(5)
-      .map((e) {
-        final course = _courses.cast<CourseResponse?>().firstWhere(
-              (c) => c?.id.value == e.courseId.value,
-              orElse: () => null,
-            );
-        return OverdueStudentItem(
-          enrollment: e,
-          courseTitle: course?.title ?? '',
-        );
-      })
-      .toList();
-
-  List<LiveSessionInfo> get _upcomingSessionsList {
-    final now = DateTime.now();
-    final list = _allSessions
-        .where((s) => s.startTime != null && s.startTime!.isAfter(now))
-        .toList();
-    list.sort((a, b) => a.startTime!.compareTo(b.startTime!));
-    return list.take(3).toList();
-  }
+  MentorDashboardSummary? _summary;
+  MentorDashboardProgress? _progress;
+  List<MentorLiveSession> _liveSessions = [];
 
   // ============================================
   // LIFECYCLE
@@ -114,15 +69,14 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
           ? user.fullName.trim()
           : user.email;
 
-      final rawData = await _dashboardService.loadDashboardData();
+      final results = await _dashboardService.loadDashboardData();
 
       if (!mounted) return;
 
       setState(() {
-        _courses = rawData.courses;
-        _allEnrollments = rawData.enrollments;
-        _allSessions = rawData.sessions;
-        _projects = rawData.projects;
+        _summary = results.summary;
+        _progress = results.progress;
+        _liveSessions = results.liveSessions;
         _isLoading = false;
       });
     } catch (e) {
@@ -140,18 +94,6 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
     if (hour < 12) return 'Chào buổi sáng';
     if (hour < 18) return 'Chào buổi chiều';
     return 'Chào buổi tối';
-  }
-
-  String _formatDate(DateTime dt) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${dt.day} ${months[dt.month - 1]}';
-  }
-
-  String _formatTime(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '$h:$m';
   }
 
   // ============================================
@@ -176,50 +118,45 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
       ),
       child: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _greetingMessage,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _userName.isNotEmpty ? _userName : 'Mentor',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Chào buổi sáng', // placeholder, will be replaced
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 2),
+                  Text(
+                    _userName.isNotEmpty ? _userName : 'Mentor',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-              ],
+                ],
+              ),
+            ),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.school_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
           ],
         ),
@@ -231,6 +168,7 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
   // STATS (2x2 grid for mobile)
   // ============================================
   Widget _buildStatsSection() {
+    final s = _summary ?? _emptySummary;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: GridView.count(
@@ -243,27 +181,27 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
         children: [
           _buildStatCard(
             'Khóa học',
-            '${_stats.totalCourses}',
+            '${s.totalCourses}',
             Icons.menu_book_rounded,
             _info,
           ),
           _buildStatCard(
             'Học viên',
-            '${_stats.totalStudents}',
+            '${s.totalLearners}',
             Icons.people_rounded,
             _primary,
           ),
           _buildStatCard(
-            'Live Sessions',
-            '${_stats.upcomingSessions}',
-            Icons.live_tv_rounded,
+            'Thông báo chưa đọc',
+            '${s.unreadNotifications}',
+            Icons.notifications_rounded,
             _warning,
           ),
           _buildStatCard(
-            'Dự án',
-            '${_stats.totalProjects}',
-            Icons.work_rounded,
-            _success,
+            'Deadline gần',
+            '${s.upcomingDeadlines}',
+            Icons.schedule_rounded,
+            _colorError,
           ),
         ],
       ),
@@ -321,9 +259,12 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
   }
 
   // ============================================
-  // COURSE OVERVIEW
+  // PROGRESS SECTION
   // ============================================
-  Widget _buildCourseOverviewSection() {
+  Widget _buildProgressSection() {
+    final p = _progress ?? _emptyProgress;
+    final total = p.notStarted + p.inProgress + p.completed;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -335,279 +276,91 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.library_books_rounded, color: _primary, size: 18),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Khóa học của tôi',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _textDark,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => context.go('/mentor/courses'),
-                child: const Text(
-                  'Xem tất cả',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _primary,
-                  ),
+              Icon(Icons.bar_chart_rounded, color: _primary, size: 18),
+              SizedBox(width: 6),
+              Text(
+                'Tiến độ học viên',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _textDark,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          if (_courseItems.isEmpty)
-            _buildEmptyState(
-              Icons.menu_book_outlined,
-              'Chưa có khóa học nào',
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _courseItems.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                return _buildCourseItem(_courseItems[index]);
-              },
-            ),
+          const SizedBox(height: 16),
+          _buildProgressBar(total, p.notStarted, p.inProgress, p.completed),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildProgressLegend('Chưa bắt đầu', p.notStarted, _textMuted),
+              _buildProgressLegend('Đang học', p.inProgress, _warning),
+              _buildProgressLegend('Hoàn thành', p.completed, _success),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCourseItem(CourseOverviewItem item) {
-    final course = item.course;
-    final progress = item.avgProgress;
-
-    return InkWell(
-      onTap: () => context.go('/mentor/courses'),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(12),
+  Widget _buildProgressBar(int total, int notStarted, int inProgress, int completed) {
+    if (total == 0) {
+      return Container(
+        height: 12,
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _border),
+          color: _border,
+          borderRadius: BorderRadius.circular(6),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: _primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.school_rounded, color: _primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          course.title,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: _textDark,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: course.published ? _badgeGreenBg : _badgeYellowBg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          course.published ? 'Đã xuất bản' : 'Nháp',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: course.published ? _success : _warning,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress / 100,
-                            backgroundColor: _border,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              course.published ? _success : _warning,
-                            ),
-                            minHeight: 5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$progress%',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: _textMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================
-  // OVERDUE STUDENTS
-  // ============================================
-  Widget _buildOverdueSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: _colorError.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.warning_rounded, color: _colorError, size: 14),
-              ),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Học viên quá hạn',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _textDark,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _badgeRedBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${_stats.overdueStudents}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _colorError,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_overdueStudents.isEmpty)
-            _buildEmptyState(Icons.check_circle_outline_rounded, 'Tất cả học viên đang tiến độ tốt')
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _overdueStudents.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                return _buildOverdueItem(_overdueStudents[index]);
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverdueItem(OverdueStudentItem item) {
-    final e = item.enrollment;
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: _badgeRedBg.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _colorError.withValues(alpha: 0.12)),
-      ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: _colorError.withValues(alpha: 0.1),
+          if (completed > 0)
+            Expanded(
+              flex: completed,
+              child: Container(height: 12, color: _success),
+            ),
+          if (inProgress > 0)
+            Expanded(
+              flex: inProgress,
+              child: Container(height: 12, color: _warning),
+            ),
+          if (notStarted > 0)
+            Expanded(
+              flex: notStarted,
+              child: Container(height: 12, color: _textMuted),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressLegend(String label, int count, Color color) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
             child: Text(
-              e.initials,
+              '$label\n$count',
               style: const TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: _colorError,
+                fontWeight: FontWeight.w500,
+                color: _textMedium,
+                height: 1.3,
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.userName,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _textDark,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  item.courseTitle,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: _textMuted,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '${e.progress}%',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: _colorError,
             ),
           ),
         ],
@@ -616,9 +369,14 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
   }
 
   // ============================================
-  // LIVE SESSIONS
+  // LIVE SESSIONS SECTION
   // ============================================
   Widget _buildLiveSessionsSection() {
+    final upcomingSessions = _liveSessions
+        .where((s) => s.startTime.isAfter(DateTime.now()))
+        .toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -630,94 +388,70 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.live_tv_rounded, color: _info, size: 18),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Buổi học sắp tới',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _textDark,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => context.go('/mentor/live-sessions'),
-                child: const Text(
-                  'Xem lịch',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _primary,
-                  ),
+              Icon(Icons.live_tv_rounded, color: _primary, size: 18),
+              SizedBox(width: 6),
+              Text(
+                'Phiên học trực tiếp',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _textDark,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          if (_upcomingSessionsList.isEmpty)
-            _buildEmptyState(Icons.videocam_off_rounded, 'Không có buổi học sắp tới')
+          const SizedBox(height: 16),
+          if (upcomingSessions.isEmpty)
+            _buildEmptyLiveSession()
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _upcomingSessionsList.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                return _buildSessionItem(_upcomingSessionsList[index]);
-              },
-            ),
+            ...upcomingSessions.take(3).map((s) => _buildLiveSessionItem(s)),
         ],
       ),
     );
   }
 
-  Widget _buildSessionItem(LiveSessionInfo session) {
+  Widget _buildLiveSessionItem(MentorLiveSession session) {
     final now = DateTime.now();
-    final DateTime? nullableStart = session.startTime;
-    if (nullableStart == null) return const SizedBox.shrink();
-    final start = nullableStart;
-
-    final diff = start.difference(now);
-    final isToday = start.year == now.year &&
-        start.month == now.month &&
-        start.day == now.day;
-    final isSoon = diff.inMinutes <= 60 && diff.inMinutes > 0;
-
-    final badgeColor = isSoon ? _colorError : isToday ? _warning : _info;
-    final badgeBg = isSoon ? _badgeRedBg : isToday ? _badgeYellowBg : _badgeBlueBg;
+    final diff = session.startTime.difference(now);
 
     String timeLabel;
-    if (diff.inMinutes < 60) {
+    Color badgeColor;
+    if (diff.isNegative) {
+      timeLabel = 'Đã diễn ra';
+      badgeColor = _textMuted;
+    } else if (diff.inMinutes < 60) {
       timeLabel = 'Sau ${diff.inMinutes} phút';
-    } else if (isToday) {
-      timeLabel = 'Hôm nay, ${_formatTime(start)}';
+      badgeColor = _colorError;
+    } else if (diff.inHours < 24) {
+      timeLabel = 'Hôm nay, ${_formatTime(session.startTime)}';
+      badgeColor = _warning;
     } else {
-      timeLabel = '${_formatDate(start)}, ${_formatTime(start)}';
+      timeLabel = '${_formatDate(session.startTime)}, ${_formatTime(session.startTime)}';
+      badgeColor = _info;
     }
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _border),
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: badgeBg,
-              borderRadius: BorderRadius.circular(8),
+              color: const Color(0xFFDBEAFE),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.live_tv_rounded, color: badgeColor, size: 18),
+            child: const Icon(Icons.live_tv_rounded, color: _primary, size: 22),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -725,25 +459,21 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
                 Text(
                   session.title,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: _textDark,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.access_time_rounded, size: 11, color: badgeColor),
-                    const SizedBox(width: 3),
+                    Icon(Icons.access_time_rounded, size: 12, color: badgeColor),
+                    const SizedBox(width: 4),
                     Text(
                       timeLabel,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: badgeColor,
-                      ),
+                      style: TextStyle(fontSize: 11, color: badgeColor),
                     ),
                   ],
                 ),
@@ -755,29 +485,33 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
     );
   }
 
-  // ============================================
-  // EMPTY STATE
-  // ============================================
-  Widget _buildEmptyState(IconData icon, String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+  Widget _buildEmptyLiveSession() {
+    return Container(
+      padding: const EdgeInsets.all(20),
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 28, color: _textMuted),
-            const SizedBox(height: 6),
+            Icon(Icons.videocam_off_rounded, size: 32, color: _textMuted),
+            const SizedBox(height: 8),
             Text(
-              message,
-              style: const TextStyle(
-                fontSize: 12,
-                color: _textMuted,
-              ),
-              textAlign: TextAlign.center,
+              'Không có phiên học sắp tới',
+              style: TextStyle(fontSize: 13, color: _textMuted),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
+  String _formatTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   // ============================================
@@ -852,6 +586,22 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
   }
 
   // ============================================
+  // EMPTY PLACEHOLDERS
+  // ============================================
+  MentorDashboardSummary get _emptySummary => MentorDashboardSummary(
+        totalCourses: 0,
+        totalLearners: 0,
+        unreadNotifications: 0,
+        upcomingDeadlines: 0,
+      );
+
+  MentorDashboardProgress get _emptyProgress => MentorDashboardProgress(
+        notStarted: 0,
+        inProgress: 0,
+        completed: 0,
+      );
+
+  // ============================================
   // MAIN BUILD
   // ============================================
   @override
@@ -872,13 +622,10 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
                             const SizedBox(height: 4),
                             _buildStatsSection(),
                             const SizedBox(height: 4),
-                            _buildCourseOverviewSection(),
-                            const SizedBox(height: 12),
-                            _buildOverdueSection(),
-                            const SizedBox(height: 12),
+                            _buildProgressSection(),
+                            const SizedBox(height: 8),
                             _buildLiveSessionsSection(),
                             const SizedBox(height: 24),
-                            // Footer
                             Center(
                               child: Column(
                                 children: [
@@ -889,10 +636,18 @@ class _MentorDashboardMobileState extends State<MentorDashboardMobile> {
                                       color: _textMuted,
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _greetingMessage,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: _textMuted,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
+                            const SizedBox(height: 24),
                           ],
                         ),
                       ),

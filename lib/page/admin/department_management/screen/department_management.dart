@@ -51,8 +51,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   final Map<int, bool> _departmentActiveMap = {};
   bool _isCreateMode = false;
-  bool _isUpdateMode = false;
-  int? _editingDepartmentId;
   final _createFormKey = GlobalKey<FormState>();
   final TextEditingController _createNameController = TextEditingController();
   final TextEditingController _createCodeController = TextEditingController();
@@ -100,7 +98,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       primaryColor: _primaryColor,
       managers: managers,
       currentManager: _selectedManager,
-      excludeDepartmentId: _editingDepartmentId,
+      excludeDepartmentId: null,
     );
 
     if (selected == null) return;
@@ -130,7 +128,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       primaryColor: _primaryColor,
       members: availableUsers,
       preSelectedMembers: _selectedEmployees,
-      excludeDepartmentId: _editingDepartmentId,
+      excludeDepartmentId: null,
     );
 
     if (result == null) return;
@@ -219,11 +217,11 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                         _openCreateDepartmentScreen,
                                   ),
                                   const SizedBox(height: 20),
-                                  (_isCreateMode || _isUpdateMode)
+                                  _isCreateMode
                                       ? DepartmentManagementFormCard(
                                         primaryColor: _primaryColor,
                                         formKey: _createFormKey,
-                                        isUpdateMode: _isUpdateMode,
+                                        isUpdateMode: false,
                                         nameController: _createNameController,
                                         codeController: _createCodeController,
                                         selectedManager: _selectedManager,
@@ -246,10 +244,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                           });
                                         },
                                         onCancel: _closeCreateDepartmentScreen,
-                                        onSubmit:
-                                            _isUpdateMode
-                                                ? _submitUpdateDepartment
-                                                : _submitCreateDepartment,
+                                        onSubmit: _submitCreateDepartment,
                                       )
                                       : DepartmentManagementTableSection(
                                         primaryColor: _primaryColor,
@@ -286,7 +281,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                                 value;
                                           });
                                         },
-                                        onEdit: _openUpdateDepartmentScreen,
                                         onDelete: _handleDeleteDepartment,
                                         onShowDetail:
                                             (dept) => context.push(
@@ -330,8 +324,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   void _openCreateDepartmentScreen() {
     setState(() {
       _isCreateMode = true;
-      _isUpdateMode = false;
-      _editingDepartmentId = null;
       _createNameController.clear();
       _createCodeController.clear();
       _createManagerController.clear();
@@ -341,92 +333,9 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     });
   }
 
-  void _openUpdateDepartmentScreen(DepartmentModel department) async {
-    // Gọi API lấy danh sách PM để tìm manager hiện tại
-    List<user_model.UserModel> managers;
-    try {
-      managers = await fetchSelectableUsers(
-        UserSelectionContext.departmentProjectManager,
-      );
-    } catch (e) {
-      managers = [];
-    }
-
-    final match =
-        managers.where((u) => u.id == department.projectManagerId).toList();
-    final manager = match.isEmpty ? null : match.first;
-
-    // Gọi API lấy danh sách members của department
-    List<Map<String, dynamic>> departmentMembers = [];
-    try {
-      departmentMembers = await _departmentService.getDepartmentMembers(
-        department.id,
-      );
-      log(
-        "Loaded ${departmentMembers.length} members for department ${department.id}",
-      );
-    } catch (e) {
-      log("Error loading department members: $e");
-    }
-
-    // Chuyển đổi department members sang UserModel
-    final selectedEmployees = <user_model.UserModel>[];
-    for (final member in departmentMembers) {
-      // Lọc bỏ PM vì đã có trong _selectedManager
-      final role = member['role'] as String?;
-      if (role != 'PROJECT_MANAGER' && role != 'ADMIN') {
-        selectedEmployees.add(
-          user_model.UserModel(
-            id: member['id'] as int,
-            userName: member['userName'] as String?,
-            firstName: member['firstName'] ?? '',
-            lastName: member['lastName'] as String?,
-            email: member['email'] ?? '',
-            phone: '',
-            role: _parseRole(role ?? 'USER'),
-            lastUpdated: DateTime.now(),
-          ),
-        );
-      }
-    }
-
-    setState(() {
-      _isCreateMode = false;
-      _isUpdateMode = true;
-      _editingDepartmentId = department.id;
-      _createNameController.text = department.name;
-      _createCodeController.text = department.code;
-      _selectedManager = manager;
-      if (manager == null) {
-        _createManagerController.text = department.projectManagerName ?? '';
-      } else {
-        _createManagerController.clear();
-      }
-      _createIsActive = _departmentActiveMap[department.id] ?? true;
-      _selectedEmployees
-        ..clear()
-        ..addAll(selectedEmployees);
-    });
-  }
-
-  user_model.UserRole _parseRole(String role) {
-    switch (role) {
-      case 'ADMIN':
-        return user_model.UserRole.ADMIN;
-      case 'PROJECT_MANAGER':
-        return user_model.UserRole.PROJECT_MANAGER;
-      case 'MENTOR':
-        return user_model.UserRole.MENTOR;
-      default:
-        return user_model.UserRole.USER;
-    }
-  }
-
   void _closeCreateDepartmentScreen() {
     setState(() {
       _isCreateMode = false;
-      _isUpdateMode = false;
-      _editingDepartmentId = null;
     });
   }
 
@@ -474,52 +383,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     if (!mounted) return;
 
     context.showAppToast('Đã tạo bộ phận thành công');
-  }
-
-  Future<void> _submitUpdateDepartment() async {
-    if (!_createFormKey.currentState!.validate()) {
-      return;
-    }
-    if (_editingDepartmentId == null) return;
-
-    // Lưu projectManagerId trước khi gọi API
-    final pmId = _selectedManager?.id;
-
-    // Tách riêng USER và MENTOR từ danh sách đã chọn
-    final mentorList =
-        _selectedEmployees
-            .where((e) => e.role.name == 'MENTOR')
-            .map((e) => e.id)
-            .toList();
-    final userList =
-        _selectedEmployees
-            .where((e) => e.role.name == 'USER')
-            .map((e) => e.id)
-            .toList();
-
-    final updated = await _departmentService.updateDepartment(
-      id: _editingDepartmentId!,
-      name: _createNameController.text.trim(),
-      code: _createCodeController.text.trim(),
-      isActive: _createIsActive,
-      projectManagerId: pmId,
-      mentorIds: mentorList.isNotEmpty ? mentorList : null,
-      userIds: userList.isNotEmpty ? userList : null,
-    );
-
-    if (!mounted || updated == null) return;
-
-    setState(() {
-      final index = _departments.indexWhere((d) => d.id == updated.id);
-      if (index != -1) {
-        _departments[index] = updated;
-      }
-      _departmentActiveMap[updated.id] = _createIsActive;
-      _isUpdateMode = false;
-      _editingDepartmentId = null;
-    });
-
-    context.showAppToast('Đã cập nhật bộ phận thành công');
   }
 
   Future<void> _handleDeleteDepartment(DepartmentModel department) async {
@@ -694,103 +557,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
           : errorMsg;
       context.showAppToast(displayMsg, variant: AppToastVariant.error);
     }
-  }
-
-  Future<void> _showDepartmentDetailDialog(DepartmentModel department) async {
-    const int averageSkillLevel = 0;
-
-    await showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          title: Text('Chi tiết phòng ban: ${department.name}'),
-          content: SizedBox(
-            width: 460,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.business, color: Colors.white),
-                  ),
-                  title: Text(
-                    department.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const Divider(height: 24),
-                _buildDetailRow(
-                  'Department Lead',
-                  department.projectManagerName ?? '',
-                ),
-
-                _buildDetailRow(
-                  'Active Projects',
-                  '${department.isActive ? 'Đang hoạt động' : 'Không hoạt động'}',
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Aggregate Skill Level',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    minHeight: 12,
-                    value: averageSkillLevel / 100,
-                    backgroundColor: const Color(0xFFE5E7EB),
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '$averageSkillLevel%',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Đóng'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textMuted)),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   List<DepartmentModel> get _filteredDepartments {

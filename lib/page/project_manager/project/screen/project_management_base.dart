@@ -591,9 +591,13 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         );
       }
 
-      await _loadProjects();
-
+      // Update project in list directly to avoid API not returning status
+      final newStatus = ProjectStatus.fromString(_createStatus);
       setState(() {
+        final idx = _projects.indexWhere((p) => p.id == int.parse(_editingProjectId!));
+        if (idx != -1) {
+          _projects[idx] = _projects[idx].copyWith(status: newStatus);
+        }
         _isUpdateMode = false;
         _editingProjectId = null;
       });
@@ -2451,6 +2455,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         statusColor = Colors.blue;
         statusLabel = 'Hoạt động';
         statusIcon = Icons.play_circle_outline;
+        break;
+      case ProjectStatus.REVIEW_PENDING:
+        statusColor = Colors.orange;
+        statusLabel = 'Chờ duyệt';
+        statusIcon = Icons.hourglass_empty;
         break;
       case ProjectStatus.COMPLETED:
         statusColor = Colors.green;

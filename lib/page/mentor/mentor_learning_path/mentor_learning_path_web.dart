@@ -25,6 +25,7 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
   String? _error;
   String _searchQuery = '';
   String _filterStatus = 'all';
+  bool _showMyPaths = false;
 
   int _currentPage = 0;
   int _totalPages = 0;
@@ -86,6 +87,7 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
         keyword: _searchQuery.isEmpty ? null : _searchQuery,
         page: page,
         size: _pageSize,
+        assignedToMe: _showMyPaths ? true : null,
       );
       setState(() {
         _paths = result.content;
@@ -103,11 +105,6 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
 
   void _onSearch(String value) {
     setState(() => _searchQuery = value);
-    _loadLearningPaths(page: 0);
-  }
-
-  void _onFilterChanged(String status) {
-    setState(() => _filterStatus = status);
     _loadLearningPaths(page: 0);
   }
 
@@ -487,22 +484,53 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
               _WebFilterChip(
                 label: 'Tất cả',
                 value: 'all',
-                selected: _filterStatus == 'all',
-                onTap: () => _onFilterChanged('all'),
+                selected: _filterStatus == 'all' && !_showMyPaths,
+                onTap: () {
+                  setState(() {
+                    _filterStatus = 'all';
+                    _showMyPaths = false;
+                  });
+                  _loadLearningPaths(page: 0);
+                },
+              ),
+              const SizedBox(width: 8),
+              _WebFilterChip(
+                label: 'Của tôi',
+                value: 'mine',
+                selected: _showMyPaths,
+                onTap: () {
+                  setState(() {
+                    _filterStatus = 'all';
+                    _showMyPaths = true;
+                  });
+                  _loadLearningPaths(page: 0);
+                },
               ),
               const SizedBox(width: 8),
               _WebFilterChip(
                 label: 'Nhiều khóa học',
                 value: 'many',
                 selected: _filterStatus == 'many',
-                onTap: () => _onFilterChanged('many'),
+                onTap: () {
+                  setState(() {
+                    _filterStatus = 'many';
+                    _showMyPaths = false;
+                  });
+                  _loadLearningPaths(page: 0);
+                },
               ),
               const SizedBox(width: 8),
               _WebFilterChip(
                 label: 'Ít khóa học',
                 value: 'few',
                 selected: _filterStatus == 'few',
-                onTap: () => _onFilterChanged('few'),
+                onTap: () {
+                  setState(() {
+                    _filterStatus = 'few';
+                    _showMyPaths = false;
+                  });
+                  _loadLearningPaths(page: 0);
+                },
               ),
             ],
           ),
@@ -609,7 +637,7 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
           ),
           const SizedBox(height: 24),
           Text(
-            _searchQuery.isNotEmpty || _filterStatus != 'all'
+            _searchQuery.isNotEmpty || _filterStatus != 'all' || _showMyPaths
                 ? 'Không tìm thấy lộ trình phù hợp'
                 : 'Chưa có lộ trình học tập nào',
             style: const TextStyle(
@@ -622,7 +650,7 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
           SizedBox(
             width: 340,
             child: Text(
-              _searchQuery.isNotEmpty || _filterStatus != 'all'
+              _searchQuery.isNotEmpty || _filterStatus != 'all' || _showMyPaths
                   ? 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm'
                   : 'Tạo lộ trình học tập đầu tiên để bắt đầu',
               style: const TextStyle(
@@ -630,7 +658,7 @@ class _MentorLearningPathWebState extends State<MentorLearningPathWeb>
               textAlign: TextAlign.center,
             ),
           ),
-          if (_searchQuery.isEmpty && _filterStatus == 'all') ...[
+          if (_searchQuery.isEmpty && _filterStatus == 'all' && !_showMyPaths) ...[
             const SizedBox(height: 28),
             ElevatedButton.icon(
               onPressed: () => context.go('/mentor/learning-paths/create'),

@@ -255,6 +255,13 @@ class _AdminSidebarState extends State<AdminSidebar>
           isActive: widget.activeRoute == '/assignment_management',
           primaryColor: widget.primaryColor,
         ),
+        _SidebarItem(
+          icon: Icons.description_rounded,
+          title: 'Báo cáo',
+          route: '/reports',
+          isActive: widget.activeRoute == '/reports',
+          primaryColor: widget.primaryColor,
+        ),
       ],
     );
   }
@@ -282,6 +289,13 @@ class _AdminSidebarState extends State<AdminSidebar>
           isActive: widget.activeRoute == '/assignment_management',
           primaryColor: widget.primaryColor,
           tooltip: 'Gán khóa học',
+        ),
+        _CollapsedSidebarItem(
+          icon: Icons.description_rounded,
+          route: '/reports',
+          isActive: widget.activeRoute == '/reports',
+          primaryColor: widget.primaryColor,
+          tooltip: 'Báo cáo',
         ),
       ],
     );

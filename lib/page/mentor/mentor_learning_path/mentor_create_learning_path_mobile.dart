@@ -4,6 +4,7 @@ import 'package:smet/core/theme/app_colors.dart';
 import 'package:smet/core/utils/animations.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
+import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Create/Edit Learning Path - Mobile Layout
@@ -22,6 +23,7 @@ class _MentorCreateLearningPathMobileState
     extends State<MentorCreateLearningPathMobile>
     with SingleTickerProviderStateMixin {
   final LearningPathService _service = LearningPathService();
+  final MentorModuleService _moduleService = MentorModuleService();
   final _formKey = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
@@ -88,8 +90,27 @@ class _MentorCreateLearningPathMobileState
   Future<void> _loadAvailableCourses() async {
     try {
       final courses = await _service.getMentorCourses();
+
+      // Fetch actual module count directly from getModulesByCourse API
+      final futures = courses.map((course) async {
+        try {
+          final modules = await _moduleService.getModulesByCourse(
+            Long(course['id'] as int),
+          );
+            return {
+              ...course,
+              'moduleCount': modules.length,
+              'lessonCount': modules.fold(0, (sum, m) => sum + (m.lessons.length)),
+            };
+        } catch (_) {
+          return course;
+        }
+      });
+
+      final enrichedCourses = await Future.wait(futures);
+
       setState(() {
-        _availableCourses = courses;
+        _availableCourses = enrichedCourses;
         _loadingCourses = false;
       });
     } catch (e) {
@@ -137,8 +158,6 @@ class _MentorCreateLearningPathMobileState
           _editingPathId!,
         );
 
-        final existingCourseIds =
-            currentDetail.courses.map((c) => c.courseId.value).toSet();
         final selectedCourseIds =
             _selectedCourses.map((c) => c.courseId.value).toSet();
 
@@ -151,16 +170,33 @@ class _MentorCreateLearningPathMobileState
           }
         }
 
-        for (int i = 0; i < _selectedCourses.length; i++) {
-          final courseId = _selectedCourses[i].courseId.value;
-          if (!existingCourseIds.contains(courseId)) {
-            await _service.addCourseToLearningPath(
-              _editingPathId!,
-              _selectedCourses[i].courseId,
-              i,
-            );
+        // Deduplicate _selectedCourses: keep 1 entry per courseId, prefer saved (relationId>0) over new (relationId=0)
+        final dedupedMap = <int, CourseItemDetail>{};
+        for (final c in _selectedCourses) {
+          final existing = dedupedMap[c.courseId.value];
+          if (existing == null || (existing.relationId.value == 0 && c.relationId.value > 0)) {
+            dedupedMap[c.courseId.value] = c;
           }
         }
+        final deduped = dedupedMap.values.toList();
+
+        // Build upsert list
+        final upsertList = <Map<String, dynamic>>[];
+        for (int i = 0; i < deduped.length; i++) {
+          final course = deduped[i];
+          if (course.relationId.value > 0) {
+            upsertList.add({
+              'relationId': course.relationId.value,
+              'orderIndex': i,
+            });
+          } else {
+            upsertList.add({
+              'courseId': course.courseId.value,
+              'orderIndex': i,
+            });
+          }
+        }
+        await _service.upsertCourses(_editingPathId!, upsertList);
       } else {
         final created = await _service.createLearningPath(
           _titleController.text.trim(),
@@ -169,13 +205,20 @@ class _MentorCreateLearningPathMobileState
         final createdId = Long(_parseLongFromMap(created['id']));
         _editingPathId = createdId;
 
+        // Build upsert list for new path (all courses have relationId=0, use courseId)
+        // Deduplicate to prevent duplicate entries if user somehow adds same course twice
+        final upsertList = <Map<String, dynamic>>[];
+        final seenCourseIds = <int>{};
         for (int i = 0; i < _selectedCourses.length; i++) {
-          await _service.addCourseToLearningPath(
-            createdId,
-            _selectedCourses[i].courseId,
-            i,
-          );
+          final courseId = _selectedCourses[i].courseId.value;
+          if (seenCourseIds.contains(courseId)) continue;
+          seenCourseIds.add(courseId);
+          upsertList.add({
+            'courseId': courseId,
+            'orderIndex': upsertList.length,
+          });
         }
+        await _service.upsertCourses(createdId, upsertList);
       }
 
       GlobalNotificationService.show(
@@ -206,19 +249,50 @@ class _MentorCreateLearningPathMobileState
             availableCourses: _availableCourses,
             selectedCourseIds:
                 _selectedCourses.map((c) => c.courseId.value).toSet(),
-            onCoursesSelected: (courses) {
+            onCoursesSelected: (courses) async {
+              // Lọc ra chỉ khóa học CHƯA có trong _selectedCourses (tránh trùng lặp khi mở lại dialog)
+              final existingIds = _selectedCourses
+                  .map((c) => c.courseId.value)
+                  .toSet();
+              final newCourses = courses
+                  .where((c) => !existingIds.contains(_parseLongFromMap(c['id'])))
+                  .toList();
+
+              if (newCourses.isEmpty) {
+                Navigator.pop(context);
+                return;
+              }
+
+              if (_editingPathId != null) {
+                setState(() {
+                  final newItems = newCourses.asMap().entries.map((entry) {
+                    return CourseItemDetail(
+                      relationId: Long(0),
+                      courseId: Long(_parseLongFromMap(entry.value['id'])),
+                      title: entry.value['title'] ?? 'Khoa hoc',
+                      mentorName: entry.value['mentorName'],
+                      moduleCount: entry.value['moduleCount'] ?? 0,
+                      lessonCount: _parseInt(entry.value['lessonCount']),
+                      orderIndex: _selectedCourses.length + entry.key,
+                    );
+                  }).toList();
+                  _selectedCourses = [..._selectedCourses, ...newItems];
+                });
+                return;
+              }
+
               setState(() {
-                _selectedCourses =
-                    courses.asMap().entries.map((entry) {
-                      return CourseItemDetail(
-                        relationId: Long(0),
-                        courseId: Long(_parseLongFromMap(entry.value['id'])),
-                        title: entry.value['title'] ?? 'Khoa hoc',
-                        mentorName: entry.value['mentorName'],
-                        moduleCount: _parseInt(entry.value['moduleCount']),
-                        orderIndex: entry.key,
-                      );
-                    }).toList();
+                _selectedCourses = newCourses.asMap().entries.map((entry) {
+                  return CourseItemDetail(
+                    relationId: Long(0),
+                    courseId: Long(_parseLongFromMap(entry.value['id'])),
+                    title: entry.value['title'] ?? 'Khoa hoc',
+                    mentorName: entry.value['mentorName'],
+                    moduleCount: _parseInt(entry.value['moduleCount']),
+                    lessonCount: _parseInt(entry.value['lessonCount']),
+                    orderIndex: _selectedCourses.length + entry.key,
+                  );
+                }).toList();
               });
             },
           ),
@@ -228,6 +302,7 @@ class _MentorCreateLearningPathMobileState
   Future<void> _removeCourse(int index) async {
     final course = _selectedCourses[index];
 
+    // Chỉ gọi API xóa nếu có relationId thực (đã save vào DB)
     if (_editingPathId != null && course.relationId.value != 0) {
       try {
         await _service.removeCourseFromLearningPath(
@@ -259,11 +334,12 @@ class _MentorCreateLearningPathMobileState
       _selectedCourses.removeAt(index);
       for (int i = 0; i < _selectedCourses.length; i++) {
         _selectedCourses[i] = CourseItemDetail(
-          relationId: _selectedCourses[i].relationId,
           courseId: _selectedCourses[i].courseId,
+          relationId: _selectedCourses[i].relationId,
           title: _selectedCourses[i].title,
           mentorName: _selectedCourses[i].mentorName,
           moduleCount: _selectedCourses[i].moduleCount,
+          lessonCount: _selectedCourses[i].lessonCount,
           orderIndex: i,
         );
       }
@@ -393,7 +469,7 @@ class _MentorCreateLearningPathMobileState
                       child: _MiniStat(
                         icon: Icons.layers_outlined,
                         value:
-                            '${_selectedCourses.fold(0, (sum, c) => sum + (c.moduleCount ?? 0))}',
+                            '${_selectedCourses.fold(0, (sum, c) => sum + (c.lessonCount ?? c.moduleCount ?? 0))}',
                         label: 'Bài học',
                       ),
                     ),
@@ -732,29 +808,95 @@ class _MentorCreateLearningPathMobileState
     );
   }
 
+  Future<void> _onCoursesReorder(int oldIndex, int newIndex) async {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final item = _selectedCourses.removeAt(oldIndex);
+      _selectedCourses.insert(newIndex, item);
+      for (int i = 0; i < _selectedCourses.length; i++) {
+        _selectedCourses[i] = CourseItemDetail(
+          courseId: _selectedCourses[i].courseId,
+          relationId: _selectedCourses[i].relationId,
+          title: _selectedCourses[i].title,
+          mentorName: _selectedCourses[i].mentorName,
+          moduleCount: _selectedCourses[i].moduleCount,
+          lessonCount: _selectedCourses[i].lessonCount,
+          orderIndex: i,
+        );
+      }
+    });
+
+    if (_editingPathId != null) {
+      // Kiểm tra có course nào chưa có relationId (chưa save) thì không gọi API
+      final hasUnsavedCourse = _selectedCourses.any((c) => c.relationId.value == 0);
+      if (hasUnsavedCourse) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_outlined, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text("Vui lòng lưu lộ trình trước khi sắp xếp")),
+                ],
+              ),
+              backgroundColor: AppColors.warning,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+        // Rollback: reload từ backend
+        final detail = await _service.getLearningPathDetail(_editingPathId!);
+        setState(() {
+          _selectedCourses = detail.courses;
+        });
+        return;
+      }
+
+      try {
+        final orders = _selectedCourses
+            .map(
+              (c) => {
+                "relationId": c.relationId.value,
+                "orderIndex": c.orderIndex,
+              },
+            )
+            .toList();
+        await _service.reorderCourses(_editingPathId!, orders);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text("Reorder thất bại: $e")),
+                ],
+              ),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+        // Rollback: reload từ backend
+        final detail = await _service.getLearningPathDetail(_editingPathId!);
+        setState(() {
+          _selectedCourses = detail.courses;
+        });
+      }
+    }
+  }
+
   Widget _buildCourseTimeline() {
     return ReorderableListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
       itemCount: _selectedCourses.length,
-      onReorder: (oldIndex, newIndex) {
-        setState(() {
-          if (newIndex > oldIndex) newIndex -= 1;
-          final item = _selectedCourses.removeAt(oldIndex);
-          _selectedCourses.insert(newIndex, item);
-          for (int i = 0; i < _selectedCourses.length; i++) {
-            _selectedCourses[i] = CourseItemDetail(
-              relationId: _selectedCourses[i].relationId,
-              courseId: _selectedCourses[i].courseId,
-              title: _selectedCourses[i].title,
-              mentorName: _selectedCourses[i].mentorName,
-              moduleCount: _selectedCourses[i].moduleCount,
-              orderIndex: i,
-            );
-          }
-        });
-      },
+      onReorder: _onCoursesReorder,
       itemBuilder: (context, index) {
         final course = _selectedCourses[index];
         return _TimelineCourseItem(
@@ -914,7 +1056,7 @@ class _TimelineCourseItemState extends State<_TimelineCourseItem> {
                                     size: 13, color: AppColors.textMuted),
                                 const SizedBox(width: 4),
                                 Text(
-                                  "${widget.course.moduleCount} bài học",
+                                  "${widget.course.lessonCount ?? widget.course.moduleCount} chương",
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textMuted,
@@ -1368,16 +1510,27 @@ class _MobileCourseSelectorSheetState
                         itemBuilder: (context, index) {
                           final course = _filtered[index];
                           final courseId = course['id'];
-                          final isSelected = _selected.contains(courseId);
+                          int courseIdInt;
+                          if (courseId is int) {
+                            courseIdInt = courseId;
+                          } else if (courseId is double) {
+                            courseIdInt = courseId.toInt();
+                          } else if (courseId is String) {
+                            courseIdInt = int.tryParse(courseId) ?? 0;
+                          } else {
+                            courseIdInt = 0;
+                          }
+                          final alreadyAdded = _selected.contains(courseIdInt);
                           return _CourseSelectItem(
                             course: course,
-                            isSelected: isSelected,
+                            isSelected: _selected.contains(courseIdInt),
+                            enabled: !alreadyAdded,
                             onChanged: (value) {
                               setState(() {
                                 if (value == true) {
-                                  _selected.add(courseId);
+                                  _selected.add(courseIdInt);
                                 } else {
-                                  _selected.remove(courseId);
+                                  _selected.remove(courseIdInt);
                                 }
                               });
                             },
@@ -1423,9 +1576,7 @@ class _MobileCourseSelectorSheetState
                               final selectedCourses =
                                   widget.availableCourses
                                       .where(
-                                        (c) =>
-                                            _selected.contains(
-                                                c['courseId'] ?? c['id']),
+                                        (c) => _selected.contains(c['id']),
                                       )
                                       .toList();
                               widget.onCoursesSelected(selectedCourses);
@@ -1457,11 +1608,13 @@ class _MobileCourseSelectorSheetState
 class _CourseSelectItem extends StatefulWidget {
   final Map<String, dynamic> course;
   final bool isSelected;
+  final bool enabled;
   final ValueChanged<bool?> onChanged;
 
   const _CourseSelectItem({
     required this.course,
     required this.isSelected,
+    required this.enabled,
     required this.onChanged,
   });
 
@@ -1474,107 +1627,149 @@ class _CourseSelectItemState extends State<_CourseSelectItem> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: AppAnimations.fast,
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: widget.isSelected
-              ? AppColors.primary.withValues(alpha: 0.05)
-              : _isHovered
-                  ? AppColors.bgSlateLight
-                  : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
+    final isAdded = !widget.enabled;
+
+    return AnimatedOpacity(
+      duration: AppAnimations.fast,
+      opacity: isAdded ? 0.55 : 1.0,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: AppAnimations.fast,
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
             color: widget.isSelected
-                ? AppColors.primary.withValues(alpha: 0.3)
-                : AppColors.border,
-          ),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
+                ? AppColors.primary.withValues(alpha: 0.05)
+                : _isHovered && !isAdded
+                    ? AppColors.bgSlateLight
+                    : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            onTap: () => widget.onChanged(!widget.isSelected),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  AnimatedContainer(
-                    duration: AppAnimations.fast,
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: widget.isSelected
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
+            border: Border.all(
+              color: widget.isSelected
+                  ? AppColors.primary.withValues(alpha: 0.3)
+                  : isAdded
+                      ? AppColors.border
+                      : AppColors.border,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: isAdded ? null : () => widget.onChanged(!widget.isSelected),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: AppAnimations.fast,
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
                         color: widget.isSelected
                             ? AppColors.primary
-                            : AppColors.border,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: widget.isSelected
-                        ? const Icon(Icons.check,
-                            size: 14, color: Colors.white)
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.course['title'] ?? 'Khóa học',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: AppColors.textDark,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                            : isAdded
+                                ? AppColors.success.withValues(alpha: 0.2)
+                                : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: widget.isSelected
+                              ? AppColors.primary
+                              : isAdded
+                                  ? AppColors.success
+                                  : AppColors.border,
+                          width: 1.5,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            if (widget.course['mentorName'] != null) ...[
-                              const Icon(Icons.person_outline,
-                                  size: 12, color: AppColors.textMuted),
-                              const SizedBox(width: 3),
+                      ),
+                      child: widget.isSelected
+                          ? const Icon(Icons.check,
+                              size: 14, color: Colors.white)
+                          : isAdded
+                              ? const Icon(Icons.check_circle_outline,
+                                  size: 14, color: AppColors.success)
+                              : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
                               Expanded(
                                 child: Text(
-                                  widget.course['mentorName']!,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textMuted,
+                                  widget.course['title'] ?? 'Khóa học',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: isAdded
+                                        ? AppColors.textMuted
+                                        : AppColors.textDark,
                                   ),
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              if (isAdded) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'Đã thêm',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
-                            const Icon(Icons.layers_outlined,
-                                size: 12, color: AppColors.textMuted),
-                            const SizedBox(width: 3),
-                            Text(
-                              "${widget.course['moduleCount'] ?? 0} bài",
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textMuted,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              if (widget.course['mentorName'] != null) ...[
+                                const Icon(Icons.person_outline,
+                                    size: 12, color: AppColors.textMuted),
+                                const SizedBox(width: 3),
+                                Expanded(
+                                  child: Text(
+                                    widget.course['mentorName']!,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textMuted,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              const Icon(Icons.layers_outlined,
+                                  size: 12, color: AppColors.textMuted),
+                              const SizedBox(width: 3),
+                              Text(
+                                "${widget.course['lessonCount'] ?? widget.course['moduleCount'] ?? 0} chương",
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textMuted,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

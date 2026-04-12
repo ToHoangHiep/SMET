@@ -32,6 +32,12 @@ class PmShell extends StatefulWidget {
       tooltip: 'Dự án',
     ),
     SidebarMenuItem(
+      icon: Icons.fact_check_rounded,
+      title: 'Duyệt dự án',
+      route: '/pm/project-reviews',
+      tooltip: 'Duyệt dự án',
+    ),
+    SidebarMenuItem(
       icon: Icons.people_rounded,
       title: 'Thành viên',
       route: '/pm/project_members',
@@ -50,10 +56,10 @@ class PmShell extends StatefulWidget {
       tooltip: 'Lộ trình học',
     ),
     SidebarMenuItem(
-      icon: Icons.assignment_ind_rounded,
-      title: 'Gán khóa học',
-      route: '/pm/assign',
-      tooltip: 'Gán khóa học',
+      icon: Icons.description_rounded,
+      title: 'Báo cáo',
+      route: '/reports',
+      tooltip: 'Báo cáo',
     ),
   ];
 

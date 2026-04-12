@@ -20,9 +20,10 @@ import 'dart:developer';
 
 class QuizService {
   // ============================================================
-  // ATTEMPT MANAGEMENT
+  // QUIZ INFO & ELIGIBILITY
   // ============================================================
 
+  /// Lấy thông tin quiz — GET /api/lms/quizzes/{quizId}
   static Future<QuizInfo> getQuizInfo(String quizId) async {
     try {
       final token = await AuthService.getToken();
@@ -57,6 +58,106 @@ class QuizService {
     } catch (e) {
       log("QuizService.getQuizInfo failed: $e");
       rethrow;
+    }
+  }
+
+  /// Kiểm tra eligibility + lấy attempt đang làm dở (nếu có)
+  /// GET /api/lms/attempts/active/{quizId}
+  static Future<QuizEligibility> checkQuizEligibility(String quizId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/attempts/active/$quizId");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("CHECK ELIGIBILITY STATUS: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final body = response.body.trim();
+        if (body.isNotEmpty) {
+          try {
+            final data = jsonDecode(body);
+            if (data != null && data['id'] != null) {
+              return QuizEligibility(
+                canStart: true,
+                hasActiveAttempt: true,
+                activeAttemptId: data['id']?.toString(),
+                status: data['status'] ?? 'IN_PROGRESS',
+                startedAt: data['startedAt'] != null
+                    ? DateTime.tryParse(data['startedAt'])
+                    : null,
+                expiresAt: data['expiresAt'] != null
+                    ? DateTime.tryParse(data['expiresAt'])
+                    : null,
+              );
+            }
+          } catch (e) {
+            log("JSON decode error in checkQuizEligibility: $e");
+          }
+        }
+      }
+
+      // Không có attempt đang làm → kiểm tra max attempts
+      final quizInfo = await getQuizInfo(quizId);
+      final history = await getAttemptHistory(quizId);
+      final submittedCount = history.where((a) => a.status == 'SUBMITTED').length;
+
+      return QuizEligibility(
+        canStart: quizInfo.maxAttempts == null || submittedCount < quizInfo.maxAttempts!,
+        hasActiveAttempt: false,
+        maxAttempts: quizInfo.maxAttempts,
+        submittedAttempts: submittedCount,
+        remainingAttempts: quizInfo.maxAttempts != null
+            ? quizInfo.maxAttempts! - submittedCount
+            : null,
+      );
+    } catch (e) {
+      log("QuizService.checkQuizEligibility failed: $e");
+      return QuizEligibility(canStart: true, hasActiveAttempt: false);
+    }
+  }
+
+  /// Lấy attempt đang làm dở (nếu có)
+  static Future<ActiveAttemptInfo?> getActiveAttempt(String quizId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/attempts/active/$quizId");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("GET ACTIVE ATTEMPT STATUS: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data != null && data['id'] != null) {
+          return ActiveAttemptInfo(
+            attemptId: data['id']?.toString() ?? '',
+            status: data['status'] ?? 'IN_PROGRESS',
+            startedAt: data['startedAt'] != null
+                ? DateTime.tryParse(data['startedAt'])
+                : null,
+            expiresAt: data['expiresAt'] != null
+                ? DateTime.tryParse(data['expiresAt'])
+                : null,
+          );
+        }
+      }
+      return null;
+    } catch (e) {
+      log("QuizService.getActiveAttempt failed: $e");
+      return null;
     }
   }
 
@@ -530,5 +631,43 @@ class QuizInfo {
     this.maxAttempts,
     this.showAnswer = false,
     this.isFinalQuiz = false,
+  });
+}
+
+class QuizEligibility {
+  final bool canStart;
+  final bool hasActiveAttempt;
+  final String? activeAttemptId;
+  final String? status;
+  final DateTime? startedAt;
+  final DateTime? expiresAt;
+  final int? maxAttempts;
+  final int? submittedAttempts;
+  final int? remainingAttempts;
+
+  QuizEligibility({
+    required this.canStart,
+    required this.hasActiveAttempt,
+    this.activeAttemptId,
+    this.status,
+    this.startedAt,
+    this.expiresAt,
+    this.maxAttempts,
+    this.submittedAttempts,
+    this.remainingAttempts,
+  });
+}
+
+class ActiveAttemptInfo {
+  final String attemptId;
+  final String status;
+  final DateTime? startedAt;
+  final DateTime? expiresAt;
+
+  ActiveAttemptInfo({
+    required this.attemptId,
+    required this.status,
+    this.startedAt,
+    this.expiresAt,
   });
 }

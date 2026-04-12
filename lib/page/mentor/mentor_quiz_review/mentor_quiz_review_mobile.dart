@@ -841,14 +841,15 @@ class _MobileQuestionCard extends StatelessWidget {
 
   String _getOptionContent(Long optionId) {
     final cached = _cachedQuestion;
-    if (cached?.options != null) {
-      for (final opt in cached!.options!) {
+    if (cached?.options != null && cached!.options!.isNotEmpty) {
+      for (final opt in cached.options!) {
         if (opt.id?.value == optionId.value) {
           return opt.content;
         }
       }
+      return '[Option ID: ${optionId.value}]';
     }
-    return 'Đáp án ${optionId.value}';
+    return '[Option ID: ${optionId.value} - loading...]';
   }
 
   @override
@@ -929,7 +930,7 @@ class _MobileQuestionCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            question.content,
+            _cachedQuestion?.content ?? question.content,
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,

@@ -180,7 +180,7 @@ class MentorSidebar extends StatelessWidget {
       case "Lịch mentor":
         targetPage = const MentorLiveSession();
         break;
-      case "Chấm bài":
+      case "Quiz Review":
         targetPage = const MentorReviewAssignment();
         break;
       case "Học viên":

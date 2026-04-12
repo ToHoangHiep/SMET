@@ -13,6 +13,8 @@ class AuthGuardService {
     '/user_management': [UserRole.ADMIN],
     '/department_management': [UserRole.ADMIN],
     '/admin': [UserRole.ADMIN],
+    '/reports': [UserRole.ADMIN, UserRole.MENTOR, UserRole.PROJECT_MANAGER, UserRole.USER],
+    '/report': [UserRole.ADMIN, UserRole.MENTOR, UserRole.PROJECT_MANAGER, UserRole.USER],
     // Mọi role đã login đều có thể vào
     '/profile': [UserRole.ADMIN, UserRole.MENTOR, UserRole.PROJECT_MANAGER, UserRole.USER],
     '/notifications': [UserRole.ADMIN, UserRole.MENTOR, UserRole.PROJECT_MANAGER, UserRole.USER],

@@ -29,6 +29,7 @@ Long _parseLong(dynamic value) {
 }
 
 /// Page response cho list Learning Paths
+/// Backend: PageResponse<T> với fields: data, page, size, totalElements, totalPages, last
 class LearningPathPageResponse {
   final List<LearningPathResponse> content;
   final int totalElements;
@@ -49,21 +50,25 @@ class LearningPathPageResponse {
   });
 
   factory LearningPathPageResponse.fromJson(Map<String, dynamic> json) {
-  final List<dynamic>? rawList = json['data'] ?? json['content'];
+    // Backend trả: data[] hoặc content[]
+    final List<dynamic>? rawList = json['data'] ?? json['content'];
 
-  return LearningPathPageResponse(
-    content: rawList
-            ?.map((e) => LearningPathResponse.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [],
-    totalElements: _parseInt(json['totalElements'] ?? rawList?.length ?? 0),
-    totalPages: _parseInt(json['totalPages'] ?? 1),
-    number: _parseInt(json['number'] ?? 0),
-    size: _parseInt(json['size'] ?? 10),
-    first: json['first'] ?? true,
-    last: json['last'] ?? true,
-  );
-}
+    // Map page / number (backend dùng 'page')
+    int parsedPage = _parseInt(json['page'] ?? json['number'] ?? 0);
+
+    return LearningPathPageResponse(
+      content: rawList
+              ?.map((e) => LearningPathResponse.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      totalElements: _parseInt(json['totalElements'] ?? rawList?.length ?? 0),
+      totalPages: _parseInt(json['totalPages'] ?? 1),
+      number: parsedPage,
+      size: _parseInt(json['size'] ?? 10),
+      first: json['first'] ?? true,
+      last: json['last'] ?? false,
+    );
+  }
 
   factory LearningPathPageResponse.empty() {
     return LearningPathPageResponse(
@@ -76,6 +81,8 @@ class LearningPathPageResponse {
       last: true,
     );
   }
+
+  bool get hasNext => !last;
 }
 
 /// Request model để tạo Learning Path
@@ -119,10 +126,17 @@ class CourseOrderRequest {
 }
 
 /// Model hiển thị Learning Path (dùng cho list)
+/// Backend: LearningPathResponse.java
 class LearningPathResponse {
   final Long id;
   final String title;
   final String description;
+  final Long? createdById;
+  final String? createdByName;
+  final List<Long> departmentIds;
+  final List<String> departmentNames;
+  final List<Long> userIds;
+  final List<Long> projectIds;
   final List<CourseItemResponse> courses;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -131,6 +145,12 @@ class LearningPathResponse {
     required this.id,
     required this.title,
     required this.description,
+    this.createdById,
+    this.createdByName,
+    this.departmentIds = const [],
+    this.departmentNames = const [],
+    this.userIds = const [],
+    this.projectIds = const [],
     this.courses = const [],
     this.createdAt,
     this.updatedAt,
@@ -144,6 +164,24 @@ class LearningPathResponse {
       id: _parseLong(json['id']),
       title: json['title'] ?? '',
       description: json['description'] ?? '',
+      createdById: json['createdById'] != null ? _parseLong(json['createdById']) : null,
+      createdByName: json['createdByName']?.toString(),
+      departmentIds: (json['departmentIds'] as List<dynamic>?)
+              ?.map((e) => _parseLong(e))
+              .toList() ??
+          [],
+      departmentNames: (json['departmentNames'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      userIds: (json['userIds'] as List<dynamic>?)
+              ?.map((e) => _parseLong(e))
+              .toList() ??
+          [],
+      projectIds: (json['projectIds'] as List<dynamic>?)
+              ?.map((e) => _parseLong(e))
+              .toList() ??
+          [],
       courses: (json['courses'] as List<dynamic>?)
               ?.map((e) => CourseItemResponse.fromJson(e))
               .toList() ??
@@ -196,6 +234,7 @@ class LearningPathDetailResponse {
 }
 
 /// Course item trong Learning Path (dùng cho list)
+/// Backend: LearningPathResponse.CourseItem
 class CourseItemResponse {
   final Long relationId;
   final Long courseId;
@@ -226,32 +265,37 @@ class CourseItemResponse {
 }
 
 /// Course item trong Learning Path Detail
-/// Backend: DELETE /{pathId}/courses/{relationId} - dùng relationId (không phải courseId)
+/// Backend: LearningPathDetailResponse.CourseItem
+/// DELETE /{pathId}/courses/{relationId} - dùng relationId (không phải courseId)
 class CourseItemDetail {
-  final Long relationId;  // Dùng để xóa / sắp xếp course khỏi learning path
   final Long courseId;
+  final Long relationId;
   final String title;
   final String? mentorName;
   final int? moduleCount;
   final int orderIndex;
+  // Computed: lessonCount = moduleCount (backend moduleCount đại diện cho số bài học)
+  final int? lessonCount;
 
   CourseItemDetail({
-    required this.relationId,
     required this.courseId,
+    required this.relationId,
     required this.title,
     this.mentorName,
     this.moduleCount,
     required this.orderIndex,
+    this.lessonCount,
   });
 
   factory CourseItemDetail.fromJson(Map<String, dynamic> json) {
     return CourseItemDetail(
-      relationId: _parseLong(json['relationId']),
       courseId: _parseLong(json['courseId']),
+      relationId: _parseLong(json['relationId']),
       title: json['title'] ?? '',
       mentorName: json['mentorName'],
       moduleCount: _parseInt(json['moduleCount']),
       orderIndex: json['orderIndex'] ?? 0,
+      lessonCount: _parseInt(json['lessonCount']),
     );
   }
 }

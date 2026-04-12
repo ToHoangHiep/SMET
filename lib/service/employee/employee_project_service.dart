@@ -108,6 +108,31 @@ class EmployeeProjectService {
   }
 
   // ============================================================
+  // GET /api/projects/get/{id}
+  // Lay chi tiet project (bao gom feedback tu mentor/PM)
+  // ============================================================
+  static Future<ProjectModel> getProjectDetail(int projectId) async {
+    try {
+      final headers = await _headers;
+      final url = Uri.parse('$_baseEndpoint/get/$projectId');
+
+      final response = await http.get(url, headers: headers);
+
+      log('GET PROJECT DETAIL STATUS: ${response.statusCode}, projectId=$projectId');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return ProjectModel.fromJson(json);
+      } else {
+        throw Exception('Khong the tai chi tiet du an');
+      }
+    } catch (e) {
+      log('EmployeeProjectService.getProjectDetail failed: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
   // GET /api/projects/{id}/dashboard
   // Lay dashboard cua project
   // ============================================================

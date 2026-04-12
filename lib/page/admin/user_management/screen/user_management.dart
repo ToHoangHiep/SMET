@@ -248,6 +248,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   void _openUpdateUserScreen(UserModel user) {
+    // ADMIN không thể tự sửa chính mình — hệ thống chỉ có duy nhất 1 admin
+    if (user.role == UserRole.ADMIN) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể chỉnh sửa tài khoản Quản trị viên.',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
     setState(() {
       _isCreateMode = false;
       _isUpdateMode = true;
@@ -280,6 +290,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Future<void> _showChangeDepartmentDialog(UserModel user) async {
+    if (user.role == UserRole.ADMIN) return;
+
     if (user.role == UserRole.MENTOR) {
       // Mentor: dùng ReassignmentDialog — chuyển khóa học trước khi đổi phòng ban
       await ReassignmentDialog.show(

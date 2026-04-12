@@ -363,6 +363,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
           const SizedBox(height: 20),
           _AnimatedDropdown(
             value: widget.selectedRole,
+            isUpdateMode: widget.isUpdateMode,
             primaryColor: widget.primaryColor,
             onChanged: (value) {
               if (value == null) return;
@@ -526,11 +527,13 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField> {
 
 class _AnimatedDropdown extends StatefulWidget {
   final UserRole value;
+  final bool isUpdateMode;
   final Color primaryColor;
   final ValueChanged<UserRole?> onChanged;
 
   const _AnimatedDropdown({
     required this.value,
+    required this.isUpdateMode,
     required this.primaryColor,
     required this.onChanged,
   });
@@ -593,17 +596,37 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
             vertical: 16,
           ),
         ),
-        items: const [
-          DropdownMenuItem(value: UserRole.ADMIN, child: Text('Quản trị viên')),
-          DropdownMenuItem(
-            value: UserRole.PROJECT_MANAGER,
-            child: Text('Quản lý dự án'),
-          ),
-          DropdownMenuItem(
-            value: UserRole.MENTOR,
-            child: Text('Người hướng dẫn'),
-          ),
-          DropdownMenuItem(value: UserRole.USER, child: Text('Nhân viên')),
+        items: [
+          if (widget.isUpdateMode && widget.value == UserRole.ADMIN)
+            DropdownMenuItem(
+              value: UserRole.ADMIN,
+              enabled: false,
+              child: Row(
+                children: [
+                  Text(
+                    'Quản trị viên',
+                    style: TextStyle(color: Colors.grey[500], fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '(không thể thay đổi)',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          if (!widget.isUpdateMode || widget.value != UserRole.ADMIN)
+            DropdownMenuItem(
+              value: UserRole.PROJECT_MANAGER,
+              child: Text('Quản lý dự án'),
+            ),
+          if (!widget.isUpdateMode || widget.value != UserRole.ADMIN)
+            DropdownMenuItem(
+              value: UserRole.MENTOR,
+              child: Text('Người hướng dẫn'),
+            ),
+          if (!widget.isUpdateMode || widget.value != UserRole.ADMIN)
+            DropdownMenuItem(value: UserRole.USER, child: Text('Nhân viên')),
         ],
       ),
     );

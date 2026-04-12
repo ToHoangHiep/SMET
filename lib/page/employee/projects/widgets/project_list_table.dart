@@ -241,6 +241,9 @@ class ProjectListTable extends StatelessWidget {
       case ProjectStatus.INACTIVE:
         color = const Color(0xFF94A3B8);
         break;
+      case ProjectStatus.REVIEW_PENDING:
+        color = const Color(0xFFF59E0B);
+        break;
     }
 
     return Row(

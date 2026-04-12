@@ -14,7 +14,6 @@ class DepartmentManagementTableSection extends StatefulWidget {
   final ValueChanged<String> onManagerChanged;
   final ValueChanged<String> onStatusChanged;
   final void Function(DepartmentModel department, bool active) onToggleActive;
-  final ValueChanged<DepartmentModel> onEdit;
   final ValueChanged<DepartmentModel> onDelete;
   final ValueChanged<DepartmentModel> onShowDetail;
   final VoidCallback? onPrevPage;
@@ -33,7 +32,6 @@ class DepartmentManagementTableSection extends StatefulWidget {
     required this.onManagerChanged,
     required this.onStatusChanged,
     required this.onToggleActive,
-    required this.onEdit,
     required this.onDelete,
     required this.onShowDetail,
     required this.onPrevPage,
@@ -340,13 +338,6 @@ class _DepartmentManagementTableSectionState
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _ActionButton(
-                icon: Icons.edit_outlined,
-                onPressed: () => widget.onEdit(dept),
-                tooltip: 'Chỉnh sửa',
-                primaryColor: widget.primaryColor,
-              ),
-              const SizedBox(width: 4),
               _ActionButton(
                 icon: Icons.delete_outline,
                 onPressed: () => widget.onDelete(dept),
