@@ -226,7 +226,7 @@ class _EditReportScreenState extends State<EditReportScreen> {
       final detailRoute = switch (widget.currentRole) {
         UserRole.ADMIN => '/admin/report/${widget.reportId}',
         UserRole.MENTOR => '/mentor/report/${widget.reportId}',
-        UserRole.PROJECT_MANAGER => '/reports/${widget.reportId}',
+        UserRole.PROJECT_MANAGER => '/pm/report/${widget.reportId}',
         UserRole.USER => '/report/${widget.reportId}',
       };
       context.go(detailRoute);
@@ -275,7 +275,7 @@ class _EditReportScreenState extends State<EditReportScreen> {
                         final detailRoute = switch (widget.currentRole) {
                           UserRole.ADMIN => '/admin/report/${widget.reportId}',
                           UserRole.MENTOR => '/mentor/report/${widget.reportId}',
-                          UserRole.PROJECT_MANAGER => '/reports/${widget.reportId}',
+                          UserRole.PROJECT_MANAGER => '/pm/report/${widget.reportId}',
                           UserRole.USER => '/report/${widget.reportId}',
                         };
                         context.go(detailRoute);
@@ -337,7 +337,7 @@ class _EditReportScreenState extends State<EditReportScreen> {
       case UserRole.ADMIN:
         return suffix == 'report' ? '/admin/reports' : '/user_management';
       case UserRole.PROJECT_MANAGER:
-        return suffix == 'report' ? '/reports' : '/pm/dashboard';
+        return suffix == 'report' ? '/pm/reports' : '/pm/dashboard';
       case UserRole.MENTOR:
         return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       case UserRole.USER:

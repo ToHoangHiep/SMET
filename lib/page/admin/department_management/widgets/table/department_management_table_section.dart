@@ -228,9 +228,13 @@ class _DepartmentManagementTableSectionState
           ),
           DataColumn2(
             size: ColumnSize.M,
+            label: _TableHeaderLabel(text: 'NGÀY TẠO'),
+          ),
+          DataColumn2(
+            size: ColumnSize.M,
             label: _TableHeaderLabel(text: 'NGÀY CẬP NHẬT'),
           ),
-          DataColumn2(size: ColumnSize.M, label: Text('')),
+          DataColumn2(size: ColumnSize.S, label: Text('')),
         ],
         rows: List<DataRow>.generate(
           widget.paginatedDepartments.length,
@@ -336,7 +340,17 @@ class _DepartmentManagementTableSectionState
         ),
         DataCell(
           Text(
-            '16/07/2021',
+            dept.createdAt != null
+                ? '${dept.createdAt!.day.toString().padLeft(2, '0')}/${dept.createdAt!.month.toString().padLeft(2, '0')}/${dept.createdAt!.year}'
+                : 'N/A',
+            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          ),
+        ),
+        DataCell(
+          Text(
+            dept.updatedAt != null
+                ? '${dept.updatedAt!.day.toString().padLeft(2, '0')}/${dept.updatedAt!.month.toString().padLeft(2, '0')}/${dept.updatedAt!.year}'
+                : 'N/A',
             style: TextStyle(color: Colors.grey[600], fontSize: 13),
           ),
         ),

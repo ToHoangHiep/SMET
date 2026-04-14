@@ -398,9 +398,14 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
             );
           } catch (e) {
             dev.log(
-              '[MentorCreateQuizWeb._saveQuiz] validateQuiz FAILED (quiz+questions đã lưu OK): $e',
+              '[MentorCreateQuizWeb._saveQuiz] validateQuiz FAILED: $e',
               name: 'QuizDebug',
             );
+            if (mounted) {
+              setState(() => _isSaving = false);
+            }
+            _showError('Quiz không hợp lệ: $e');
+            return;
           }
         }
 

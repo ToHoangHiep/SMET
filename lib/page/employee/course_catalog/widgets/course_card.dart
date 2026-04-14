@@ -12,6 +12,7 @@ String _formatDate(String? raw) {
 
 class CourseCard extends StatefulWidget {
   final String title;
+  final String? description;
   final String? departmentName;
   final String status;
   final String? deadlineStatus;
@@ -29,6 +30,7 @@ class CourseCard extends StatefulWidget {
   const CourseCard({
     super.key,
     required this.title,
+    this.description,
     this.departmentName,
     required this.status,
     this.deadlineStatus,
@@ -233,7 +235,22 @@ class _CourseCardState extends State<CourseCard> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
+
+                        // Description
+                        if (widget.description != null && widget.description!.isNotEmpty) ...[
+                          Text(
+                            widget.description!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                              height: 1.4,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                        ],
 
                         // Mentor/Provider
                         if (widget.mentorName != null && widget.mentorName!.isNotEmpty)

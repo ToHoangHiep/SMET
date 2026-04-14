@@ -39,7 +39,8 @@ class LearningWorkspacePage extends StatefulWidget {
   State<LearningWorkspacePage> createState() => _LearningWorkspacePageState();
 }
 
-class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
+class _LearningWorkspacePageState extends State<LearningWorkspacePage>
+    with SingleTickerProviderStateMixin {
   LearningCourse? _course;
   LessonContent? _lessonContent;
   String? _currentQuizId;
@@ -48,13 +49,28 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   String? _error;
   LearningPathDetail? _learningPath;
   int _discussionCount = 0;
-  // Quiz mode — khi xem thông tin quiz (chưa vào làm bài)
   bool _isQuizMode = false;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
   }
 
   @override
@@ -99,6 +115,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   }
 
   Future<void> _loadData() async {
+    _fadeController.reset();
     setState(() {
       _isLoading = true;
       _error = null;
@@ -111,13 +128,11 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         'user_1',
       );
 
-      // Fetch Learning Path detail if path ID is provided
       LearningPathDetail? pathDetail;
       if (widget.learningPathId != null) {
         pathDetail = await LmsService.getLearningPathDetail(widget.learningPathId!);
       }
 
-      // QUIZ MODE: có quizId → không load lesson, hiển thị quiz info ngay trong workspace
       if (widget.quizId != null) {
         setState(() {
           _course = course;
@@ -126,6 +141,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           _isQuizMode = true;
           _isLoading = false;
         });
+        _fadeController.forward();
         return;
       }
 
@@ -153,7 +169,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       if (targetLessonId.isNotEmpty) {
         lessonContent = await LmsService.getLessonDetail(targetLessonId);
 
-        // Fetch discussion count for the badge
         try {
           final lessonIdInt = int.tryParse(targetLessonId) ?? 0;
           if (lessonIdInt > 0) {
@@ -177,6 +192,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         _discussionCount = fetchedCount;
         _isLoading = false;
       });
+      _fadeController.forward();
     } catch (e) {
       debugPrint('Error loading learning workspace: $e');
       setState(() {
@@ -200,7 +216,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       if (mounted) {
         context.showAppToast('Đã đánh dấu hoàn thành!');
       }
-      // Reload course to update sidebar progress
       await _loadCourseOnly();
     } catch (e) {
       debugPrint('Error marking complete: $e');
@@ -213,7 +228,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
         widget.courseId,
         'user_1',
       );
-      // Reload Learning Path detail if available
       LearningPathDetail? pathDetail;
       if (widget.learningPathId != null) {
         pathDetail = await LmsService.getLearningPathDetail(widget.learningPathId!);
@@ -229,7 +243,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     }
   }
 
-  /// Điều hướng tới bài học, giữ ngữ cảnh breadcrumb (danh mục / khóa của tôi / lộ trình).
   String _locationForLearnLesson(String lessonId) {
     final path = '/employee/learn/${widget.courseId}/$lessonId';
     final lpId = widget.learningPathId;
@@ -253,13 +266,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   }
 
   void _onTakeQuiz(String quizId) {
-    // Chuyển đến learning workspace với quizId để hiển thị quiz ngay trong workspace
-    // giống như lesson - không chuyển sang trang quiz riêng
     context.go('/employee/learn/${widget.courseId}?quizId=$quizId');
   }
 
   void _onQuizTap(String quizId) {
-    // Chuyển đến learning workspace với quizId để hiển thị quiz ngay trong workspace
     context.go('/employee/learn/${widget.courseId}?quizId=$quizId');
   }
 
@@ -280,17 +290,14 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     if (!mounted) return;
     context.go('/login');
   }
-  // Build content area: video player (VIDEO) hoặc text content (TEXT/LINK) hoặc quiz
+
   Widget buildContentArea() {
-    // QUIZ MODE: hiển thị quiz ngay trong workspace như lesson
     if (_isQuizMode && widget.quizId != null) {
       return Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
         child: QuizLessonView(
           quizId: widget.quizId!,
           courseId: widget.courseId,
-          // isFinalQuiz sẽ được xác định từ API trong QuizLessonView
-          // Không truyền prop này để tránh xung đột
         ),
       );
     }
@@ -315,14 +322,13 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       );
     }
 
-    // TEXT or LINK — hiển thị nội dung dạng văn bản
     final textContent = _lessonContent!.content ?? '';
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
@@ -331,10 +337,13 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF137FEC).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF137FEC).withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -360,7 +369,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           if (textContent.isNotEmpty)
             SelectableText(
               textContent,
@@ -371,12 +380,27 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
               ),
             )
           else
-            const Text(
-              'Chưa có nội dung cho bài học này.',
-              style: TextStyle(
-                fontSize: 15,
-                color: Color(0xFF94A3B8),
-                fontStyle: FontStyle.italic,
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, color: Color(0xFF94A3B8), size: 22),
+                  SizedBox(width: 10),
+                  Text(
+                    'Chưa có nội dung cho bài học này.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF94A3B8),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -384,20 +408,15 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     );
   }
 
-  // Build lesson header widget
   Widget buildLessonHeader() {
     if (_lessonContent == null && !_isQuizMode) return const SizedBox.shrink();
 
     if (_isQuizMode && widget.quizId != null) {
-      return QuizLessonHeader(
-        title: 'Bài kiểm tra',
-        isFinalQuiz: _isFinalQuiz(),
-      );
+      return const SizedBox.shrink();
     }
 
     return LessonHeader(
       title: _lessonContent!.title,
-      durationMinutes: _lessonContent!.videoDurationSeconds ~/ 60,
       level: _lessonContent!.level,
       lessonId: _lessonContent!.id,
       isCompleted: _lessonContent!.isCompleted,
@@ -407,13 +426,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
 
   bool _isFinalQuiz() {
     if (_course == null || widget.quizId == null) return false;
-    // So sánh cả hai dưới dạng String để tránh type mismatch (int vs String)
     return _course!.finalQuizId?.toString() == widget.quizId.toString();
   }
 
-  // Build tabs widget
   Widget buildTabs() {
-    // Quiz mode - không có tabs
     if (_isQuizMode && widget.quizId != null) {
       return const SizedBox.shrink();
     }
@@ -425,9 +441,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     );
   }
 
-  // Build tab content widget
   Widget buildTabContent() {
-    // Quiz mode - không có tab
     if (_isQuizMode && widget.quizId != null) {
       return const SizedBox.shrink();
     }
@@ -461,7 +475,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     );
   }
 
-  // Build sidebar navigation widget (danh sách module / bài học — UI mock)
   Widget buildSidebarNavigation() {
     if (_course == null) return const SizedBox.shrink();
 
@@ -477,36 +490,18 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
-        ),
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: const _WorkspaceLoadingSkeleton(),
       );
     }
 
     if (_error != null) {
       return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Color(0xFFEF4444),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _error!,
-                style: const TextStyle(fontSize: 16, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadData,
-                child: const Text('Thử lại'),
-              ),
-            ],
-          ),
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: _WorkspaceErrorState(
+          error: _error!,
+          onRetry: _loadData,
         ),
       );
     }
@@ -514,83 +509,391 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth > 850) {
-              return Stack(
-                children: [
-                  LearningWorkspaceWeb(
-                    sidebarNavigation: buildSidebarNavigation(),
-                    contentArea: buildContentArea(),
-                    lessonHeader: buildLessonHeader(),
-                    tabs: buildTabs(),
-                    tabContent: buildTabContent(),
-                    resourcesSidebar: buildResourcesSidebar(),
-                    onNavigate: _onNavigateTo,
-                    onLogout: _handleLogout,
-                    breadcrumbs: [
-                      const BreadcrumbItem(
-                        label: 'Trang chủ',
-                        route: '/employee/dashboard',
-                      ),
-                      _buildBreadcrumbParent(),
-                      if (_course != null)
-                        BreadcrumbItem(
-                          label:
-                              _course!.title.trim().isEmpty
-                                  ? 'Khóa học'
-                                  : _course!.title.trim(),
-                          route: '/employee/course/${_course!.id}',
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 850) {
+                return Stack(
+                  children: [
+                    LearningWorkspaceWeb(
+                      sidebarNavigation: buildSidebarNavigation(),
+                      contentArea: buildContentArea(),
+                      lessonHeader: buildLessonHeader(),
+                      tabs: buildTabs(),
+                      tabContent: buildTabContent(),
+                      resourcesSidebar: buildResourcesSidebar(),
+                      onNavigate: _onNavigateTo,
+                      onLogout: _handleLogout,
+                      breadcrumbs: [
+                        const BreadcrumbItem(
+                          label: 'Trang chủ',
+                          route: '/employee/dashboard',
                         ),
-                      BreadcrumbItem(
-                        label:
-                            (_isQuizMode && widget.quizId != null)
-                                ? 'Bài kiểm tra'
-                                : ((_lessonContent?.title ?? '').trim().isEmpty
-                                    ? 'Bài học'
-                                    : _lessonContent!.title.trim()),
+                        _buildBreadcrumbParent(),
+                        if (_course != null)
+                          BreadcrumbItem(
+                            label: _course!.title.trim().isEmpty
+                                ? 'Khóa học'
+                                : _course!.title.trim(),
+                            route: '/employee/course/${_course!.id}',
+                          ),
+                        BreadcrumbItem(
+                          label: (_isQuizMode && widget.quizId != null)
+                              ? 'Bài kiểm tra'
+                              : ((_lessonContent?.title ?? '').trim().isEmpty
+                                  ? 'Bài học'
+                                  : _lessonContent!.title.trim()),
+                        ),
+                      ],
+                      isQuizMode: _isQuizMode,
+                    ),
+                    Positioned(
+                      right: 20,
+                      bottom: 20,
+                      child: FloatingChatButton(
+                        primaryColor: const Color(0xFF137FEC),
+                        rolePrefix: 'employee',
                       ),
-                    ],
-                    isQuizMode: _isQuizMode,
-                  ),
-                  Positioned(
-                    right: 20,
-                    bottom: 20,
-                    child: FloatingChatButton(
-                      primaryColor: const Color(0xFF137FEC),
-                      rolePrefix: 'employee',
+                    ),
+                  ],
+                );
+              } else {
+                return Stack(
+                  children: [
+                    LearningWorkspaceMobile(
+                      course: _course!,
+                      lessonContent: _lessonContent,
+                      quizId: _isQuizMode ? widget.quizId : null,
+                      courseId: widget.courseId,
+                      selectedTab: _selectedTab,
+                      onTabChanged: _onTabChanged,
+                      onMarkComplete: _onMarkComplete,
+                      onLessonTap: _onJumpToLesson,
+                      onQuizTap: _onQuizTap,
+                      onNavigate: _onNavigateTo,
+                      onLogout: _handleLogout,
+                    ),
+                    Positioned(
+                      right: 20,
+                      bottom: 20,
+                      child: FloatingChatButton(
+                        primaryColor: const Color(0xFF137FEC),
+                        rolePrefix: 'employee',
+                      ),
+                    ),
+                  ],
+                );
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceLoadingSkeleton extends StatefulWidget {
+  const _WorkspaceLoadingSkeleton();
+
+  @override
+  State<_WorkspaceLoadingSkeleton> createState() => _WorkspaceLoadingSkeletonState();
+}
+
+class _WorkspaceLoadingSkeletonState extends State<_WorkspaceLoadingSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1800),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Color _shimmerColor(Color base) {
+    return Color.lerp(
+      base,
+      base.withValues(alpha: 0.08),
+      _animation.value,
+    )!;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 850;
+
+        return AnimatedBuilder(
+          animation: _animation,
+          builder: (context, child) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isWide) ...[
+                  // Sidebar skeleton
+                  Container(
+                    width: 320,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        right: BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SkeletonBox(
+                          height: 80,
+                          borderRadius: 12,
+                          color: _shimmerColor(const Color(0xFFF1F5F9)),
+                        ),
+                        const SizedBox(height: 20),
+                        ...List.generate(4, (i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _SkeletonBox(
+                            height: i == 0 ? 60 : 44,
+                            borderRadius: 10,
+                            color: _shimmerColor(const Color(0xFFF1F5F9)),
+                          ),
+                        )),
+                        const Spacer(),
+                        _SkeletonBox(
+                          height: 44,
+                          borderRadius: 10,
+                          color: _shimmerColor(const Color(0xFFF1F5F9)),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              );
-            } else {
-              return Stack(
-                children: [
-                  LearningWorkspaceMobile(
-                    course: _course!,
-                    lessonContent: _lessonContent,
-                    quizId: _isQuizMode ? widget.quizId : null,
-                    courseId: widget.courseId,
-                    selectedTab: _selectedTab,
-                    onTabChanged: _onTabChanged,
-                    onMarkComplete: _onMarkComplete,
-                    onLessonTap: _onJumpToLesson,
-                    onQuizTap: _onQuizTap,
-                    onNavigate: _onNavigateTo,
-                    onLogout: _handleLogout,
-                  ),
-                  Positioned(
-                    right: 20,
-                    bottom: 20,
-                    child: FloatingChatButton(
-                      primaryColor: const Color(0xFF137FEC),
-                      rolePrefix: 'employee',
+                // Content skeleton
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SkeletonBox(
+                          height: 400,
+                          borderRadius: 16,
+                          color: _shimmerColor(const Color(0xFFE2E8F0)),
+                        ),
+                        const SizedBox(height: 28),
+                        _SkeletonBox(
+                          height: 200,
+                          borderRadius: 16,
+                          color: _shimmerColor(const Color(0xFFF1F5F9)),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SkeletonBox(
+                                height: 44,
+                                borderRadius: 10,
+                                color: _shimmerColor(const Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _SkeletonBox(
+                                height: 44,
+                                borderRadius: 10,
+                                color: _shimmerColor(const Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SkeletonBox(
+                                height: 120,
+                                borderRadius: 14,
+                                color: _shimmerColor(const Color(0xFFF1F5F9)),
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Container(
+                              width: 300,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                color: _shimmerColor(const Color(0xFFF1F5F9)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              );
-            }
+                ),
+              ],
+            );
           },
+        );
+      },
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  final double height;
+  final double borderRadius;
+  final Color color;
+
+  const _SkeletonBox({
+    required this.height,
+    this.borderRadius = 8,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        color: color,
+      ),
+    );
+  }
+}
+
+class _WorkspaceErrorState extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+
+  const _WorkspaceErrorState({
+    required this.error,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                size: 64,
+                color: Color(0xFFEF4444),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Đã xảy ra lỗi',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Color(0xFF64748B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            _RetryButton(onTap: onRetry),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RetryButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _RetryButton({required this.onTap});
+
+  @override
+  State<_RetryButton> createState() => _RetryButtonState();
+}
+
+class _RetryButtonState extends State<_RetryButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF137FEC), Color(0xFF0B5FC5)],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF137FEC).withValues(
+                  alpha: _isHovered ? 0.5 : 0.35,
+                ),
+                blurRadius: _isHovered ? 20 : 12,
+                offset: Offset(0, _isHovered ? 8 : 4),
+              ),
+            ],
+          ),
+          transform: _isHovered
+              ? (Matrix4.identity()..translate(0.0, -2.0))
+              : Matrix4.identity(),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Text(
+                'Thử lại',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -275,11 +275,30 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                             _currentPage = 1;
                                           });
                                         },
-                                        onToggleActive: (dept, value) {
-                                          setState(() {
-                                            _departmentActiveMap[dept.id] =
-                                                value;
-                                          });
+                                        onToggleActive: (dept, value) async {
+                                          try {
+                                            await _departmentService
+                                                .toggleDepartmentActive(dept.id);
+                                            if (mounted) {
+                                              setState(() {
+                                                _departmentActiveMap[dept.id] =
+                                                    value;
+                                              });
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              AppToast.show(
+                                                  context,
+                                                  'Không thể thay đổi trạng thái: $e',
+                                                  variant:
+                                                      AppToastVariant.error);
+                                              // Revert toggle
+                                              setState(() {
+                                                _departmentActiveMap[dept.id] =
+                                                    !value;
+                                              });
+                                            }
+                                          }
                                         },
                                         onDelete: _handleDeleteDepartment,
                                         onShowDetail:

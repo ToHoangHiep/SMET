@@ -1355,6 +1355,7 @@ class LmsService {
     return EnrolledCourse(
       id: c['id']?.toString() ?? '',
       title: c['title'] ?? c['name'] ?? 'Khóa học',
+      description: c['description']?.toString(),
       imageUrl: c['imageUrl'] ?? c['thumbnail'],
       progressPercent: (c['progress'] ?? c['progressPercent'] ?? 0).toDouble(),
       enrolledAt:
@@ -1643,6 +1644,7 @@ enum DeadlineStatus {
 class EnrolledCourse {
   final String id;
   final String title;
+  final String? description;
   final String? imageUrl;
   final double progressPercent;
   final DateTime enrolledAt;
@@ -1657,6 +1659,7 @@ class EnrolledCourse {
   EnrolledCourse({
     required this.id,
     required this.title,
+    this.description,
     this.imageUrl,
     required this.progressPercent,
     required this.enrolledAt,

@@ -173,6 +173,24 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 4),
+
+                        // Description
+                        if (widget.course.description != null &&
+                            widget.course.description!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              widget.course.description!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                                height: 1.4,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         const SizedBox(height: 6),
 
                         // Deadline

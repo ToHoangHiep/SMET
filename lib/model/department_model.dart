@@ -5,6 +5,8 @@ class DepartmentModel {
   final bool isActive;
   final int? projectManagerId;
   final String? projectManagerName;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   DepartmentModel({
     required this.id,
@@ -13,17 +15,25 @@ class DepartmentModel {
     required this.isActive,
     this.projectManagerId,
     this.projectManagerName,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory DepartmentModel.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      return DateTime.tryParse(value.toString());
+    }
+
     return DepartmentModel(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
       code: json['code'] ?? '',
-      // Backend trả về "isActive" hoặc "active" đều được
       isActive: json['isActive'] ?? json['active'] ?? false,
       projectManagerId: json['projectManagerId'],
       projectManagerName: json['projectManagerName'],
+      createdAt: parseDate(json['createdAt']),
+      updatedAt: parseDate(json['updatedAt']),
     );
   }
 

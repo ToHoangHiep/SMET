@@ -359,6 +359,7 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                   final course = _courses[index];
                   return CourseCard(
                     title: course.title,
+                    description: course.description,
                     departmentName: course.departmentName,
                     status: course.status,
                     deadlineStatus: course.deadlineStatus,

@@ -354,7 +354,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       phone: _phoneController.text.trim(),
       role: _createRole,
       mustChangePassword: true,
-      lastUpdated: DateTime.now(),
     );
 
     await _apiService.createUser({
@@ -397,7 +396,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       mustChangePassword: existingUser.mustChangePassword,
       department: _departmentController.text.trim(),
       createdAt: existingUser.createdAt,
-      lastUpdated: DateTime.now(),
       isActive: existingUser.isActive,
     );
     await _apiService.updateUser(

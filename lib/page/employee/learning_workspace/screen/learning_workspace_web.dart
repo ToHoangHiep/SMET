@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:smet/page/employee/widgets/shell/employee_top_header.dart';
 
-/// Layout web — Coursera-style learning workspace:
+/// Layout web — elevated Coursera-style learning workspace:
 /// - More breathing room (larger padding)
 /// - Improved spacing between sections
 /// - Content area flows: breadcrumb → video → header → tabs → content
+/// - Refined visual hierarchy
 class LearningWorkspaceWeb extends StatelessWidget {
   final Widget sidebarNavigation;
   final Widget contentArea;
@@ -33,58 +34,65 @@ class LearningWorkspaceWeb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        sidebarNavigation,
-        Expanded(
-          child: Column(
-            children: [
-              EmployeeTopHeader(
-                currentPage: 'Học tập',
-                breadcrumbs: breadcrumbs,
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(32, 28, 32, 40),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (breadcrumbs == null || breadcrumbs!.isEmpty)
-                        _buildBreadcrumbs(),
-                      const SizedBox(height: 24),
-                      contentArea,
-                      const SizedBox(height: 28),
-                      lessonHeader,
-                      if (!isQuizMode) ...[
-                        const SizedBox(height: 20),
-                        tabs,
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          sidebarNavigation,
+          Expanded(
+            child: Column(
+              children: [
+                EmployeeTopHeader(
+                  currentPage: 'Học tập',
+                  breadcrumbs: breadcrumbs,
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(36, 28, 36, 48),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (breadcrumbs == null || breadcrumbs!.isEmpty)
+                          _buildBreadcrumbs(),
                         const SizedBox(height: 24),
-                        resourcesSidebar == null
-                            ? tabContent
-                            : Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 2,
-                                    child: tabContent,
-                                  ),
-                                  const SizedBox(width: 28),
-                                  SizedBox(
-                                    width: 300,
-                                    child: resourcesSidebar!,
-                                  ),
-                                ],
-                              ),
+                        contentArea,
+                        const SizedBox(height: 28),
+                        if (!isQuizMode) ...[
+                          lessonHeader,
+                          const SizedBox(height: 20),
+                          tabs,
+                          const SizedBox(height: 28),
+                          resourcesSidebar == null
+                              ? tabContent
+                              : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: tabContent,
+                                    ),
+                                    const SizedBox(width: 28),
+                                    SizedBox(
+                                      width: 320,
+                                      child: resourcesSidebar!,
+                                    ),
+                                  ],
+                                ),
+                        ] else ...[
+                          // Quiz mode — content area already has header
+                          const SizedBox(height: 0),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -92,17 +100,18 @@ class LearningWorkspaceWeb extends StatelessWidget {
     return Row(
       children: [
         _buildBreadcrumbItem(
-          'Courses',
+          'Khóa học',
           onTap: () => onNavigate('/employee/courses'),
         ),
         const SizedBox(width: 4),
-        const Icon(Icons.chevron_right, size: 18,
-            color: Color(0xFFCBD5E1)),
+        const Icon(Icons.chevron_right, size: 18, color: Color(0xFFCBD5E1)),
         const SizedBox(width: 4),
-        _buildBreadcrumbItem('SMETS Fundamentals', onTap: () {}),
+        _buildBreadcrumbItem(
+          'SMETS Fundamentals',
+          onTap: () => onNavigate('/employee/course/smet-fundamentals'),
+        ),
         const SizedBox(width: 4),
-        const Icon(Icons.chevron_right, size: 18,
-            color: Color(0xFFCBD5E1)),
+        const Icon(Icons.chevron_right, size: 18, color: Color(0xFFCBD5E1)),
         const SizedBox(width: 4),
         _buildBreadcrumbItem('1.1 Welcome to SMETS', isActive: true),
       ],
@@ -118,7 +127,7 @@ class LearningWorkspaceWeb extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 4),
         child: Text(
           text,
           style: TextStyle(

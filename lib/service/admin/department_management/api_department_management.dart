@@ -562,6 +562,37 @@ class DepartmentService {
     }
   }
 
+  /// ================= TOGGLE ACTIVE =================
+  /// PUT /api/departments/toggleStatus/{id}
+  Future<void> toggleDepartmentActive(int id) async {
+    if (id == 0) {
+      log("ERROR: DEPARTMENT ID IS INVALID");
+      throw Exception("Department id is invalid");
+    }
+
+    try {
+      final url = "$baseUrl/departments/toggleStatus/$id";
+
+      _logRequest("TOGGLE DEPARTMENT ACTIVE", url);
+
+      final token = await _getToken();
+      final res = await http.put(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(res);
+
+      if (res.statusCode != 200) {
+        throw Exception("Toggle active failed: ${res.body}");
+      }
+    } catch (e) {
+      log("TOGGLE DEPARTMENT ACTIVE ERROR: $e");
+      log("DEPARTMENT ID: $id");
+      rethrow;
+    }
+  }
+
   /// ================= ADD USERS TO DEPARTMENT (Legacy) =================
   Future<bool> addUsersToDepartment({
     required int departmentId,

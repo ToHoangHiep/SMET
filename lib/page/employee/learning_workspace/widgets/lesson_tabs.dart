@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/Employee_learning_model.dart';
 
-/// Lesson Tabs — modern Coursera-style:
+/// Lesson Tabs — modern elevated design:
+/// - Animated pill background indicator
 /// - Icon + label per tab
-/// - Animated underline indicator
 /// - Discussion count badge
+/// - Smooth sliding indicator animation
 class LessonTabs extends StatelessWidget {
   final LessonTab selectedTab;
   final ValueChanged<LessonTab> onTabChanged;
@@ -20,20 +21,29 @@ class LessonTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: LessonTab.values.map((tab) {
           final isSelected = tab == selectedTab;
-          return _TabItem(
-            tab: tab,
-            isSelected: isSelected,
-            onTap: () => onTabChanged(tab),
-            discussionCount: discussionCount,
+          return Expanded(
+            child: _TabItem(
+              tab: tab,
+              isSelected: isSelected,
+              onTap: () => onTabChanged(tab),
+              discussionCount: discussionCount,
+            ),
           );
         }).toList(),
       ),
@@ -58,8 +68,39 @@ class _TabItem extends StatefulWidget {
   State<_TabItem> createState() => _TabItemState();
 }
 
-class _TabItemState extends State<_TabItem> {
+class _TabItemState extends State<_TabItem> with SingleTickerProviderStateMixin {
   bool _isHovered = false;
+  late AnimationController _animController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+    );
+    if (widget.isSelected) _animController.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_TabItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSelected && !oldWidget.isSelected) {
+      _animController.forward();
+    } else if (!widget.isSelected && oldWidget.isSelected) {
+      _animController.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
 
   IconData get _icon {
     switch (widget.tab.icon) {
@@ -72,6 +113,12 @@ class _TabItemState extends State<_TabItem> {
     }
   }
 
+  Color _tabColor(BuildContext context) {
+    if (widget.isSelected) return const Color(0xFF137FEC);
+    if (_isHovered) return const Color(0xFF475569);
+    return const Color(0xFF64748B);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -81,62 +128,79 @@ class _TabItemState extends State<_TabItem> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: widget.isSelected
-                    ? const Color(0xFF137FEC)
-                    : (_isHovered
-                        ? const Color(0xFFE5E7EB)
-                        : Colors.transparent),
-                width: widget.isSelected ? 2.5 : 1.5,
-              ),
-            ),
+            color: widget.isSelected
+                ? const Color(0xFF137FEC).withValues(alpha: 0.1)
+                : (_isHovered
+                    ? const Color(0xFFF1F5F9)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                _icon,
-                size: 18,
-                color: widget.isSelected
-                    ? const Color(0xFF137FEC)
-                    : const Color(0xFF64748B),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    _icon,
+                    size: 18,
+                    color: _tabColor(context),
+                  ),
+                  if (widget.tab == LessonTab.discussion && widget.discussionCount > 0)
+                    Positioned(
+                      right: -6,
+                      top: -4,
+                      child: AnimatedBuilder(
+                        animation: _scaleAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: widget.isSelected ? 1.0 : _scaleAnimation.value,
+                            child: child,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16),
+                          child: Text(
+                            '${widget.discussionCount}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 8),
               Text(
                 widget.tab.label,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight:
-                      widget.isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: widget.isSelected
-                      ? const Color(0xFF137FEC)
-                      : (_isHovered
-                          ? const Color(0xFF475569)
-                          : const Color(0xFF64748B)),
+                  fontSize: 13,
+                  fontWeight: widget.isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: _tabColor(context),
+                  letterSpacing: widget.isSelected ? 0.2 : 0,
                 ),
               ),
-              if (widget.tab == LessonTab.discussion &&
-                  widget.discussionCount > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF137FEC).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${widget.discussionCount}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF137FEC),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),

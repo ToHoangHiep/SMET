@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart' as user_model;
 import 'package:smet/model/department_model.dart';
 import 'package:smet/page/admin/department_management/widgets/dialog/user_selection_dialog.dart';
+import 'package:smet/page/admin/department_management/widgets/dialog/transfer_course_dialog.dart';
 import 'package:smet/page/admin/user_management/widgets/dialog/reassignment_dialog.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/service/common/global_notification_service.dart';
@@ -1047,19 +1048,27 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
               Tooltip(
                 message: 'Xóa khỏi phòng ban',
                 child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedEmployees.removeWhere((e) => e.id == member.id);
-                    });
-                    _markChanged();
+                  onTap: () async {
+                    await TransferCourseDialog.show(
+                      context: context,
+                      mentor: member,
+                      departmentId: widget.departmentId,
+                      primaryColor: widget.primaryColor,
+                      onComplete: () {
+                        setState(() {
+                          _selectedEmployees.removeWhere((e) => e.id == member.id);
+                        });
+                        _markChanged();
+                      },
+                    );
                   },
                   borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
                     child: Icon(
                       Icons.close,
                       size: 16,
-                      color: Colors.grey[400],
+                      color: Color(0xFF9CA3AF),
                     ),
                   ),
                 ),

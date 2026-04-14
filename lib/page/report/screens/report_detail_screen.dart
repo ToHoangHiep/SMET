@@ -167,9 +167,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             Padding(
               padding: const EdgeInsets.all(32),
               child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1400),
-                  child: _buildContent(),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1400),
+                    child: _buildContent(),
+                  ),
                 ),
               ),
             ),
@@ -184,7 +187,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       case UserRole.ADMIN:
         return suffix == 'report' ? '/admin/reports' : '/user_management';
       case UserRole.PROJECT_MANAGER:
-        return suffix == 'report' ? '/reports' : '/pm/dashboard';
+        return suffix == 'report' ? '/pm/reports' : '/pm/dashboard';
       case UserRole.MENTOR:
         return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       case UserRole.USER:
@@ -317,6 +320,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final route = switch (widget.currentRole) {
       UserRole.ADMIN => '/admin/report/edit/${widget.reportId}',
       UserRole.MENTOR => '/mentor/report/edit/${widget.reportId}',
+      UserRole.PROJECT_MANAGER => '/pm/report/edit/${widget.reportId}',
       _ => '/report/edit/${widget.reportId}',
     };
     context.go(route);

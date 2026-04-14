@@ -282,7 +282,7 @@ class _ReportListScreenState extends State<ReportListScreen> {
             final detailRoute = switch (widget.currentRole) {
               UserRole.ADMIN => '/admin/report/${r.id}',
               UserRole.MENTOR => '/mentor/report/${r.id}',
-              UserRole.PROJECT_MANAGER => '/reports/${r.id}',
+              UserRole.PROJECT_MANAGER => '/pm/report/${r.id}',
               UserRole.USER => '/report/${r.id}',
             };
             context.go(detailRoute);
@@ -307,7 +307,7 @@ class _ReportListScreenState extends State<ReportListScreen> {
       case UserRole.ADMIN:
         return suffix == 'report' ? '/admin/reports' : '/user_management';
       case UserRole.PROJECT_MANAGER:
-        return suffix == 'report' ? '/reports' : '/pm/dashboard';
+        return suffix == 'report' ? '/pm/reports' : '/pm/dashboard';
       case UserRole.MENTOR:
         return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       case UserRole.USER:
@@ -333,7 +333,7 @@ class _ReportListScreenState extends State<ReportListScreen> {
             final detailRoute = switch (widget.currentRole) {
               UserRole.ADMIN => '/admin/report/${report.id}',
               UserRole.MENTOR => '/mentor/report/${report.id}',
-              UserRole.PROJECT_MANAGER => '/report/${report.id}',
+              UserRole.PROJECT_MANAGER => '/pm/report/${report.id}',
               UserRole.USER => '/report/${report.id}',
             };
             context.go(detailRoute);
