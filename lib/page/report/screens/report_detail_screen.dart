@@ -8,13 +8,11 @@ import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/report/file_download_util.dart';
 import 'package:smet/service/report/report_service.dart';
 
-final _df = DateFormat('dd/MM/yyyy HH:mm');
-
 // ================================================================
 // REPORT DETAIL SCREEN
 // Role-based actions:
 //   ADMIN  → approve / reject (SUBMITTED reports)
-//   OWNER  → edit / submit (DRAFT reports)
+//   OWNER  → edit / submit / delete (DRAFT reports)
 //   OTHERS → read-only
 // ================================================================
 
@@ -62,10 +60,19 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     });
 
     try {
-      final results = await Future.wait([
-        _svc.getReportDetail(widget.reportId),
-        _svc.getReportVersions(widget.reportId),
-      ]);
+      final Future<List<Object?>> future;
+      if (widget.currentRole == UserRole.ADMIN) {
+        future = Future.wait([
+          _svc.getAdminReportDetail(widget.reportId),
+          _svc.getAdminReportVersions(widget.reportId),
+        ]);
+      } else {
+        future = Future.wait([
+          _svc.getReportDetail(widget.reportId),
+          _svc.getReportVersions(widget.reportId),
+        ]);
+      }
+      final results = await future;
 
       if (!mounted) return;
 
@@ -83,7 +90,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
   }
 
-  bool get _isOwner => _report != null && _report!.id == widget.currentUserId;
+  bool get _isOwner => _report != null && _report!.ownerId == widget.currentUserId;
 
   bool get _canEdit =>
       _isOwner && _report!.status == ReportStatus.DRAFT;
@@ -94,6 +101,41 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   bool get _canApproveReject =>
       widget.currentRole == UserRole.ADMIN &&
       _report!.status == ReportStatus.SUBMITTED;
+
+  bool get _canDelete =>
+      _isOwner && _report!.status == ReportStatus.DRAFT;
+
+  Future<void> _onDelete() async {
+    final confirmed = await _showConfirmDialog(
+      title: 'Xóa báo cáo',
+      message: 'Báo cáo sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.',
+      confirmText: 'Xóa',
+      confirmColor: Colors.red,
+    );
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+    setState(() => _isActionLoading = true);
+
+    try {
+      await _svc.deleteDraftReport(widget.reportId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Xóa báo cáo thành công!')),
+      );
+      context.go(_roleRoute('report'));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: const Color(0xFF991B1B),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +156,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   ),
                   BreadcrumbItem(
                     label: 'Báo cáo',
-                    route: _roleRoute().replaceAll('/dashboard', '/reports'),
+                    route: _roleRoute('report'),
                   ),
                   BreadcrumbItem(label: '#${widget.reportId}'),
                 ],
@@ -137,23 +179,24 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
-  String _roleRoute() {
+  String _roleRoute([String? suffix]) {
     switch (widget.currentRole) {
       case UserRole.ADMIN:
-        return '/user_management';
+        return suffix == 'report' ? '/admin/reports' : '/user_management';
       case UserRole.PROJECT_MANAGER:
-        return '/pm/dashboard';
+        return suffix == 'report' ? '/reports' : '/pm/dashboard';
       case UserRole.MENTOR:
-        return '/mentor/dashboard';
+        return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       case UserRole.USER:
-        return '/employee/dashboard';
+        return suffix == 'report' ? '/reports' : '/employee/dashboard';
     }
   }
 
   List<Widget> _buildHeaderActions() {
     if (_report == null) return [];
+    final isOwner = _isOwner;
+    final isDraft = _report!.status == ReportStatus.DRAFT;
     return [
-      // Version history button
       OutlinedButton.icon(
         onPressed: () => _showVersionHistory(),
         style: OutlinedButton.styleFrom(
@@ -166,11 +209,32 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         label: const Text('Lịch sử', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
       const SizedBox(width: 12),
-      // Export buttons
-      _ExportButton(
-        reportId: widget.reportId,
-        primaryColor: widget.primaryColor,
-      ),
+      // Export — available for ADMIN, MENTOR, PM (not USER)
+      if (widget.currentRole != UserRole.USER)
+        _ExportButton(
+          reportId: widget.reportId,
+          primaryColor: widget.primaryColor,
+        ),
+      // Delete icon — owner + DRAFT only
+      if (isOwner && isDraft) ...[
+        const SizedBox(width: 12),
+        IconButton(
+          onPressed: _isActionLoading ? null : _onDelete,
+          icon: _isActionLoading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.red[400],
+                  ),
+                )
+              : Icon(Icons.delete_rounded, color: Colors.red[400], size: 20),
+          tooltip: 'Xóa báo cáo',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ],
     ];
   }
 
@@ -205,13 +269,14 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           primaryColor: widget.primaryColor,
           canEdit: _canEdit,
           canSubmit: _canSubmit,
+          canDelete: _canDelete,
           canApproveReject: _canApproveReject,
           isActionLoading: _isActionLoading,
           onEdit: _onEdit,
           onSubmit: _onSubmit,
+          onDelete: _onDelete,
           onApprove: _onApprove,
           onReject: _onReject,
-          onRefresh: _loadAll,
         ),
         const SizedBox(height: 80),
       ],
@@ -249,7 +314,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   void _onEdit() {
-    context.go('/report/edit/${widget.reportId}');
+    final route = switch (widget.currentRole) {
+      UserRole.ADMIN => '/admin/report/edit/${widget.reportId}',
+      UserRole.MENTOR => '/mentor/report/edit/${widget.reportId}',
+      _ => '/report/edit/${widget.reportId}',
+    };
+    context.go(route);
   }
 
   Future<void> _onSubmit() async {
@@ -317,6 +387,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         return 'Phê duyệt';
       case 'reject':
         return 'Từ chối';
+      case 'delete':
+        return 'Xóa báo cáo';
       default:
         return name;
     }
@@ -426,12 +498,12 @@ class _MetadataSection extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -460,6 +532,10 @@ class _MetadataSection extends StatelessWidget {
               _metaItem('Loại báo cáo', report.type.displayName, Icons.category_rounded),
               _metaItem('Phạm vi', _scopeOf(report.type).displayName, Icons.domain_rounded),
               _metaItem('Phiên bản', 'v${report.version}', Icons.history_rounded),
+              if (report.periodStart != null)
+                _metaItem('Bắt đầu', _fmtDate(report.periodStart!), Icons.calendar_today_rounded),
+              if (report.periodEnd != null)
+                _metaItem('Kết thúc', _fmtDate(report.periodEnd!), Icons.event_rounded),
             ],
           ),
         ],
@@ -510,11 +586,12 @@ class _MetadataSection extends StatelessWidget {
         return ReportScope.SYSTEM;
     }
   }
+
+  String _fmtDate(DateTime d) => DateFormat('dd/MM/yyyy').format(d);
 }
 
 // ================================================================
 // SNAPSHOT SECTION
-// Renders parsed JSON data into structured UI
 // ================================================================
 
 class _SnapshotSection extends StatelessWidget {
@@ -531,12 +608,12 @@ class _SnapshotSection extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -600,13 +677,10 @@ class _SnapshotSection extends StatelessWidget {
     );
   }
 
-  // ---- MENTOR SNAPSHOT ----
-
   Widget _buildMentorSnapshot(MentorSnapshot m) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Summary KPIs
         _SectionTitle(title: 'Tổng quan', icon: Icons.analytics_rounded, primaryColor: primaryColor),
         const SizedBox(height: 16),
         LayoutBuilder(
@@ -620,36 +694,14 @@ class _SnapshotSection extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 2.2,
               children: [
-                _KpiCard(
-                  label: 'Tổng học viên',
-                  value: '${m.totalStudents}',
-                  icon: Icons.group_rounded,
-                  color: const Color(0xFF6366F1),
-                ),
-                _KpiCard(
-                  label: 'Hoàn thành',
-                  value: '${m.completedStudents}',
-                  icon: Icons.check_circle_rounded,
-                  color: const Color(0xFF16A34A),
-                ),
-                _KpiCard(
-                  label: 'Tỷ lệ hoàn thành',
-                  value: '${m.completionRate.toStringAsFixed(1)}%',
-                  icon: Icons.trending_up_rounded,
-                  color: const Color(0xFF2563EB),
-                ),
-                _KpiCard(
-                  label: 'Điểm trung bình',
-                  value: m.avgScore.toStringAsFixed(1),
-                  icon: Icons.star_rounded,
-                  color: const Color(0xFFD97706),
-                ),
+                _KpiCard(label: 'Tổng học viên', value: '${m.totalStudents}', icon: Icons.group_rounded, color: const Color(0xFF6366F1)),
+                _KpiCard(label: 'Hoàn thành', value: '${m.completedStudents}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+                _KpiCard(label: 'Tỷ lệ hoàn thành', value: '${m.completionRate.toStringAsFixed(1)}%', icon: Icons.trending_up_rounded, color: const Color(0xFF2563EB)),
+                _KpiCard(label: 'Điểm trung bình', value: m.avgScore.toStringAsFixed(1), icon: Icons.star_rounded, color: const Color(0xFFD97706)),
               ],
             );
           },
         ),
-
-        // At risk users
         if (m.atRiskUsers.isNotEmpty) ...[
           const SizedBox(height: 32),
           _SectionTitle(title: 'Học viên có nguy cơ', icon: Icons.warning_rounded, primaryColor: Colors.orange),
@@ -663,19 +715,13 @@ class _SnapshotSection extends StatelessWidget {
   Widget _buildAtRiskTable(List<AtRiskUser> users) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        borderRadius: BorderRadius.circular(16),
       ),
       clipBehavior: Clip.antiAlias,
       child: Table(
-        columnWidths: const {
-          0: FlexColumnWidth(1),
-          1: FlexColumnWidth(3),
-          2: FlexColumnWidth(2),
-        },
-        border: TableBorder(
-          horizontalInside: BorderSide(color: Colors.grey.shade200),
-        ),
+        columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(3), 2: FlexColumnWidth(2)},
+        border: TableBorder(horizontalInside: BorderSide(color: Colors.grey.shade200)),
         children: [
           TableRow(
             decoration: BoxDecoration(
@@ -683,36 +729,18 @@ class _SnapshotSection extends StatelessWidget {
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             children: const [
-              Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('ID', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              ),
-              Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('Họ tên', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              ),
-              Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('Hạn chót', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              ),
+              Padding(padding: EdgeInsets.all(12), child: Text('ID', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+              Padding(padding: EdgeInsets.all(12), child: Text('Họ tên', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+              Padding(padding: EdgeInsets.all(12), child: Text('Hạn chót', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
             ],
           ),
           ...users.map((u) => TableRow(
                 children: [
+                  Padding(padding: const EdgeInsets.all(12), child: Text('#${u.userId}', style: const TextStyle(fontSize: 13))),
+                  Padding(padding: const EdgeInsets.all(12), child: Text(u.userName ?? '—', style: const TextStyle(fontSize: 13))),
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Text('#${u.userId}', style: const TextStyle(fontSize: 13)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(u.userName ?? '—', style: const TextStyle(fontSize: 13)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      u.deadline != null ? _df.format(u.deadline!) : '—',
-                      style: TextStyle(fontSize: 13, color: Colors.orange.shade700),
-                    ),
+                    child: Text(u.deadline != null ? DateFormat('dd/MM/yyyy').format(u.deadline!) : '—', style: TextStyle(fontSize: 13, color: Colors.orange.shade700)),
                   ),
                 ],
               )),
@@ -720,8 +748,6 @@ class _SnapshotSection extends StatelessWidget {
       ),
     );
   }
-
-  // ---- PM SNAPSHOT ----
 
   Widget _buildPmSnapshot(PmSnapshot m) {
     return Column(
@@ -740,24 +766,9 @@ class _SnapshotSection extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 2.2,
               children: [
-                _KpiCard(
-                  label: 'Tổng người dùng',
-                  value: '${m.totalUsers}',
-                  icon: Icons.group_rounded,
-                  color: const Color(0xFF6366F1),
-                ),
-                _KpiCard(
-                  label: 'Hoàn thành',
-                  value: '${m.completed}',
-                  icon: Icons.check_circle_rounded,
-                  color: const Color(0xFF16A34A),
-                ),
-                _KpiCard(
-                  label: 'Tỷ lệ hoàn thành',
-                  value: '${m.completionRate.toStringAsFixed(1)}%',
-                  icon: Icons.trending_up_rounded,
-                  color: const Color(0xFF2563EB),
-                ),
+                _KpiCard(label: 'Tổng người dùng', value: '${m.totalUsers}', icon: Icons.group_rounded, color: const Color(0xFF6366F1)),
+                _KpiCard(label: 'Hoàn thành', value: '${m.completed}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+                _KpiCard(label: 'Tỷ lệ hoàn thành', value: '${m.completionRate.toStringAsFixed(1)}%', icon: Icons.trending_up_rounded, color: const Color(0xFF2563EB)),
               ],
             );
           },
@@ -765,8 +776,6 @@ class _SnapshotSection extends StatelessWidget {
       ],
     );
   }
-
-  // ---- ADMIN SNAPSHOT ----
 
   Widget _buildAdminSnapshot(AdminSnapshot m) {
     return Column(
@@ -785,24 +794,9 @@ class _SnapshotSection extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 2.2,
               children: [
-                _KpiCard(
-                  label: 'Tổng người dùng',
-                  value: '${m.totalUsers}',
-                  icon: Icons.people_rounded,
-                  color: const Color(0xFF6366F1),
-                ),
-                _KpiCard(
-                  label: 'Tổng khóa học',
-                  value: '${m.totalCourses}',
-                  icon: Icons.menu_book_rounded,
-                  color: const Color(0xFF2563EB),
-                ),
-                _KpiCard(
-                  label: 'Hoàn thành',
-                  value: '${m.completedUsers}',
-                  icon: Icons.check_circle_rounded,
-                  color: const Color(0xFF16A34A),
-                ),
+                _KpiCard(label: 'Tổng người dùng', value: '${m.totalUsers}', icon: Icons.people_rounded, color: const Color(0xFF6366F1)),
+                _KpiCard(label: 'Tổng khóa học', value: '${m.totalCourses}', icon: Icons.menu_book_rounded, color: const Color(0xFF2563EB)),
+                _KpiCard(label: 'Hoàn thành', value: '${m.completedUsers}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
               ],
             );
           },
@@ -816,12 +810,7 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color primaryColor;
-
-  const _SectionTitle({
-    required this.title,
-    required this.icon,
-    required this.primaryColor,
-  });
+  const _SectionTitle({required this.title, required this.icon, required this.primaryColor});
 
   @override
   Widget build(BuildContext context) {
@@ -829,14 +818,7 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: primaryColor),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: primaryColor,
-          ),
-        ),
+        Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: primaryColor)),
       ],
     );
   }
@@ -847,46 +829,33 @@ class _KpiCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
+  const _KpiCard({required this.label, required this.value, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: color,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Icon(icon, size: 24, color: color),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          const SizedBox(height: 16),
+          Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: color)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -900,7 +869,6 @@ class _KpiCard extends StatelessWidget {
 class _CommentsSection extends StatelessWidget {
   final ReportDetailResponse report;
   final Color primaryColor;
-
   const _CommentsSection({required this.report, required this.primaryColor});
 
   @override
@@ -909,37 +877,20 @@ class _CommentsSection extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 24, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Ghi chú & Phản hồi',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-          ),
+          const Text('Ghi chú & Phản hồi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
           const SizedBox(height: 16),
           if (report.comment != null && report.comment!.isNotEmpty)
-            _CommentCard(
-              label: 'Ghi chú của người tạo',
-              content: report.comment!,
-              color: const Color(0xFF6366F1),
-              icon: Icons.note_rounded,
-            ),
+            _CommentCard(label: 'Ghi chú của người tạo', content: report.comment!, color: const Color(0xFF6366F1), icon: Icons.note_rounded),
           if (report.reviewerComment != null && report.reviewerComment!.isNotEmpty)
-            _CommentCard(
-              label: 'Phản hồi của quản trị viên',
-              content: report.reviewerComment!,
-              color: const Color(0xFFB45309),
-              icon: Icons.rate_review_rounded,
-            ),
+            _CommentCard(label: 'Phản hồi của quản trị viên', content: report.reviewerComment!, color: const Color(0xFFB45309), icon: Icons.rate_review_rounded),
         ],
       ),
     );
@@ -951,13 +902,7 @@ class _CommentCard extends StatelessWidget {
   final String content;
   final Color color;
   final IconData icon;
-
-  const _CommentCard({
-    required this.label,
-    required this.content,
-    required this.color,
-    required this.icon,
-  });
+  const _CommentCard({required this.label, required this.content, required this.color, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -976,21 +921,11 @@ class _CommentCard extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: color),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            content,
-            style: const TextStyle(fontSize: 14, height: 1.5),
-          ),
+          Text(content, style: const TextStyle(fontSize: 14, height: 1.5)),
         ],
       ),
     );
@@ -1006,26 +941,28 @@ class _ActionsSection extends StatelessWidget {
   final Color primaryColor;
   final bool canEdit;
   final bool canSubmit;
+  final bool canDelete;
   final bool canApproveReject;
   final bool isActionLoading;
   final VoidCallback onEdit;
   final VoidCallback onSubmit;
+  final VoidCallback onDelete;
   final VoidCallback onApprove;
   final VoidCallback onReject;
-  final VoidCallback onRefresh;
 
   const _ActionsSection({
     required this.report,
     required this.primaryColor,
     required this.canEdit,
     required this.canSubmit,
+    required this.canDelete,
     required this.canApproveReject,
     required this.isActionLoading,
     required this.onEdit,
     required this.onSubmit,
+    required this.onDelete,
     required this.onApprove,
     required this.onReject,
-    required this.onRefresh,
   });
 
   @override
@@ -1034,63 +971,31 @@ class _ActionsSection extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 24, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Hành động',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-          ),
+          const Text('Hành động', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              // Owner actions
               if (canEdit)
-                _ActionButton(
-                  label: 'Chỉnh sửa',
-                  icon: Icons.edit_rounded,
-                  color: primaryColor,
-                  onPressed: onEdit,
-                  isLoading: isActionLoading,
-                ),
+                _ActionButton(label: 'Chỉnh sửa', icon: Icons.edit_rounded, color: primaryColor, onPressed: onEdit, isLoading: isActionLoading),
               if (canSubmit)
-                _ActionButton(
-                  label: 'Gửi duyệt',
-                  icon: Icons.send_rounded,
-                  color: Colors.blue,
-                  onPressed: onSubmit,
-                  isLoading: isActionLoading,
-                ),
-              // Admin actions
+                _ActionButton(label: 'Gửi duyệt', icon: Icons.send_rounded, color: Colors.blue, onPressed: onSubmit, isLoading: isActionLoading),
               if (canApproveReject) ...[
-                _ActionButton(
-                  label: 'Phê duyệt',
-                  icon: Icons.check_circle_rounded,
-                  color: Colors.green,
-                  onPressed: onApprove,
-                  isLoading: isActionLoading,
-                ),
-                _ActionButton(
-                  label: 'Từ chối',
-                  icon: Icons.cancel_rounded,
-                  color: Colors.red,
-                  onPressed: onReject,
-                  isLoading: isActionLoading,
-                ),
+                _ActionButton(label: 'Phê duyệt', icon: Icons.check_circle_rounded, color: Colors.green, onPressed: onApprove, isLoading: isActionLoading),
+                _ActionButton(label: 'Từ chối', icon: Icons.cancel_rounded, color: Colors.red, onPressed: onReject, isLoading: isActionLoading),
               ],
-              // Read-only notice
-              if (!canEdit && !canSubmit && !canApproveReject)
+              if (canDelete)
+                _ActionButton(label: 'Xóa báo cáo', icon: Icons.delete_rounded, color: Colors.red, onPressed: onDelete, isLoading: isActionLoading),
+              if (!canEdit && !canSubmit && !canDelete && !canApproveReject)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
@@ -1103,10 +1008,7 @@ class _ActionsSection extends StatelessWidget {
                     children: [
                       Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 8),
-                      Text(
-                        'Bạn không có quyền thực hiện hành động nào với báo cáo này.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                      ),
+                      Text('Bạn không có quyền thực hiện hành động nào với báo cáo này.', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                     ],
                   ),
                 ),
@@ -1125,13 +1027,7 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onPressed;
   final bool isLoading;
 
-  const _ActionButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onPressed,
-    required this.isLoading,
-  });
+  const _ActionButton({required this.label, required this.icon, required this.color, required this.onPressed, required this.isLoading});
 
   @override
   Widget build(BuildContext context) {
@@ -1145,11 +1041,7 @@ class _ActionButton extends StatelessWidget {
         elevation: 2,
       ),
       icon: isLoading
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            )
+          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
           : Icon(icon, size: 18),
       label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
@@ -1177,21 +1069,14 @@ class _ExportButton extends StatelessWidget {
           color: primaryColor,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Row(
+        child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.download_rounded, size: 18, color: Colors.white),
-            const SizedBox(width: 8),
-            const Text(
-              'Xuất file',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down_rounded, color: Colors.white, size: 20),
+            Icon(Icons.download_rounded, size: 18, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Xuất file', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+            SizedBox(width: 4),
+            Icon(Icons.arrow_drop_down_rounded, color: Colors.white, size: 20),
           ],
         ),
       ),
@@ -1207,13 +1092,7 @@ class _ExportButton extends StatelessWidget {
   PopupMenuItem<String> _buildItem(String format, String label, IconData icon) {
     return PopupMenuItem(
       value: format,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: primaryColor),
-          const SizedBox(width: 10),
-          Text(label),
-        ],
-      ),
+      child: Row(children: [Icon(icon, size: 18, color: primaryColor), const SizedBox(width: 10), Text(label)]),
     );
   }
 
@@ -1221,19 +1100,11 @@ class _ExportButton extends StatelessWidget {
     try {
       final result = await reportService.exportReport(reportId, format);
       FileDownloadUtil.downloadBytes(result: result);
-
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã tải file ${format.toUpperCase()}')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã tải file ${format.toUpperCase()}')));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi xuất file: $e'),
-          backgroundColor: const Color(0xFF991B1B),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi xuất file: $e'), backgroundColor: const Color(0xFF991B1B)));
     }
   }
 }
@@ -1257,28 +1128,14 @@ class _VersionHistorySheet extends StatelessWidget {
       expand: false,
       builder: (ctx, scrollController) => Column(
         children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          Container(margin: const EdgeInsets.symmetric(vertical: 12), width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Icon(Icons.history_rounded, color: primaryColor),
-                const SizedBox(width: 10),
-                Text(
-                  'Lịch sử phiên bản (${versions.length})',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
+            child: Row(children: [
+              Icon(Icons.history_rounded, color: primaryColor),
+              const SizedBox(width: 10),
+              Text('Lịch sử phiên bản (${versions.length})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            ]),
           ),
           const Divider(height: 24),
           Expanded(
@@ -1286,11 +1143,7 @@ class _VersionHistorySheet extends StatelessWidget {
               controller: scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               itemCount: versions.length,
-              itemBuilder: (ctx, i) => _VersionItem(
-                version: versions[i],
-                primaryColor: primaryColor,
-                isLast: i == versions.length - 1,
-              ),
+              itemBuilder: (ctx, i) => _VersionItem(version: versions[i], primaryColor: primaryColor, isLast: i == versions.length - 1),
             ),
           ),
         ],
@@ -1304,11 +1157,7 @@ class _VersionItem extends StatelessWidget {
   final Color primaryColor;
   final bool isLast;
 
-  const _VersionItem({
-    required this.version,
-    required this.primaryColor,
-    required this.isLast,
-  });
+  const _VersionItem({required this.version, required this.primaryColor, required this.isLast});
 
   @override
   Widget build(BuildContext context) {
@@ -1316,24 +1165,10 @@ class _VersionItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Timeline line
           Column(
             children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: const Color(0xFFE2E8F0),
-                  ),
-                ),
+              Container(width: 12, height: 12, decoration: BoxDecoration(color: primaryColor, shape: BoxShape.circle)),
+              if (!isLast) Expanded(child: Container(width: 2, color: const Color(0xFFE2E8F0))),
             ],
           ),
           const SizedBox(width: 16),
@@ -1356,9 +1191,7 @@ class _VersionItem extends StatelessWidget {
                       ActionTypeBadge(actionType: version.actionType),
                       const Spacer(),
                       Text(
-                        version.changedAt != null
-                            ? _df.format(version.changedAt!)
-                            : '—',
+                        version.changedAt != null ? DateFormat('dd/MM/yyyy HH:mm').format(version.changedAt!) : '—',
                         style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       ),
                     ],
@@ -1368,18 +1201,12 @@ class _VersionItem extends StatelessWidget {
                     children: [
                       const Icon(Icons.person_rounded, size: 14, color: Color(0xFF64748B)),
                       const SizedBox(width: 4),
-                      Text(
-                        version.changedByName,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
+                      Text(version.changedByName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                     ],
                   ),
                   if (version.comment != null && version.comment!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      version.comment!,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
-                    ),
+                    Text(version.comment!, style: const TextStyle(fontSize: 13, color: Color(0xFF475569))),
                   ],
                 ],
               ),

@@ -4,17 +4,15 @@ import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 
 class QuizResultDialog extends StatelessWidget {
   final QuizResult result;
-  final bool courseCompleted;
   final String? courseId;
   final VoidCallback onRetry;
   final VoidCallback onClose;
   final VoidCallback? onViewCertificate;
-  final bool isAutoSubmit; // Thêm: thông báo auto-submit
+  final bool isAutoSubmit;
 
   const QuizResultDialog({
     super.key,
     required this.result,
-    this.courseCompleted = false,
     this.courseId,
     required this.onRetry,
     required this.onClose,
@@ -69,9 +67,7 @@ class QuizResultDialog extends StatelessWidget {
         gradient: LinearGradient(
           colors:
               result.passed
-                  ? courseCompleted
-                      ? [const Color(0xFF22C55E), const Color(0xFF16A34A)]
-                      : [QuizExamTheme.primary, QuizExamTheme.primaryContainer]
+                  ? [QuizExamTheme.primary, QuizExamTheme.primaryContainer]
                   : [QuizExamTheme.error, const Color(0xFFD32F2F)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -99,9 +95,7 @@ class QuizResultDialog extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             result.passed
-                ? courseCompleted
-                    ? 'Chúc mừng bạn!'
-                    : 'Chúc mừng!'
+                ? 'Chúc mừng!'
                 : 'Chưa đạt',
             style: const TextStyle(
               fontSize: 24,
@@ -112,9 +106,7 @@ class QuizResultDialog extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             result.passed
-                ? courseCompleted
-                    ? 'Bạn đã hoàn thành khóa học!'
-                    : 'Bạn đã hoàn thành bài quiz!'
+                ? 'Bạn đã hoàn thành bài quiz!'
                 : isAutoSubmit
                     ? 'Hết giờ! Bài đã được nộp tự động'
                     : 'Hãy thử lại để cải thiện điểm số',
@@ -261,7 +253,7 @@ class QuizResultDialog extends StatelessWidget {
   Widget _buildActions(BuildContext context) {
     return Column(
       children: [
-        if (courseCompleted && courseId != null && onViewCertificate != null) ...[
+        if (result.passed && courseId != null && onViewCertificate != null) ...[
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -319,11 +311,7 @@ class QuizResultDialog extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  result.passed
-                      ? courseCompleted
-                          ? 'Hoàn thành'
-                          : 'Tiếp tục'
-                      : 'Đóng',
+                  result.passed ? 'Tiếp tục' : 'Đóng',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),

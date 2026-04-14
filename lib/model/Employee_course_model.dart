@@ -82,7 +82,7 @@ class LessonDetail {
   final int id;
   final String title;
   final int orderIndex;
-  final List<LessonContentResponse> contents;
+  final List<LessonContentDetail> contents;
 
   const LessonDetail({
     required this.id,
@@ -92,13 +92,13 @@ class LessonDetail {
   });
 }
 
-class LessonContentResponse {
+class LessonContentDetail {
   final int id;
   final String type;
   final String content;
   final int? orderIndex;
 
-  const LessonContentResponse({
+  const LessonContentDetail({
     required this.id,
     required this.type,
     required this.content,

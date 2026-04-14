@@ -5,6 +5,8 @@ import 'package:smet/model/course_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/mentor/lesson_service.dart';
+import 'package:smet/service/mentor/quiz_service.dart';
+import 'package:smet/model/learning_path_model.dart' as lp_model;
 
 /// Mentor Course Detail / Edit - Mobile Layout
 class MentorCourseDetailMobile extends StatefulWidget {
@@ -23,6 +25,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
   final MentorCourseService _courseService = MentorCourseService();
   final MentorModuleService _moduleService = MentorModuleService();
   final MentorLessonService _lessonService = MentorLessonService();
+  final MentorQuizService _quizService = MentorQuizService();
 
   CourseDetailResponse? _course;
   bool _isLoading = true;
@@ -32,11 +35,13 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
 
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
+  late TextEditingController _deadlineDaysController;
   DeadlineType _deadlineType = DeadlineType.RELATIVE;
   int _deadlineDays = 20;
   DateTime? _fixedDeadline;
 
   List<ModuleResponse> _modules = [];
+  Long? _finalQuizId;
 
   bool get _canEdit =>
       _course != null &&
@@ -47,6 +52,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     super.initState();
     _titleController = TextEditingController();
     _descriptionController = TextEditingController();
+    _deadlineDaysController = TextEditingController(text: _deadlineDays.toString());
 
     if (widget.courseId != null && widget.courseId!.isNotEmpty) {
       _isEditMode = true;
@@ -60,6 +66,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _deadlineDaysController.dispose();
     super.dispose();
   }
 
@@ -79,9 +86,11 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         _descriptionController.text = course.description ?? '';
         _deadlineType = _parseDeadlineType(course.deadlineType) ?? DeadlineType.RELATIVE;
         _deadlineDays = course.defaultDeadlineDays ?? 20;
+        _deadlineDaysController.text = _deadlineDays.toString();
         _fixedDeadline = course.fixedDeadline;
       });
       await _loadModules();
+      await _loadFinalQuizId();
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -120,6 +129,22 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
       }
     } catch (e) {
       log("  [WARN] Failed to load modules: $e");
+    }
+  }
+
+  Future<void> _loadFinalQuizId() async {
+    if (_course == null) return;
+    try {
+      final q = await _quizService.getFinalQuizByCourse(
+        lp_model.Long(_course!.id.value),
+      );
+      if (mounted) {
+        setState(() {
+          _finalQuizId = q.id != null ? Long(q.id!.value) : null;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _finalQuizId = null);
     }
   }
 
@@ -560,16 +585,176 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     }
   }
 
+  Future<void> _deleteModuleQuiz(ModuleResponse module) async {
+    if (module.quizId == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text("Xóa Quiz"),
+          ],
+        ),
+        content: const Text("Bạn có chắc muốn xóa quiz của chương này? Tất cả câu hỏi trong quiz cũng sẽ bị xóa."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Xóa"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _quizService.deleteQuiz(module.quizId!);
+        await _loadCourse();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Xóa quiz thành công"),
+              backgroundColor: Color(0xFF22C55E),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteFinalQuiz() async {
+    if (_finalQuizId == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text("Xóa Final Quiz"),
+          ],
+        ),
+        content: const Text("Bạn có chắc muốn xóa Final Quiz của khóa học này? Tất cả câu hỏi trong quiz cũng sẽ bị xóa."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy", style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Xóa"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _quizService.deleteQuiz(_finalQuizId!);
+        await _loadCourse();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Xóa Final Quiz thành công"),
+              backgroundColor: Color(0xFF22C55E),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Lỗi: $e"), backgroundColor: const Color(0xFFEF4444)),
+          );
+        }
+      }
+    }
+  }
+
+  void _openFinalQuiz() {
+    final cid = _course!.id.value;
+    if (_finalQuizId != null) {
+      context.go(
+        '/mentor/quizzes/create?quizId=${_finalQuizId!.value}&courseId=$cid&final=true',
+      );
+    } else {
+      context.go(
+        '/mentor/quizzes/create?courseId=$cid&final=true',
+      );
+    }
+  }
+
+  void _openModuleQuiz(ModuleResponse module) {
+    final cid = _course!.id.value;
+    if (module.quizId != null) {
+      context.go(
+        '/mentor/quizzes/create?quizId=${module.quizId!.value}&moduleId=${module.id.value}&courseId=$cid',
+      );
+    } else {
+      context.go(
+        '/mentor/quizzes/create?moduleId=${module.id.value}&courseId=$cid',
+      );
+    }
+  }
+
   Widget _buildLessonContent(LessonResponse lesson) {
-    switch (lesson.contentType) {
-      case 'VIDEO':
+    // Sử dụng primary helper để lấy content đầu tiên
+    final primary = lesson.firstContent;
+    final contentType = primary?.type;
+    final lessonContent = primary?.content;
+    final videoUrl = primary?.videoUrl;
+
+    switch (contentType) {
+      case LessonContentType.VIDEO:
         return Row(
           children: [
             const Icon(Icons.videocam_outlined, size: 12, color: _primary),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                lesson.videoUrl ?? '',
+                videoUrl ?? '',
                 style: const TextStyle(fontSize: 11, color: _primary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -577,14 +762,14 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
             ),
           ],
         );
-      case 'LINK':
+      case LessonContentType.LINK:
         return Row(
           children: [
             const Icon(Icons.link, size: 12, color: _primary),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                lesson.content ?? '',
+                lessonContent ?? '',
                 style: const TextStyle(fontSize: 11, color: _primary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -594,7 +779,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         );
       default:
         return Text(
-          lesson.content ?? '',
+          lessonContent ?? '',
           style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -623,6 +808,13 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         ),
         actions: [
           if (_isEditMode && _canEdit) ...[
+            if (_canEdit)
+              TextButton.icon(
+                onPressed: _openFinalQuiz,
+                icon: Icon(_finalQuizId != null ? Icons.edit : Icons.add, size: 18),
+                label: Text(_finalQuizId != null ? 'Sửa Quiz' : 'Tạo Quiz', style: const TextStyle(fontWeight: FontWeight.w600)),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF6366F1)),
+              ),
             if (!_course!.isPublished)
               TextButton.icon(
                 onPressed: _publishCourse,
@@ -778,6 +970,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                       SizedBox(
                         width: 90,
                         child: TextField(
+                          controller: _deadlineDaysController,
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
                           enabled: _canEdit,
@@ -799,7 +992,6 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                             fillColor: const Color(0xFFFAFAFA),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                           ),
-                          controller: TextEditingController(text: _deadlineDays.toString()),
                           onChanged: (v) => _deadlineDays = int.tryParse(v) ?? 20,
                         ),
                       ),
@@ -851,6 +1043,11 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                   )
                 : _buildModulesList(),
           ),
+
+          const SizedBox(height: 12),
+
+          // Final Quiz
+          _buildFinalQuizCardMobile(),
 
           const SizedBox(height: 32),
         ],
@@ -988,7 +1185,9 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
           ),
         ),
         subtitle: Text(
-          "${module.lessonCount} bài học",
+          module.quizId != null
+              ? "${module.lessonCount} bài học · Đã gắn quiz"
+              : "${module.lessonCount} bài học",
           style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
         ),
         trailing: Row(
@@ -1044,7 +1243,225 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                     )
                   : null,
             )),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.quiz_outlined, size: 16, color: Color(0xFF64748B)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "Quiz",
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: module.quizId != null
+                              ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                              : const Color(0xFFE5E7EB),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          module.quizId != null ? "Đã tạo" : "Chưa tạo",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: module.quizId != null ? const Color(0xFF6366F1) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_canEdit && module.quizId != null)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          tooltip: "Xóa quiz",
+                          onPressed: () => _deleteModuleQuiz(module),
+                          style: IconButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        ),
+                      TextButton.icon(
+                        onPressed: _canEdit ? () => _openModuleQuiz(module) : null,
+                        icon: Icon(
+                          module.quizId != null ? Icons.edit_outlined : Icons.add,
+                          size: 16,
+                          color: module.quizId != null
+                              ? const Color(0xFF6366F1)
+                              : (_canEdit ? _primary : const Color(0xFFE5E7EB)),
+                        ),
+                        label: Text(
+                          module.quizId != null ? "Sửa" : "Tạo",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: module.quizId != null
+                                ? const Color(0xFF6366F1)
+                                : (_canEdit ? _primary : const Color(0xFFE5E7EB)),
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: module.quizId != null
+                              ? const Color(0xFF6366F1)
+                              : (_canEdit ? _primary : const Color(0xFFE5E7EB)),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFinalQuizCardMobile() {
+    final hasFinalQuiz = _finalQuizId != null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _canEdit ? _openFinalQuiz : null,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: hasFinalQuiz
+                        ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.workspace_premium_outlined,
+                    color: hasFinalQuiz
+                        ? const Color(0xFF6366F1)
+                        : const Color(0xFF94A3B8),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Final Quiz',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: hasFinalQuiz
+                                  ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                                  : const Color(0xFFE5E7EB),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              hasFinalQuiz ? 'Đã tạo' : 'Chưa tạo',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: hasFinalQuiz
+                                    ? const Color(0xFF6366F1)
+                                    : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Bài kiểm tra cuối khóa học',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_canEdit && hasFinalQuiz)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    tooltip: "Xóa Final Quiz",
+                    onPressed: _deleteFinalQuiz,
+                    style: IconButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+                  ),
+                if (_canEdit)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          hasFinalQuiz ? Icons.edit_outlined : Icons.add,
+                          size: 16,
+                          color: const Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          hasFinalQuiz ? 'Sửa' : 'Tạo',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6366F1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

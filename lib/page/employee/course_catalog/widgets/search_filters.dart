@@ -120,13 +120,13 @@ class _CourseraSearchBarState extends State<_CourseraSearchBar> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -220,8 +220,23 @@ class _EnrollmentPillState extends State<_EnrollmentPill> {
             border: Border.all(
               color: widget.isSelected
                   ? _activeColor
-                  : const Color(0xFFE5E7EB),
+                  : const Color(0xFFF1F5F9), // Softer border
             ),
+            boxShadow: widget.isSelected
+                ? [
+                    BoxShadow(
+                      color: _activeColor.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Text(
             widget.filter.label,

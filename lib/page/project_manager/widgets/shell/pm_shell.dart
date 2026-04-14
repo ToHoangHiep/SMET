@@ -26,6 +26,30 @@ class PmShell extends StatefulWidget {
       tooltip: 'Bảng điều khiển',
     ),
     SidebarMenuItem(
+      icon: Icons.people_rounded,
+      title: 'Tiến độ nhóm',
+      route: '/pm/team',
+      tooltip: 'Tiến độ nhóm',
+    ),
+    SidebarMenuItem(
+      icon: Icons.warning_amber_rounded,
+      title: 'Học viên rủi ro',
+      route: '/pm/risks',
+      tooltip: 'Học viên rủi ro',
+    ),
+    SidebarMenuItem(
+      icon: Icons.description_rounded,
+      title: 'Báo cáo',
+      route: '/pm/reports',
+      tooltip: 'Báo cáo',
+    ),
+    SidebarMenuItem(
+      icon: Icons.lightbulb_outline_rounded,
+      title: 'Insights',
+      route: '/pm/insights',
+      tooltip: 'Insights',
+    ),
+    SidebarMenuItem(
       icon: Icons.folder_rounded,
       title: 'Dự án',
       route: '/pm/projects',
@@ -36,30 +60,6 @@ class PmShell extends StatefulWidget {
       title: 'Duyệt dự án',
       route: '/pm/project-reviews',
       tooltip: 'Duyệt dự án',
-    ),
-    SidebarMenuItem(
-      icon: Icons.people_rounded,
-      title: 'Thành viên',
-      route: '/pm/project_members',
-      tooltip: 'Thành viên',
-    ),
-    SidebarMenuItem(
-      icon: Icons.trending_up_rounded,
-      title: 'Tiến độ',
-      route: '/pm/project_progress',
-      tooltip: 'Tiến độ',
-    ),
-    SidebarMenuItem(
-      icon: Icons.menu_book_rounded,
-      title: 'Lộ trình học',
-      route: '/pm/learning_path',
-      tooltip: 'Lộ trình học',
-    ),
-    SidebarMenuItem(
-      icon: Icons.description_rounded,
-      title: 'Báo cáo',
-      route: '/reports',
-      tooltip: 'Báo cáo',
     ),
   ];
 

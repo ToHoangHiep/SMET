@@ -23,6 +23,76 @@ class QuizService {
   // QUIZ INFO & ELIGIBILITY
   // ============================================================
 
+  /// Lấy quiz theo module — GET /api/lms/quizzes/module/{moduleId}
+  static Future<QuizInfo?> getQuizByModule(String moduleId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/quizzes/module/$moduleId");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return QuizInfo(
+          id: data['id']?.toString() ?? '',
+          title: data['title'] ?? 'Bài kiểm tra',
+          description: data['description'] ?? '',
+          timeLimitMinutes: data['timeLimitMinutes'] ?? 10,
+          passingScore: data['passingScore'] ?? 70,
+          questionCount: data['questionCount'] ?? 0,
+          maxAttempts: data['maxAttempts'],
+          showAnswer: data['showAnswer'] ?? false,
+          isFinalQuiz: data['isFinalQuiz'] ?? false,
+        );
+      }
+      return null;
+    } catch (e) {
+      log("QuizService.getQuizByModule failed: $e");
+      return null;
+    }
+  }
+
+  /// Lấy quiz cuối khóa — GET /api/lms/quizzes/course/{courseId}/final
+  static Future<QuizInfo?> getFinalQuiz(String courseId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/quizzes/course/$courseId/final");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return QuizInfo(
+          id: data['id']?.toString() ?? '',
+          title: data['title'] ?? 'Bài kiểm tra cuối khóa',
+          description: data['description'] ?? '',
+          timeLimitMinutes: data['timeLimitMinutes'] ?? 10,
+          passingScore: data['passingScore'] ?? 70,
+          questionCount: data['questionCount'] ?? 0,
+          maxAttempts: data['maxAttempts'],
+          showAnswer: data['showAnswer'] ?? false,
+          isFinalQuiz: true,
+        );
+      }
+      return null;
+    } catch (e) {
+      log("QuizService.getFinalQuiz failed: $e");
+      return null;
+    }
+  }
+
   /// Lấy thông tin quiz — GET /api/lms/quizzes/{quizId}
   static Future<QuizInfo> getQuizInfo(String quizId) async {
     try {
@@ -394,33 +464,6 @@ class QuizService {
     }
   }
 
-  /// Kiểm tra trạng thái hoàn thành khóa học — GET /api/lms/courses/{courseId}/completion
-  static Future<bool> checkCourseCompletion(String courseId) async {
-    try {
-      final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/courses/$courseId/completion");
-
-      final response = await http.get(
-        url,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-      );
-
-      log("CHECK COURSE COMPLETION STATUS: ${response.statusCode}");
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data == true || data['completed'] == true;
-      } else {
-        return false;
-      }
-    } catch (e) {
-      log("QuizService.checkCourseCompletion failed: $e");
-      return false;
-    }
-  }
   static Future<QuizSummary> getQuizSummary(String quizId) async {
     try {
       final token = await AuthService.getToken();

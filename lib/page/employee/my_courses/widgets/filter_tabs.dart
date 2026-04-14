@@ -85,14 +85,29 @@ class _FilterChipState extends State<_FilterChip> {
                 : (_isHovered
                     ? const Color(0xFFEFF6FF)
                     : Colors.white),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: widget.isActive
                   ? const Color(0xFF137FEC)
                   : (_isHovered
                       ? const Color(0xFF137FEC).withValues(alpha: 0.4)
-                      : const Color(0xFFE5E7EB)),
+                      : const Color(0xFFF1F5F9)), // Softer border
             ),
+            boxShadow: widget.isActive
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF137FEC).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Text(
             widget.label,

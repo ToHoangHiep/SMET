@@ -15,9 +15,7 @@ class MentorCreateQuizWeb extends StatefulWidget {
   final String? moduleId;
   final String? courseId;
   final bool isFinalQuiz;
-  /** Nếu truyền quizId → chế độ sửa quiz đã tồn tại. */
   final String? quizId;
-  /** Gọi sau khi lưu thành công, trước khi quay lại trang khóa học. */
   final VoidCallback? onSaved;
 
   const MentorCreateQuizWeb({
@@ -33,7 +31,8 @@ class MentorCreateQuizWeb extends StatefulWidget {
   State<MentorCreateQuizWeb> createState() => _MentorCreateQuizWebState();
 }
 
-class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
+class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
 
   final MentorQuizService _quizService = MentorQuizService();
@@ -51,10 +50,19 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   bool _isSaving = false;
   bool _isLoading = true;
   String? _loadError;
-  /// Được set từ quiz data khi edit — dùng cho breadcrumb/title thay vì widget.isFinalQuiz
   bool? _quizIsFinal;
 
   final List<_EditableQuestion> _questions = [];
+
+  static const _primaryColor = Color(0xFF6366F1);
+  static const _secondaryColor = Color(0xFF8B5CF6);
+  static const _accentColor = Color(0xFF06B6D4);
+  static const _successColor = Color(0xFF10B981);
+  static const _errorColor = Color(0xFFEF4444);
+  static const _bgColor = Color(0xFFF1F5F9);
+  static const _cardBg = Color(0xFFFFFFFF);
+  static const _textPrimary = Color(0xFF1E293B);
+  static const _textSecondary = Color(0xFF64748B);
 
   @override
   void initState() {
@@ -86,15 +94,14 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           editable.questionController.text = q.content;
           editable.questionId = q.id;
 
-          // _EditableQuestion() đã tạo sẵn 4 ô trống; khi sửa quiz phải thay bằng đáp án từ API,
-          // không được add thêm → tránh 8 ô (4 placeholder + 4 thật).
-          if (q.options != null && q.options!.isNotEmpty) {
-            for (final c in editable.optionControllers) {
-              c.dispose();
-            }
-            editable.optionControllers.clear();
-            editable.correctAnswers.clear();
-            editable.optionIds.clear();
+          for (final c in editable.optionControllers) {
+            c.dispose();
+          }
+          editable.optionControllers.clear();
+          editable.correctAnswers.clear();
+          editable.optionIds.clear();
+
+          if (q.options != null) {
             for (final o in q.options!) {
               editable.optionControllers.add(
                 TextEditingController(text: o.content),
@@ -102,11 +109,12 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
               editable.correctAnswers.add(o.isCorrect);
               editable.optionIds.add(o.id);
             }
-            while (editable.optionControllers.length < 2) {
-              editable.optionControllers.add(TextEditingController());
-              editable.correctAnswers.add(false);
-              editable.optionIds.add(null);
-            }
+          }
+
+          while (editable.optionControllers.length < 2) {
+            editable.optionControllers.add(TextEditingController());
+            editable.correctAnswers.add(false);
+            editable.optionIds.add(null);
           }
 
           _questions.add(editable);
@@ -141,20 +149,23 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   }
 
   void _goBack() {
-    widget.onSaved?.call();
-    // Mở bằng context.go() → stack không có route để pop → phải go() lại chi tiết khóa
-    if (widget.courseId != null && widget.courseId!.isNotEmpty) {
+    dev.log('[MentorCreateQuizWeb._goBack] START courseId=${widget.courseId}', name: 'QuizDebug');
+    try {
+      widget.onSaved?.call();
+      if (widget.courseId != null && widget.courseId!.isNotEmpty) {
+        dev.log('[MentorCreateQuizWeb._goBack] branch: courseId path, canPop=${context.canPop()}', name: 'QuizDebug');
+        context.go('/mentor/courses/${widget.courseId}');
+        dev.log('[MentorCreateQuizWeb._goBack] after go(courseId)', name: 'QuizDebug');
+        return;
+      }
+      dev.log('[MentorCreateQuizWeb._goBack] branch: default path, canPop=${context.canPop()}', name: 'QuizDebug');
       if (context.canPop()) {
         context.pop();
       } else {
-        context.go('/mentor/courses/${widget.courseId}');
+        context.go('/mentor/courses');
       }
-      return;
-    }
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/mentor/courses');
+    } catch (e, st) {
+      dev.log('[MentorCreateQuizWeb._goBack] EXCEPTION: $e\n$st', name: 'QuizDebug');
     }
   }
 
@@ -167,10 +178,9 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   void _removeQuestion(int index) {
     if (_questions.length == 1) return;
 
-    setState(() {
-      _questions[index].dispose();
-      _questions.removeAt(index);
-    });
+    final removed = _questions.removeAt(index);
+    removed.dispose();
+    setState(() {});
   }
 
   Future<void> _saveQuiz() async {
@@ -207,14 +217,12 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
     setState(() => _isSaving = true);
 
     try {
-      // ── Ghi lại ID gốc từ server trước khi save ──
       final _originalQuestionIds = <Long>{};
       for (final eq in _questions) {
         if (eq.questionId != null) _originalQuestionIds.add(eq.questionId!);
       }
 
       if (_isEditMode) {
-        // ── EDIT MODE: cập nhật metadata quiz ──
         final updatedQuiz = QuizModel(
           title: _titleController.text.trim(),
           timeLimitMinutes: int.tryParse(_durationController.text.trim()) ?? 0,
@@ -223,14 +231,12 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           questionCount: _questions.length,
           showAnswer: _showAnswer,
           isFinalQuiz: _quizIsFinal ?? widget.isFinalQuiz,
-          moduleId:
-              widget.moduleId != null
-                  ? Long(int.parse(widget.moduleId!))
-                  : null,
-          courseId:
-              widget.courseId != null
-                  ? Long(int.parse(widget.courseId!))
-                  : null,
+          moduleId: widget.moduleId != null && widget.moduleId!.isNotEmpty
+              ? Long(int.parse(widget.moduleId!))
+              : null,
+          courseId: widget.courseId != null
+              ? Long(int.parse(widget.courseId!))
+              : null,
         );
 
         await _quizService.updateQuiz(
@@ -238,7 +244,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           updatedQuiz,
         );
 
-        // ── Cập nhật / tạo / xóa câu hỏi & đáp án ──
         final _stillUsedQuestionIds = <Long>{};
 
         for (int i = 0; i < _questions.length; i++) {
@@ -247,7 +252,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
 
           Long questionId;
           if (item.questionId != null) {
-            // Câu hỏi đã có → cập nhật
             final updated = await _questionService.updateQuestion(
               item.questionId!,
               QuestionModel(
@@ -258,7 +262,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
             );
             questionId = updated.id!;
           } else {
-            // Câu hỏi mới → tạo mới
             final created = await _questionService.createQuestion(
               QuestionModel(
                 quizId: Long(int.parse(widget.quizId!)),
@@ -295,7 +298,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           }
         }
 
-        // Xóa câu hỏi đã bị bỏ đi (trong original nhưng không còn trong form)
         for (final qid in _originalQuestionIds) {
           if (!_stillUsedQuestionIds.contains(qid)) {
             try {
@@ -312,7 +314,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
         );
         _goBack();
       } else {
-        // ── CREATE MODE: create quiz + questions ──
         final quiz = QuizModel(
           title: _titleController.text.trim(),
           timeLimitMinutes: int.tryParse(_durationController.text.trim()) ?? 0,
@@ -321,20 +322,18 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           questionCount: _questions.length,
           showAnswer: _showAnswer,
           isFinalQuiz: _quizIsFinal ?? widget.isFinalQuiz,
-          moduleId:
-              widget.moduleId != null
-                  ? Long(int.parse(widget.moduleId!))
-                  : null,
-          courseId:
-              widget.courseId != null
-                  ? Long(int.parse(widget.courseId!))
-                  : null,
+          moduleId: widget.moduleId != null && widget.moduleId!.isNotEmpty
+              ? Long(int.parse(widget.moduleId!))
+              : null,
+          courseId: widget.courseId != null
+              ? Long(int.parse(widget.courseId!))
+              : null,
         );
 
         dev.log(
-          '[MentorCreateQuizWeb._saveQuiz] CREATE payload: moduleId=${widget.moduleId} '
+          '[MentorCreateQuizWeb._saveQuiz] CREATE payload: '
           'courseId=${widget.courseId} isFinalQuiz=${widget.isFinalQuiz} '
-          'quiz.moduleId=${quiz.moduleId?.value} quiz.courseId=${quiz.courseId?.value}',
+          'quiz.courseId=${quiz.courseId?.value}',
           name: 'QuizDebug',
         );
         final createdQuiz = await _quizService.createQuiz(quiz);
@@ -343,6 +342,9 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           '(sau khi quay lại trang khóa, GET modules/course phải trả quizId khớp module)',
           name: 'QuizDebug',
         );
+        if (createdQuiz.id == null) {
+          dev.log('[MentorCreateQuizWeb._saveQuiz] WARNING: createdQuiz.id is NULL!', name: 'QuizDebug');
+        }
 
         for (int i = 0; i < _questions.length; i++) {
           final item = _questions[i];
@@ -383,9 +385,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
           }
         }
 
-        // validateQuiz là bước backend kiểm tra quiz đủ câu hỏi.
-        // Nếu questionCount (form) != số câu hỏi thực tế → lỗi, nhưng quiz đã lưu rồi.
-        // Bọc riêng để user vẫn thấy "Tạo quiz thành công" dù validation fail.
         if (createdQuiz.id != null) {
           dev.log(
             '[MentorCreateQuizWeb._saveQuiz] Calling validateQuiz(id=${createdQuiz.id?.value})',
@@ -402,21 +401,22 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
               '[MentorCreateQuizWeb._saveQuiz] validateQuiz FAILED (quiz+questions đã lưu OK): $e',
               name: 'QuizDebug',
             );
-            if (!mounted) return;
-            GlobalNotificationService.show(
-              context: context,
-              message: 'Quiz đã lưu nhưng chưa validate: $e',
-              type: NotificationType.warning,
-            );
           }
         }
 
-        if (!mounted) return;
+        dev.log('[MentorCreateQuizWeb._saveQuiz] before mounted check: mounted=$mounted', name: 'QuizDebug');
+
+        if (!mounted) {
+          dev.log('[MentorCreateQuizWeb._saveQuiz] STOP: mounted=false', name: 'QuizDebug');
+          return;
+        }
+        dev.log('[MentorCreateQuizWeb._saveQuiz] calling GlobalNotificationService.show', name: 'QuizDebug');
         GlobalNotificationService.show(
           context: context,
           message: 'Tạo quiz thành công',
           type: NotificationType.success,
         );
+        dev.log('[MentorCreateQuizWeb._saveQuiz] after show, calling _goBack', name: 'QuizDebug');
 
         _goBack();
       }
@@ -440,80 +440,94 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    if (_loadError != null) {
       return Scaffold(
+        backgroundColor: _bgColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(_loadError!, style: const TextStyle(color: Colors.red)),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _goBack, child: const Text('Quay lại')),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_primaryColor.withOpacity(0.1), _secondaryColor.withOpacity(0.1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const CircularProgressIndicator(
+                  color: _primaryColor,
+                  strokeWidth: 3,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Đang tải dữ liệu...',
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xfff5f6fa),
-      body: Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
-            child: BreadcrumbPageHeader(
-              pageTitle:
-                  _isEditMode
-                      ? (_quizIsFinal == true ? 'Sửa Final Quiz' : 'Sửa Quiz')
-                      : (widget.isFinalQuiz ? 'Tạo Final Quiz' : 'Tạo Quiz'),
-              pageIcon: Icons.quiz_rounded,
-              breadcrumbs: [
-                const BreadcrumbItem(
-                  label: 'Khóa học',
-                  route: '/mentor/courses',
-                ),
-                if (widget.courseId != null && widget.courseId!.isNotEmpty)
-                  BreadcrumbItem(
-                    label: 'Chi tiết khóa',
-                    route: '/mentor/courses/${widget.courseId}',
-                  ),
-                BreadcrumbItem(
-                  label:
-                      _isEditMode
-                          ? (_quizIsFinal == true ? 'Final Quiz' : 'Quiz module')
-                          : (widget.isFinalQuiz ? 'Final Quiz' : 'Quiz module'),
+    if (_loadError != null) {
+      return Scaffold(
+        backgroundColor: _bgColor,
+        body: Center(
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: _cardBg,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
                 ),
               ],
-              primaryColor: const Color(0xFF6366F1),
-              actions: [
-                TextButton(
-                  onPressed: _isSaving ? null : _goBack,
-                  child: const Text('Hủy'),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _isSaving ? null : _saveQuiz,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
-                    foregroundColor: Colors.white,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _errorColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  child:
-                      _isSaving
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : Text(_isEditMode ? 'Lưu thay đổi' : 'Lưu'),
+                  child: const Icon(Icons.error_outline, size: 48, color: _errorColor),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _loadError!,
+                  style: const TextStyle(color: _errorColor, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                _buildActionButton(
+                  label: 'Quay lại',
+                  onPressed: _goBack,
+                  isPrimary: false,
                 ),
               ],
             ),
           ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: _bgColor,
+      body: Column(
+        children: [
+          _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
@@ -535,14 +549,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
                               child: _buildQuestionCard(index),
                             ),
                           ),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _addQuestion,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Thêm câu hỏi'),
-                            ),
-                          ),
+                          _buildAddQuestionButton(),
                         ],
                       ),
                     ),
@@ -558,61 +565,262 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
     );
   }
 
-  Widget _buildGeneralCard() {
-    return _buildCard(
-      title: 'Thông tin chung',
-      child: Column(
-        children: [
-          TextFormField(
-            controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'Tên bài thi',
-              border: OutlineInputBorder(),
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Vui lòng nhập tên bài thi';
-              }
-              return null;
-            },
+  Widget _buildHeader() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+      child: BreadcrumbPageHeader(
+        pageTitle: _isEditMode
+            ? (_quizIsFinal == true ? 'Sửa Final Quiz' : 'Sửa Quiz')
+            : (widget.isFinalQuiz ? 'Tạo Final Quiz' : 'Tạo Quiz'),
+        pageIcon: Icons.quiz_rounded,
+        breadcrumbs: [
+          const BreadcrumbItem(
+            label: 'Khóa học',
+            route: '/mentor/courses',
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _durationController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Thời gian (phút)',
-                    border: OutlineInputBorder(),
+          if (widget.courseId != null && widget.courseId!.isNotEmpty)
+            BreadcrumbItem(
+              label: 'Chi tiết khóa',
+              route: '/mentor/courses/${widget.courseId}',
+            ),
+          BreadcrumbItem(
+            label: _isEditMode
+                ? (_quizIsFinal == true ? 'Final Quiz' : 'Quiz module')
+                : (widget.isFinalQuiz ? 'Final Quiz' : 'Quiz module'),
+          ),
+        ],
+        primaryColor: _primaryColor,
+        actions: [
+          _buildActionButton(
+            label: 'Hủy',
+            onPressed: _isSaving ? null : _goBack,
+            isPrimary: false,
+          ),
+          const SizedBox(width: 12),
+          _buildActionButton(
+            label: _isEditMode ? 'Lưu thay đổi' : 'Lưu',
+            onPressed: _isSaving ? null : _saveQuiz,
+            isPrimary: true,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required VoidCallback? onPressed,
+    required bool isPrimary,
+    Widget? icon,
+  }) {
+    if (isPrimary) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [_primaryColor, _secondaryColor],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: _primaryColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    icon,
+                    const SizedBox(width: 8),
+                  ] else ...[
+                    const Icon(Icons.check_rounded, size: 20, color: Colors.white),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.close_rounded, size: 20, color: _textSecondary),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeneralCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _primaryColor.withOpacity(0.08),
+                  _secondaryColor.withOpacity(0.08),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_primaryColor, _secondaryColor],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Text(
+                  'Thông tin chung',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildStyledTextField(
+                  controller: _titleController,
+                  label: 'Tên bài thi',
+                  hint: 'Nhập tên bài thi...',
+                  prefixIcon: Icons.title_rounded,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Nhập thời gian';
+                      return 'Vui lòng nhập tên bài thi';
                     }
                     return null;
                   },
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextFormField(
-                  controller: _passingScoreController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Điểm đạt (%)',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Nhập điểm đạt';
-                    }
-                    return null;
-                  },
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStyledTextField(
+                        controller: _durationController,
+                        label: 'Thời gian (phút)',
+                        hint: '45',
+                        prefixIcon: Icons.timer_outlined,
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nhập thời gian';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStyledTextField(
+                        controller: _passingScoreController,
+                        label: 'Điểm đạt (%)',
+                        hint: '80',
+                        prefixIcon: Icons.stars_rounded,
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nhập điểm đạt';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -623,202 +831,894 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb> {
     final question = _questions[index];
     question.ensureValidState();
 
-    return _buildCard(
-      title: 'Câu hỏi ${index + 1}',
-      action:
-          _questions.length > 1
-              ? TextButton.icon(
-                onPressed: () => _removeQuestion(index),
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                label: const Text('Xóa', style: TextStyle(color: Colors.red)),
-              )
-              : null,
-      child: Column(
-        children: [
-          TextFormField(
-            controller: question.questionController,
-            decoration: const InputDecoration(
-              labelText: 'Nội dung câu hỏi',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 16),
-          ...List.generate(question.optionControllers.length, (optionIndex) {
-            final optionLabel = String.fromCharCode(65 + optionIndex);
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Checkbox(
-                    value:
-                        optionIndex < question.correctAnswers.length
-                            ? question.correctAnswers[optionIndex]
-                            : false,
-                    onChanged: (value) {
-                      setState(() {
-                        question.ensureValidState();
-                        if (optionIndex < question.correctAnswers.length) {
-                          question.correctAnswers[optionIndex] = value ?? false;
-                        }
-                      });
-                    },
-                  ),
-                  SizedBox(
-                    width: 24,
-                    child: Text(
-                      optionLabel,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: question.optionControllers[optionIndex],
-                      decoration: InputDecoration(
-                        labelText: 'Đáp án $optionLabel',
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Xóa đáp án',
-                    onPressed:
-                        question.optionControllers.length <= 2
-                            ? null
-                            : () {
-                              setState(() {
-                                question.removeOption(optionIndex);
-                              });
-                            },
-                    icon: const Icon(Icons.close, size: 18),
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  question.addOption();
-                });
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Thêm đáp án'),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Có thể chọn nhiều đáp án đúng.',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingCard() {
-    return _buildCard(
-      title: 'Cài đặt',
-      child: Column(
-        children: [
-          TextFormField(
-            controller: _maxAttemptsController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Giới hạn số lần làm',
-              border: OutlineInputBorder(),
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Nhập số lần làm';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Hiển thị đáp án'),
-            value: _showAnswer,
-            onChanged: (value) {
-              setState(() => _showAnswer = value);
-            },
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xfff8f9fc),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'Số câu hỏi: ${_questions.length}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCard({
-    required String title,
-    required Widget child,
-    Widget? action,
-  }) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _accentColor.withOpacity(0.08),
+                  _secondaryColor.withOpacity(0.08),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_accentColor, _secondaryColor],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'Câu hỏi ${index + 1}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _textPrimary,
+                    ),
+                  ),
+                ),
+                if (_questions.length > 1)
+                  _buildDeleteButton(
+                    onPressed: () => _removeQuestion(index),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStyledTextField(
+                  controller: question.questionController,
+                  label: 'Nội dung câu hỏi',
+                  hint: 'Nhập nội dung câu hỏi...',
+                  prefixIcon: Icons.help_outline_rounded,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _bgColor,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.list_alt_rounded,
+                            size: 20,
+                            color: _textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Đáp án',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'Chọn đáp án đúng',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _textSecondary.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ...List.generate(
+                        question.optionControllers.length,
+                        (optionIndex) {
+                          final optionLabel = String.fromCharCode(65 + optionIndex);
+                          final isCorrect = optionIndex < question.correctAnswers.length
+                              ? question.correctAnswers[optionIndex]
+                              : false;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildOptionRow(
+                              question: question,
+                              optionIndex: optionIndex,
+                              optionLabel: optionLabel,
+                              isCorrect: isCorrect,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _buildAddOptionButton(
+                        onPressed: () {
+                          setState(() {
+                            question.addOption();
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _successColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _successColor.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline_rounded,
+                              size: 16,
+                              color: _successColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Có thể chọn nhiều đáp án đúng',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _successColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionRow({
+    required _EditableQuestion question,
+    required int optionIndex,
+    required String optionLabel,
+    required bool isCorrect,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildOptionRadio(
+          isCorrect: isCorrect,
+          onChanged: (value) {
+            question.ensureValidState();
+            setState(() {
+              if (optionIndex < question.correctAnswers.length) {
+                question.correctAnswers[optionIndex] = value ?? false;
+              }
+            });
+          },
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isCorrect
+                  ? [_successColor, _accentColor]
+                  : [_primaryColor, _secondaryColor],
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              optionLabel,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStyledTextField(
+            controller: question.optionControllers[optionIndex],
+            label: 'Đáp án $optionLabel',
+            hint: 'Nhập đáp án...',
+            noBorder: true,
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (question.optionControllers.length > 2)
+          _buildRemoveOptionButton(
+            onPressed: () {
+              question.removeOption(optionIndex);
+              setState(() {});
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOptionRadio({
+    required bool isCorrect,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!isCorrect),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          gradient: isCorrect
+              ? LinearGradient(
+                  colors: [_successColor, _accentColor],
+                )
+              : null,
+          color: isCorrect ? null : Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isCorrect ? Colors.transparent : Colors.grey.shade300,
+            width: 2,
+          ),
+          boxShadow: isCorrect
+              ? [
+                  BoxShadow(
+                    color: _successColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: isCorrect
+            ? const Icon(
+                Icons.check_rounded,
+                size: 16,
+                color: Colors.white,
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildRemoveOptionButton({required VoidCallback onPressed}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: _errorColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.close_rounded,
+            size: 18,
+            color: _errorColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddOptionButton({required VoidCallback onPressed}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: _primaryColor.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _primaryColor.withOpacity(0.2),
+              style: BorderStyle.solid,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(
+                Icons.add_rounded,
+                size: 18,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: 6),
               Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                'Thêm đáp án',
+                style: TextStyle(
+                  color: _primaryColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
-              const Spacer(),
-              if (action != null) action,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddQuestionButton() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _primaryColor.withOpacity(0.2),
+          width: 2,
+          strokeAlign: BorderSide.strokeAlignCenter,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _addQuestion,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        _primaryColor.withOpacity(0.1),
+                        _secondaryColor.withOpacity(0.1),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.add_rounded,
+                    size: 28,
+                    color: _primaryColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Thêm câu hỏi',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bấm để thêm câu hỏi mới vào bài thi',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _successColor.withOpacity(0.08),
+                  _accentColor.withOpacity(0.08),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_successColor, _accentColor],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.settings_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Text(
+                  'Cài đặt',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStyledTextField(
+                  controller: _maxAttemptsController,
+                  label: 'Giới hạn số lần làm',
+                  hint: '1',
+                  prefixIcon: Icons.repeat_rounded,
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Nhập số lần làm';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                _buildToggleSetting(),
+                const SizedBox(height: 20),
+                _buildStatsCard(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleSetting() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _bgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _showAnswer
+                      ? _successColor.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.visibility_rounded,
+                  size: 20,
+                  color: _showAnswer ? _successColor : Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hiển thị đáp án',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: _textPrimary,
+                      ),
+                    ),
+                    Text(
+                      _showAnswer ? 'Đã bật' : 'Đã tắt',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildToggleSwitch(
+                value: _showAnswer,
+                onChanged: (value) {
+                  setState(() => _showAnswer = value);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleSwitch({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        width: 52,
+        height: 30,
+        decoration: BoxDecoration(
+          gradient: value
+              ? LinearGradient(
+                  colors: [_successColor, _accentColor],
+                )
+              : null,
+          color: value ? null : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: value
+              ? [
+                  BoxShadow(
+                    color: _successColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 250),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 26,
+            height: 26,
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _primaryColor.withOpacity(0.08),
+            _secondaryColor.withOpacity(0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _primaryColor.withOpacity(0.1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.quiz_rounded,
+                size: 20,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Tổng quan',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _textPrimary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          child,
+          _buildStatRow(
+            icon: Icons.help_outline_rounded,
+            label: 'Số câu hỏi',
+            value: '${_questions.length}',
+            color: _primaryColor,
+          ),
+          const SizedBox(height: 12),
+          _buildStatRow(
+            icon: Icons.list_alt_rounded,
+            label: 'Tổng đáp án',
+            value: '${_questions.fold<int>(0, (sum, q) => sum + q.optionControllers.length)}',
+            color: _accentColor,
+          ),
+          const SizedBox(height: 12),
+          _buildStatRow(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Đáp án đúng',
+            value: '${_questions.fold<int>(0, (sum, q) => sum + q.correctAnswers.where((e) => e).length)}',
+            color: _successColor,
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: _textSecondary,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStyledTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    IconData? prefixIcon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    bool noBorder = false,
+  }) {
+    final effectivePrefixIcon = noBorder ? null : prefixIcon;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          validator: validator,
+          style: const TextStyle(
+            fontSize: 14,
+            color: _textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: _textSecondary.withOpacity(0.5),
+              fontSize: 14,
+            ),
+            prefixIcon: effectivePrefixIcon != null
+                ? Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Icon(
+                      effectivePrefixIcon,
+                      size: 20,
+                      color: _primaryColor,
+                    ),
+                  )
+                : null,
+            filled: true,
+            fillColor: noBorder ? Colors.white : _bgColor,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: noBorder ? 16 : 16,
+              vertical: noBorder ? 16 : 14,
+            ),
+            border: noBorder
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  )
+                : OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.grey.shade200,
+                      width: 1.5,
+                    ),
+                  ),
+            enabledBorder: noBorder
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.grey.shade200,
+                      width: 1.5,
+                    ),
+                  )
+                : OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.grey.shade200,
+                      width: 1.5,
+                    ),
+                  ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: _primaryColor,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: _errorColor,
+                width: 1.5,
+              ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: _errorColor,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeleteButton({required VoidCallback onPressed}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: _errorColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.delete_outline_rounded,
+                size: 18,
+                color: _errorColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Xóa',
+                style: TextStyle(
+                  color: _errorColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _EditableQuestion {
-  /** ID gốc từ server (null = câu hỏi mới thêm lúc sửa quiz). */
   Long? questionId;
-  /** ID gốc của mỗi đáp án (null = đáp án mới thêm). */
   final List<Long?> optionIds = [];
 
   final TextEditingController questionController = TextEditingController();
@@ -830,6 +1730,7 @@ class _EditableQuestion {
   final List<bool> correctAnswers = List.generate(4, (_) => false);
 
   void addOption() {
+    ensureValidState();
     optionControllers.add(TextEditingController());
     correctAnswers.add(false);
     optionIds.add(null);
@@ -837,10 +1738,16 @@ class _EditableQuestion {
 
   void removeOption(int index) {
     if (optionControllers.length <= 2) return;
+    ensureValidState();
+    if (index >= optionControllers.length) return;
     optionControllers[index].dispose();
     optionControllers.removeAt(index);
-    correctAnswers.removeAt(index);
-    optionIds.removeAt(index);
+    if (index < correctAnswers.length) {
+      correctAnswers.removeAt(index);
+    }
+    if (index < optionIds.length) {
+      optionIds.removeAt(index);
+    }
   }
 
   void ensureValidState() {
@@ -849,6 +1756,12 @@ class _EditableQuestion {
     }
     while (correctAnswers.length > optionControllers.length) {
       correctAnswers.removeLast();
+    }
+    while (optionIds.length < optionControllers.length) {
+      optionIds.add(null);
+    }
+    while (optionIds.length > optionControllers.length) {
+      optionIds.removeLast();
     }
   }
 

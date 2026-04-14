@@ -74,13 +74,19 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: widget.primaryColor.withValues(alpha: 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+                color: widget.primaryColor.withValues(alpha: 0.06),
+                blurRadius: 36,
+                spreadRadius: 4,
+                offset: const Offset(0, 12),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -473,9 +479,10 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField> {
             _isFocused
                 ? [
                   BoxShadow(
-                    color: widget.primaryColor.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: widget.primaryColor.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
                   ),
                 ]
                 : [],
@@ -555,9 +562,10 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
             _isFocused
                 ? [
                   BoxShadow(
-                    color: widget.primaryColor.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: widget.primaryColor.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
                   ),
                 ]
                 : [],

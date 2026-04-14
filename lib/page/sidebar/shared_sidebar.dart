@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'sidebar_menu_item.dart';
 
 class SharedSidebar extends StatefulWidget {
@@ -120,20 +121,28 @@ class _SharedSidebarState extends State<SharedSidebar>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white,
-                      Colors.white,
-                      widget.primaryColor.withValues(alpha: 0.02),
+                      widget.primaryColor.withValues(alpha: 0.12),
+                      Colors.purpleAccent.withValues(alpha: 0.04),
+                      Colors.white.withValues(alpha: 0.6),
+                      Colors.cyanAccent.withValues(alpha: 0.04),
                     ],
+                    stops: const [0.0, 0.4, 0.7, 1.0],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: widget.primaryColor.withValues(alpha: 0.08),
+                    color: widget.primaryColor.withValues(alpha: 0.2),
+                    width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: widget.primaryColor.withValues(alpha: 0.06),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      color: widget.primaryColor.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -177,20 +186,28 @@ class _SharedSidebarState extends State<SharedSidebar>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white,
-            Colors.white,
-            widget.primaryColor.withValues(alpha: 0.02),
+            widget.primaryColor.withValues(alpha: 0.12),
+            Colors.purpleAccent.withValues(alpha: 0.04),
+            Colors.white.withValues(alpha: 0.6),
+            Colors.cyanAccent.withValues(alpha: 0.04),
           ],
+          stops: const [0.0, 0.4, 0.7, 1.0],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: widget.primaryColor.withValues(alpha: 0.08),
+          color: widget.primaryColor.withValues(alpha: 0.2),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: widget.primaryColor.withValues(alpha: 0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: widget.primaryColor.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -218,10 +235,12 @@ class _SharedSidebarState extends State<SharedSidebar>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.white,
-              Colors.white,
-              widget.primaryColor.withValues(alpha: 0.02),
+              widget.primaryColor.withValues(alpha: 0.12),
+              Colors.purpleAccent.withValues(alpha: 0.04),
+              Colors.white.withValues(alpha: 0.6),
+              Colors.cyanAccent.withValues(alpha: 0.04),
             ],
+            stops: const [0.0, 0.4, 0.7, 1.0],
           ),
         ),
         child: SafeArea(
@@ -283,7 +302,7 @@ class _SharedSidebarState extends State<SharedSidebar>
               children: [
                 Text(
                   widget.logoText,
-                  style: TextStyle(
+                  style: GoogleFonts.notoSans(
                     color: widget.primaryColor,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -292,9 +311,11 @@ class _SharedSidebarState extends State<SharedSidebar>
                 ),
                 Text(
                   widget.subtitle,
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 12,
+                  style: GoogleFonts.notoSans(
+                    color: const Color(0xFF64748B),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -665,8 +686,8 @@ class _SidebarItemState extends State<_SidebarItem>
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        widget.primaryColor.withValues(alpha: 0.12),
-                        widget.primaryColor.withValues(alpha: 0.04),
+                        Colors.white.withValues(alpha: 0.9),
+                        Colors.white.withValues(alpha: 0.95),
                       ],
                     )
                   : _isHovered
@@ -680,17 +701,26 @@ class _SidebarItemState extends State<_SidebarItem>
                         )
                       : null,
               borderRadius: BorderRadius.circular(14),
-              border: widget.isActive
-                  ? Border(
-                      left: BorderSide(
-                        color: widget.primaryColor,
-                        width: 3,
-                      ),
-                    )
-                  : null,
             ),
             child: Row(
               children: [
+                if (widget.isActive)
+                  Container(
+                    width: 4,
+                    height: 24,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      color: widget.primaryColor,
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.primaryColor.withValues(alpha: 0.6),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.all(8),
@@ -708,37 +738,28 @@ class _SidebarItemState extends State<_SidebarItem>
                     color: widget.isActive
                         ? widget.primaryColor
                         : _isHovered
-                            ? Colors.grey[700]
-                            : Colors.grey[500],
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFF475569),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Flexible(
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
-                    style: TextStyle(
+                    style: GoogleFonts.notoSans(
                       color: widget.isActive
                           ? widget.primaryColor
                           : _isHovered
-                              ? const Color(0xFF374151)
-                              : Colors.grey[600],
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF1E293B),
                       fontWeight:
-                          widget.isActive ? FontWeight.w600 : FontWeight.w500,
+                          widget.isActive ? FontWeight.w700 : FontWeight.w600,
                       fontSize: 14,
                     ),
                     child: Text(widget.title),
                   ),
                 ),
                 const Spacer(),
-                if (widget.isActive)
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: widget.primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
               ],
             ),
           ),
@@ -789,8 +810,8 @@ class _CollapsedSidebarItemState extends State<_CollapsedSidebarItem> {
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        widget.primaryColor.withValues(alpha: 0.12),
-                        widget.primaryColor.withValues(alpha: 0.04),
+                        Colors.white.withValues(alpha: 0.9),
+                        Colors.white.withValues(alpha: 0.95),
                       ],
                     )
                   : _isHovered
@@ -804,23 +825,40 @@ class _CollapsedSidebarItemState extends State<_CollapsedSidebarItem> {
                         )
                       : null,
               borderRadius: BorderRadius.circular(14),
-              border: widget.isActive
-                  ? Border(
-                      left: BorderSide(
-                        color: widget.primaryColor,
-                        width: 3,
-                      ),
-                    )
-                  : null,
             ),
-            child: Icon(
-              widget.icon,
-              size: 24,
-              color: widget.isActive
-                  ? widget.primaryColor
-                  : _isHovered
-                      ? Colors.grey[700]
-                      : Colors.grey[500],
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                if (widget.isActive)
+                  Positioned(
+                    left: -8,
+                    child: Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: widget.primaryColor,
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.primaryColor.withValues(alpha: 0.6),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Icon(
+                  widget.icon,
+                  size: 24,
+                  color: widget.isActive
+                      ? widget.primaryColor
+                      : _isHovered
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFF475569),
+                ),
+              ],
             ),
           ),
         ),

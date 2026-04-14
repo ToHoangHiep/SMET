@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class UserManagementPageHeader extends StatefulWidget {
   final Color primaryColor;
@@ -131,23 +132,23 @@ class _UserManagementPageHeaderState extends State<UserManagementPageHeader>
               ),
             ),
             const SizedBox(width: 16),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Quản lý nhân viên',
-                  style: TextStyle(
+                  style: GoogleFonts.notoSans(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
+                    color: const Color(0xFF111827),
                     letterSpacing: -0.5,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Quản lý toàn bộ nhân viên và quyền truy cập hệ thống',
-                  style: TextStyle(
-                    color: Color(0xFF6B7280),
+                  style: GoogleFonts.notoSans(
+                    color: const Color(0xFF6B7280),
                     fontSize: 14,
                   ),
                 ),
@@ -310,7 +311,7 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                 const SizedBox(width: 8),
                 Text(
                   widget.label,
-                  style: TextStyle(
+                  style: GoogleFonts.notoSans(
                     color: widget.isHovered
                         ? widget.foregroundColor
                         : widget.foregroundColor.withValues(alpha: 0.8),

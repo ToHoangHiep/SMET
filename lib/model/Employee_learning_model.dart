@@ -13,6 +13,13 @@ class LearningCourse {
   final String? finalQuizId; // quiz cuối khóa
   /// Final quiz đã pass (điểm >= passingScore)
   final bool finalQuizPassed;
+  /// ID của mentor giảng dạy khóa học này
+  final int mentorId;
+  /// Tên của mentor giảng dạy khóa học này
+  final String mentorName;
+  /// Trạng thái enrollment từ backend — dùng thay vì progressPercent để xác định hoàn thành
+  /// Backend đã tính đúng: COMPLETED = lessons done + quizzes passed
+  final String enrollmentStatus;
 
   const LearningCourse({
     required this.id,
@@ -22,7 +29,13 @@ class LearningCourse {
     required this.modules,
     this.finalQuizId,
     this.finalQuizPassed = false,
+    this.mentorId = 0,
+    this.mentorName = 'Giảng viên',
+    this.enrollmentStatus = 'NOT_STARTED',
   });
+
+  /// True khi backend trả COMPLETED (tất cả lessons + quizzes đều pass)
+  bool get isCourseCompleted => enrollmentStatus == 'COMPLETED';
 }
 
 class LearningModule {
@@ -213,15 +226,12 @@ class User {
 // ============================================
 
 enum LessonTab {
-  overview,
   discussion,
 }
 
 extension LessonTabExtension on LessonTab {
   String get label {
     switch (this) {
-      case LessonTab.overview:
-        return 'Tổng quan';
       case LessonTab.discussion:
         return 'Thảo luận';
     }
@@ -229,8 +239,6 @@ extension LessonTabExtension on LessonTab {
 
   String get icon {
     switch (this) {
-      case LessonTab.overview:
-        return 'description';
       case LessonTab.discussion:
         return 'forum';
     }

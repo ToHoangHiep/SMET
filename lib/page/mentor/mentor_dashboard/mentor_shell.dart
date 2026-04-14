@@ -36,15 +36,9 @@ class MentorShell extends StatefulWidget {
       tooltip: 'Lộ trình học tập',
     ),
     SidebarMenuItem(
-      icon: Icons.assessment_rounded,
-      title: 'Báo cáo khóa học',
-      route: '/mentor/course-report',
-      tooltip: 'Báo cáo khóa học',
-    ),
-    SidebarMenuItem(
       icon: Icons.description_rounded,
       title: 'Báo cáo',
-      route: '/reports',
+      route: '/mentor/reports',
       tooltip: 'Báo cáo',
     ),
     SidebarMenuItem(
@@ -60,16 +54,16 @@ class MentorShell extends StatefulWidget {
       tooltip: 'Xem kết quả quiz',
     ),
     SidebarMenuItem(
-      icon: Icons.people_rounded,
-      title: 'Học viên',
-      route: '/mentor/students',
-      tooltip: 'Học viên',
-    ),
-    SidebarMenuItem(
       icon: Icons.work_rounded,
       title: 'Dự án',
       route: '/mentor/projects',
       tooltip: 'Dự án hướng dẫn',
+    ),
+    SidebarMenuItem(
+      icon: Icons.chat_bubble_rounded,
+      title: 'Tin nhắn',
+      route: '/mentor/chat',
+      tooltip: 'Tin nhắn',
     ),
   ];
 
@@ -80,13 +74,12 @@ class MentorShell extends StatefulWidget {
         path.startsWith('/mentor/quizzes'))
       return 1;
     if (path.startsWith('/mentor/learning-paths')) return 2;
-    if (path.startsWith('/mentor/course-report')) return 3;
-    if (path.startsWith('/reports')) return 4;
-    if (path.startsWith('/mentor/live-sessions')) return 5;
-    if (path.startsWith('/mentor/review-assignments') ||
-        path.startsWith('/mentor/quiz-review')) return 6;
-    if (path.startsWith('/mentor/students')) return 7;
-    if (path.startsWith('/mentor/projects')) return 8;
+    if (path.startsWith('/mentor/reports') ||
+        path.startsWith('/mentor/report')) return 3;
+    if (path.startsWith('/mentor/live-sessions')) return 4;
+    if (path.startsWith('/mentor/quiz-review')) return 5;
+    if (path.startsWith('/mentor/projects')) return 6;
+    if (path.startsWith('/mentor/chat')) return 7;
     return 0;
   }
 

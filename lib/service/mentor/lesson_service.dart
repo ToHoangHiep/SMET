@@ -203,7 +203,7 @@ class MentorLessonService {
 
       final body = List.generate(
         lessonIds.length,
-        (i) => {"id": lessonIds[i], "orderIndex": i},
+        (i) => {"relationId": lessonIds[i].value, "orderIndex": i},
       );
       _logResult("Body", body);
 

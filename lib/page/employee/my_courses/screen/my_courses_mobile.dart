@@ -152,10 +152,19 @@ class MyCoursesMobile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.school_outlined,
-                size: 64,
-                color: Color(0xFFE5E7EB),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
+                ),
+                child: const Icon(
+                  Icons.school_outlined,
+                  size: 44,
+                  color: Color(0xFF94A3B8),
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -257,7 +266,7 @@ class MyCoursesMobile extends StatelessWidget {
                             builder: (ctx) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: SizedBox(
-                                height: 280,
+                                height: 300,
                                 child: EnrolledCourseCard(
                                   course: course,
                                   onTap: () => onCourseTap(course.id),
@@ -566,8 +575,15 @@ class _MobileStatsSection extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(20), // Softer radius
+        border: Border.all(color: const Color(0xFFF1F5F9)), // Softer border
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [

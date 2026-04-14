@@ -57,7 +57,7 @@ class _CourseCardState extends State<CourseCard> {
   Color get _levelColor {
     switch (widget.level?.toLowerCase()) {
       case 'beginner':
-        return const Color(0xFF22C55E);
+        return const Color(0xFF10B981);
       case 'intermediate':
         return const Color(0xFFF59E0B);
       case 'advanced':
@@ -70,7 +70,7 @@ class _CourseCardState extends State<CourseCard> {
   Color get _levelBgColor {
     switch (widget.level?.toLowerCase()) {
       case 'beginner':
-        return const Color(0xFFDCFCE7);
+        return const Color(0xFFD1FAE5);
       case 'intermediate':
         return const Color(0xFFFEF3C7);
       case 'advanced':
@@ -88,204 +88,139 @@ class _CourseCardState extends State<CourseCard> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..scale(_isHovered ? 1.02 : 1.0),
+        transform: Matrix4.identity()..scale(_isHovered ? 1.015 : 1.0),
         transformAlignment: Alignment.center,
         child: GestureDetector(
           onTap: widget.onTap,
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12), // Coursera-like professional radius
               border: Border.all(
-                color:
-                    _isHovered
-                        ? const Color(0xFF137FEC).withValues(alpha: 0.35)
-                        : const Color(0xFFE2E8F0),
+                color: _isHovered
+                    ? const Color(0xFF2563EB).withValues(alpha: 0.3)
+                    : const Color(0xFFE2E8F0),
               ),
-              boxShadow:
-                  _isHovered
-                      ? [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF137FEC,
-                          ).withValues(alpha: 0.12),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                      : [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+              boxShadow: _isHovered
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ─── Partial Gradient Header (40%) ───────────────
-                Stack(
-                  children: [
-                    // Gradient background — dark blue (matching enrolled_course_card)
-                    Container(
-                      height: 110,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF1E3A5F),
-                            const Color(0xFF0F172A),
-                          ],
+                // --- TOP 16:9 BANNER ---
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                    child: Stack(
+                      children: [
+                        // Placeholder Banner Design (Elegant Corporate Tech)
+                        Container(
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFEFF6FF), // soft blue
+                                Color(0xFFDBEAFE),
+                              ],
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                top: -20,
+                                right: -20,
+                                child: Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF60A5FA).withValues(alpha: 0.15),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: -30,
+                                left: -10,
+                                child: Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                                  ),
+                                ),
+                              ),
+                              const Center(
+                                child: Icon(
+                                  Icons.menu_book_rounded,
+                                  size: 40,
+                                  color: Color(0xFF3B82F6), // Blue 500
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          topRight: Radius.circular(16),
-                        ),
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Blue highlight overlay
-                          Positioned.fill(
-                            child: DecoratedBox(
+                        // Department Tag over image (Subtle)
+                        if (widget.departmentName != null &&
+                            widget.departmentName!.isNotEmpty)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
-                                gradient: RadialGradient(
-                                  center: const Alignment(0.3, -0.4),
-                                  radius: 1.2,
-                                  colors: [
-                                    const Color(
-                                      0xFF137FEC,
-                                    ).withValues(alpha: 0.38),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(16),
-                                  topRight: Radius.circular(16),
+                                color: Colors.black.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                widget.departmentName!,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.2,
                                 ),
                               ),
                             ),
                           ),
-                          Icon(
-                            Icons.school_rounded,
-                            size: 46,
-                            color: Colors.white.withValues(alpha: 0.88),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Gradient overlay at bottom
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.15),
-                            ],
-                          ),
+                        // Status Badge
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _StatusBadge(status: widget.status),
                         ),
-                      ),
+                      ],
                     ),
-
-                    // Department badge (top-left) — pill style
-                    if (widget.departmentName != null &&
-                        widget.departmentName!.isNotEmpty)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.52),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Text(
-                            widget.departmentName!,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Status badge (top-right)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _StatusBadge(status: widget.status),
-                    ),
-
-                    // Level chip (bottom-left) — pill with border & shadow
-                    if (widget.level != null)
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _levelBgColor,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: _levelColor.withValues(alpha: 0.25),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _levelColor.withValues(alpha: 0.12),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            widget.level!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: _levelColor,
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
 
-                // ─── Content ─────────────────────────────────
+                // --- CONTENT ---
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title — stronger hierarchy
+                        // Title
                         Text(
                           widget.title,
                           style: const TextStyle(
@@ -293,43 +228,23 @@ class _CourseCardState extends State<CourseCard> {
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.2,
                             color: Color(0xFF0F172A),
-                            height: 1.35,
+                            height: 1.3,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
 
-                        // Mentor row with avatar
-                        if (widget.mentorName != null &&
-                            widget.mentorName!.isNotEmpty) ...[
+                        // Mentor/Provider
+                        if (widget.mentorName != null && widget.mentorName!.isNotEmpty)
                           Row(
                             children: [
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      const Color(
-                                        0xFF137FEC,
-                                      ).withValues(alpha: 0.2),
-                                      const Color(
-                                        0xFF137FEC,
-                                      ).withValues(alpha: 0.08),
-                                    ],
-                                  ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.person,
-                                  size: 13,
-                                  color: Color(0xFF137FEC),
-                                ),
+                              const Icon(
+                                Icons.person_outline,
+                                size: 14,
+                                color: Color(0xFF64748B),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   widget.mentorName!,
@@ -344,20 +259,36 @@ class _CourseCardState extends State<CourseCard> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                        ],
 
                         const Spacer(),
 
-                        // Meta row: modules + lessons — improved
-                        Row(
+                        // Level & Modules (clean meta info row)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _MetaChip(
+                            if (widget.level != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _levelBgColor,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  widget.level!,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: _levelColor,
+                                  ),
+                                ),
+                              ),
+                            _MetaText(
                               icon: Icons.view_module_outlined,
                               label: '${widget.moduleCount} mô-đun',
                             ),
-                            const SizedBox(width: 12),
-                            _MetaChip(
+                            _MetaText(
                               icon: Icons.play_lesson_outlined,
                               label: '${widget.lessonCount} bài',
                             ),
@@ -365,9 +296,9 @@ class _CourseCardState extends State<CourseCard> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Deadline chip — hiện khi khóa có cấu hình deadline (FIXED hoặc RELATIVE)
+                        // Deadline if any
                         if (_hasDeadline) ...[
-                          _DeadlineChip(
+                          _DeadlineText(
                             deadlineType: widget.deadlineType,
                             deadlineStatus: widget.deadlineStatus,
                             fixedDeadline: widget.fixedDeadline,
@@ -376,18 +307,16 @@ class _CourseCardState extends State<CourseCard> {
                           const SizedBox(height: 10),
                         ],
 
-                        // Action button — taller pill
+                        // Join Button 
                         SizedBox(
                           width: double.infinity,
-                          height: 36,
                           child: _JoinButton(
                             status: widget.status,
                             isEnrolled: widget.isEnrolled,
-                            onTap:
-                                (widget.isEnrolled != true &&
-                                        widget.status == 'PUBLISHED')
-                                    ? widget.onJoin
-                                    : null,
+                            onTap: (widget.isEnrolled != true &&
+                                    widget.status == 'PUBLISHED')
+                                ? widget.onJoin
+                                : null,
                           ),
                         ),
                       ],
@@ -403,25 +332,165 @@ class _CourseCardState extends State<CourseCard> {
   }
 }
 
-class _MetaChip extends StatelessWidget {
+class _MetaText extends StatelessWidget {
   final IconData icon;
   final String label;
-
-  const _MetaChip({required this.icon, required this.label});
-
+  const _MetaText({required this.icon, required this.label});
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: const Color(0xFF94A3B8)),
-        const SizedBox(width: 5),
+        Icon(icon, size: 12, color: const Color(0xFF64748B)),
+        const SizedBox(width: 4),
         Text(
           label,
           style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
+            fontSize: 11,
+            color: Color(0xFF475569),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    Color bgColor;
+    String label;
+
+    switch (status.toUpperCase()) {
+      case 'PUBLISHED':
+        color = const Color(0xFF0F766E); // Teal 700
+        bgColor = const Color(0xFFCCFBF1); // Teal 100
+        label = 'Đã xuất bản';
+        break;
+      case 'DRAFT':
+        color = const Color(0xFFB45309); // Amber 700
+        bgColor = const Color(0xFFFEF3C7); // Amber 100
+        label = 'Bản nháp';
+        break;
+      case 'ARCHIVED':
+        color = const Color(0xFF475569);
+        bgColor = const Color(0xFFE2E8F0);
+        label = 'Đã lưu trữ';
+        break;
+      default:
+        color = const Color(0xFF475569);
+        bgColor = const Color(0xFFE2E8F0);
+        label = status;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _DeadlineText extends StatelessWidget {
+  final String? deadlineType;
+  final String? deadlineStatus;
+  final String? fixedDeadline;
+  final int? defaultDeadlineDays;
+
+  const _DeadlineText({
+    this.deadlineType,
+    this.deadlineStatus,
+    this.fixedDeadline,
+    this.defaultDeadlineDays,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final type = deadlineType?.toUpperCase();
+    final status = deadlineStatus?.toUpperCase();
+
+    if (type == 'RELATIVE') {
+      return _buildText(
+        color: const Color(0xFF0F766E),
+        icon: Icons.schedule,
+        text: defaultDeadlineDays != null
+            ? 'Hạn: $defaultDeadlineDays ngày'
+            : 'Có hạn hoàn thành',
+      );
+    }
+
+    Color color;
+    IconData icon;
+
+    switch (status) {
+      case 'OVERDUE':
+        color = const Color(0xFFDC2626);
+        icon = Icons.error_outline;
+        break;
+      case 'DUE_SOON':
+        color = const Color(0xFFD97706);
+        icon = Icons.warning_amber_rounded;
+        break;
+      case 'ON_TIME':
+        color = const Color(0xFF0F766E);
+        icon = Icons.schedule;
+        break;
+      default:
+        if (type == 'FIXED' &&
+            fixedDeadline != null &&
+            fixedDeadline!.isNotEmpty) {
+          return _buildText(
+            color: const Color(0xFF0F766E),
+            icon: Icons.schedule,
+            text: 'Hạn: ${_formatDate(fixedDeadline)}',
+          );
+        }
+        return const SizedBox.shrink();
+    }
+
+    return _buildText(
+      color: color,
+      icon: icon,
+      text: fixedDeadline != null && fixedDeadline!.isNotEmpty
+          ? 'Hạn: ${_formatDate(fixedDeadline)}'
+          : status == 'OVERDUE'
+              ? 'Đã quá hạn'
+              : status == 'DUE_SOON'
+                  ? 'Sắp tới hạn'
+                  : 'Còn hạn',
+    );
+  }
+
+  Widget _buildText({required Color color, required IconData icon, required String text}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -453,20 +522,20 @@ class _JoinButtonState extends State<_JoinButton> {
 
     final String label;
     final Color bgColor;
-    final Color hoverBgColor;
+    final Color textColor;
 
     if (isEnrolled) {
       label = 'Đã tham gia';
-      bgColor = const Color(0xFFE2E8F0);
-      hoverBgColor = const Color(0xFFCBD5E1);
+      bgColor = const Color(0xFFF1F5F9);
+      textColor = const Color(0xFF64748B);
     } else if (isPublished) {
       label = 'Tham gia';
-      bgColor = const Color(0xFF137FEC);
-      hoverBgColor = const Color(0xFF0B5FC5);
+      bgColor = const Color(0xFFEFF6FF); // Minimal brand blue background
+      textColor = const Color(0xFF1D4ED8); // Deep brand blue text
     } else {
       label = 'Xem chi tiết';
-      bgColor = const Color(0xFF94A3B8);
-      hoverBgColor = const Color(0xFF64748B);
+      bgColor = const Color(0xFFF8FAFC);
+      textColor = const Color(0xFF64748B);
     }
 
     return MouseRegion(
@@ -478,195 +547,19 @@ class _JoinButtonState extends State<_JoinButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: _isHovered ? hoverBgColor : bgColor,
-            borderRadius: BorderRadius.circular(24),
+            color: _isHovered && enabled ? const Color(0xFFDBEAFE) : bgColor,
+            borderRadius: BorderRadius.circular(6), // Sleek radius
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: isEnrolled ? const Color(0xFF64748B) : Colors.white,
-              letterSpacing: -0.1,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String status;
-
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    Color color;
-    Color bgColor;
-    String label;
-
-    switch (status.toUpperCase()) {
-      case 'PUBLISHED':
-        color = const Color(0xFF22C55E);
-        bgColor = const Color(0xFFDCFCE7);
-        label = 'Đã xuất bản';
-        break;
-      case 'DRAFT':
-        color = const Color(0xFFF59E0B);
-        bgColor = const Color(0xFFFEF3C7);
-        label = 'Bản nháp';
-        break;
-      case 'ARCHIVED':
-        color = const Color(0xFF64748B);
-        bgColor = const Color(0xFFF1F5F9);
-        label = 'Đã lưu trữ';
-        break;
-      default:
-        color = const Color(0xFF64748B);
-        bgColor = const Color(0xFFF1F5F9);
-        label = status;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
-          letterSpacing: -0.1,
-        ),
-      ),
-    );
-  }
-}
-
-class _DeadlineChip extends StatelessWidget {
-  final String? deadlineType;
-  final String? deadlineStatus;
-  final String? fixedDeadline;
-  final int? defaultDeadlineDays;
-
-  const _DeadlineChip({
-    this.deadlineType,
-    this.deadlineStatus,
-    this.fixedDeadline,
-    this.defaultDeadlineDays,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final type = deadlineType?.toUpperCase();
-    final status = deadlineStatus?.toUpperCase();
-
-    // RELATIVE deadline → hiện "Có hạn" (không tính được ngày cụ thể ở mức catalog)
-    if (type == 'RELATIVE') {
-      return _buildChip(
-        color: const Color(0xFF15803D),
-        bgColor: const Color(0xFFDCFCE7),
-        icon: Icons.schedule,
-        text:
-            defaultDeadlineDays != null
-                ? 'Hạn: $defaultDeadlineDays ngày sau khi đăng ký'
-                : 'Có hạn hoàn thành',
-      );
-    }
-
-    // FIXED deadline — dùng deadlineStatus đã được backend tính
-    Color color;
-    Color bgColor;
-    IconData icon;
-
-    switch (status) {
-      case 'OVERDUE':
-        color = const Color(0xFFDC2626);
-        bgColor = const Color(0xFFFEE2E2);
-        icon = Icons.error_outline;
-        break;
-      case 'DUE_SOON':
-        color = const Color(0xFFF59E0B);
-        bgColor = const Color(0xFFFEF3C7);
-        icon = Icons.warning_amber_rounded;
-        break;
-      case 'ON_TIME':
-        color = const Color(0xFF15803D);
-        bgColor = const Color(0xFFDCFCE7);
-        icon = Icons.schedule;
-        break;
-      default:
-        // FIXED nhưng backend chưa compute status → vẫn hiện với fixedDeadline
-        if (type == 'FIXED' &&
-            fixedDeadline != null &&
-            fixedDeadline!.isNotEmpty) {
-          return _buildChip(
-            color: const Color(0xFF15803D),
-            bgColor: const Color(0xFFDCFCE7),
-            icon: Icons.schedule,
-            text: 'Hạn: ${_formatDate(fixedDeadline)}',
-          );
-        }
-        return const SizedBox.shrink();
-    }
-
-    return _buildChip(
-      color: color,
-      bgColor: bgColor,
-      icon: icon,
-      text:
-          fixedDeadline != null && fixedDeadline!.isNotEmpty
-              ? 'Hạn: ${_formatDate(fixedDeadline)}'
-              : status == 'OVERDUE'
-              ? 'Đã quá hạn'
-              : status == 'DUE_SOON'
-              ? 'Sắp hết hạn'
-              : 'Còn thời gian',
-    );
-  }
-
-  Widget _buildChip({
-    required Color color,
-    required Color bgColor,
-    required IconData icon,
-    required String text,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: color,
-              letterSpacing: -0.1,
+              color: textColor,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

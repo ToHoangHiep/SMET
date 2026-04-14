@@ -108,17 +108,17 @@ class _StatCardState extends State<_StatCard> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(20), // Softer radius
             border: Border.all(
               color: _isHovered
-                  ? widget.color.withValues(alpha: 0.25)
-                  : const Color(0xFFE5E7EB),
+                  ? widget.color.withValues(alpha: 0.35)
+                  : const Color(0xFFF1F5F9), // Softer border
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: _isHovered ? 0.06 : 0.03),
-                blurRadius: _isHovered ? 12 : 8,
-                offset: Offset(0, _isHovered ? 4 : 2),
+                color: Colors.black.withValues(alpha: _isHovered ? 0.04 : 0.02),
+                blurRadius: _isHovered ? 24 : 12,
+                offset: Offset(0, _isHovered ? 8 : 4),
               ),
             ],
           ),

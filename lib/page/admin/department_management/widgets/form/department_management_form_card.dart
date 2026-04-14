@@ -52,13 +52,19 @@ class _DepartmentManagementFormCardState
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: widget.primaryColor.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: widget.primaryColor.withValues(alpha: 0.06),
+            blurRadius: 36,
+            spreadRadius: 4,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -179,6 +185,12 @@ class _DepartmentManagementFormCardState
             if (value == null || value.trim().isEmpty) {
               return 'Vui lòng nhập tên phòng ban';
             }
+            if (value.trim().length < 3) {
+              return 'Tên phòng ban phải có ít nhất 3 ký tự';
+            }
+            if (value.trim().length > 100) {
+              return 'Tên phòng ban không được vượt quá 100 ký tự';
+            }
             return null;
           },
         ),
@@ -227,6 +239,15 @@ class _DepartmentManagementFormCardState
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
               return 'Vui lòng nhập mã phòng ban';
+            }
+            if (value.trim().length < 2) {
+              return 'Mã phòng ban phải có ít nhất 2 ký tự';
+            }
+            if (value.trim().length > 20) {
+              return 'Mã phòng ban không được vượt quá 20 ký tự';
+            }
+            if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value.trim())) {
+              return 'Mã phòng ban chỉ chứa chữ, số, gạch dưới và gạch ngang';
             }
             return null;
           },

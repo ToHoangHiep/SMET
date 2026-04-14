@@ -7,6 +7,7 @@ import 'package:smet/page/admin/department_management/screen/department_detail_b
 import 'package:smet/page/admin/user_management/screen/user_management.dart';
 import 'package:smet/page/admin/course_preview/admin_course_preview_base.dart';
 import 'package:smet/page/admin/assignment/screen/assignment_management_page.dart';
+import 'package:smet/page/admin/dashboard/screen/admin_dashboard_page.dart';
 import 'package:smet/page/admin/widgets/admin_shell.dart';
 import 'package:smet/page/first_login_password/first_login_password_page.dart';
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
@@ -43,15 +44,14 @@ import 'package:smet/page/mentor/mentor_learning_path/mentor_create_learning_pat
 import 'package:smet/page/notification/screen/notification_page.dart';
 import 'package:smet/page/profile/screen/profile.dart';
 import 'package:smet/page/project_manager/dashboard/screen/pm_dashboard_base.dart';
-import 'package:smet/page/project_manager/learning_path/screen/learning_path_base.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_base.dart';
 import 'package:smet/page/project_manager/project_review/screen/pm_project_reviews_page.dart';
-import 'package:smet/page/project_manager/project_member/screen/project_member_base.dart';
-import 'package:smet/page/project_manager/project_progress/screen/project_progress_base.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
+import 'package:smet/page/project_manager/dashboard/screen/team_performance_screen.dart';
+import 'package:smet/page/project_manager/dashboard/screen/risk_screen.dart';
+import 'package:smet/page/project_manager/dashboard/screen/insight_list_screen.dart';
+import 'package:smet/page/project_manager/dashboard/screen/insight_detail_screen.dart';
 import 'package:smet/page/mentor/mentor_quiz/mentor_create_quiz_web.dart';
-import 'package:smet/page/mentor/mentor_course_report/mentor_course_report.dart';
-import 'package:smet/page/mentor/mentor_course_report_detail/mentor_course_report_detail.dart';
 import 'package:smet/page/mentor/mentor_live_session/screen/mentor_live_session.dart';
 import 'package:smet/page/mentor/mentor_review_assignment/mentor_review_assignment.dart';
 import 'package:smet/page/mentor/mentor_students/mentor_students.dart';
@@ -63,6 +63,7 @@ import 'package:smet/page/report/screens/report_detail_screen.dart';
 import 'package:smet/page/report/screens/edit_report_screen.dart';
 import 'package:smet/page/report/screens/version_history_screen.dart';
 import 'package:smet/page/report/shared/report_shell.dart';
+import 'package:smet/page/mentor/mentor_chat/mentor_chat_screen.dart';
 import 'package:smet/page/chat/screen/chat_list_page.dart';
 import 'package:smet/page/chat/screen/chat_page.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
@@ -93,6 +94,48 @@ class AppPages {
           user.role != UserRole.MENTOR &&
           user.role != UserRole.ADMIN) {
         return AuthGuardService.getRedirectPath(user.role);
+      }
+      // Mentor should use /mentor/reports instead of /reports (for full sidebar)
+      if (path == '/reports' && user.role == UserRole.MENTOR) {
+        return '/mentor/reports';
+      }
+      if (path.startsWith('/report/') && user.role == UserRole.MENTOR) {
+        final reportId = path.split('/').last;
+        if (path.startsWith('/report/edit/')) {
+          return '/mentor/report/edit/$reportId';
+        }
+        if (path.startsWith('/report/history/')) {
+          return '/mentor/report/history/$reportId';
+        }
+        return '/mentor/report/$reportId';
+      }
+      // Admin should use /admin/reports instead of /reports (for full sidebar)
+      if (path == '/reports' && user.role == UserRole.ADMIN) {
+        return '/admin/reports';
+      }
+      if (path.startsWith('/report/') && user.role == UserRole.ADMIN) {
+        final reportId = path.split('/').last;
+        if (path.startsWith('/report/edit/')) {
+          return '/admin/report/edit/$reportId';
+        }
+        if (path.startsWith('/report/history/')) {
+          return '/admin/report/history/$reportId';
+        }
+        return '/admin/report/$reportId';
+      }
+      // PM should use /pm/reports instead of /reports (for full sidebar)
+      if (path == '/reports' && user.role == UserRole.PROJECT_MANAGER) {
+        return '/pm/reports';
+      }
+      if (path.startsWith('/report/') && user.role == UserRole.PROJECT_MANAGER) {
+        final reportId = path.split('/').last;
+        if (path.startsWith('/report/edit/')) {
+          return '/pm/report/edit/$reportId';
+        }
+        if (path.startsWith('/report/history/')) {
+          return '/pm/report/history/$reportId';
+        }
+        return '/pm/report/$reportId';
       }
       if (path.startsWith('/pm') &&
           user.role != UserRole.PROJECT_MANAGER &&
@@ -221,25 +264,6 @@ class AppPages {
             ],
           ),
 
-          // Mentor Course Report
-          GoRoute(
-            path: '/mentor/course-report',
-            pageBuilder:
-                (context, state) =>
-                    const NoTransitionPage(child: MentorCourseReport()),
-          ),
-
-          // Mentor Course Report Detail
-          GoRoute(
-            path: '/mentor/course-report-detail',
-            pageBuilder: (context, state) {
-              final courseId = state.uri.queryParameters['courseId'];
-              return NoTransitionPage(
-                child: MentorCourseReportDetail(courseId: courseId),
-              );
-            },
-          ),
-
           // Mentor Live Session
           GoRoute(
             path: '/mentor/live-sessions',
@@ -280,25 +304,81 @@ class AppPages {
                     const NoTransitionPage(child: MentorProjectsPage()),
           ),
 
-          // Mentor Chat
+          // Mentor Chat Split-view Redesign
           GoRoute(
             path: '/mentor/chat',
             pageBuilder:
                 (context, state) =>
-                    const NoTransitionPage(child: ChatListPage(primaryColor: Color(0xFF6366F1), rolePrefix: 'mentor')),
-            routes: [
-              GoRoute(
-                path: ':roomId',
-                builder: (context, state) {
-                  final roomId = int.tryParse(state.pathParameters['roomId'] ?? '') ?? 0;
-                  return ChatPage(
-                    roomId: roomId,
-                    primaryColor: const Color(0xFF6366F1),
-                    rolePrefix: 'mentor',
-                  );
-                },
-              ),
-            ],
+                    const NoTransitionPage(child: MentorChatScreen()),
+          ),
+
+          // Mentor Reports (wrapped in MentorShell for full sidebar)
+          GoRoute(
+            path: '/mentor/reports',
+            pageBuilder: (context, state) {
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportListScreen(
+                  currentRole: role,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                  currentUserId: cachedUser?.id ?? 0,
+                ),
+              );
+            },
+          ),
+          // Report Detail (wrapped in MentorShell for full sidebar)
+          GoRoute(
+            path: '/mentor/report/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportDetailScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Edit Report (wrapped in MentorShell for full sidebar)
+          GoRoute(
+            path: '/mentor/report/edit/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: EditReportScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Version History (wrapped in MentorShell for full sidebar)
+          GoRoute(
+            path: '/mentor/report/history/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: VersionHistoryScreen(
+                  reportId: id,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
           ),
 
           // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module / final)
@@ -362,6 +442,10 @@ class AppPages {
         builder: (context, state, child) => AdminShell(child: child),
         routes: [
           GoRoute(
+            path: '/admin/dashboard',
+            builder: (context, state) => const AdminDashboardPage(),
+          ),
+          GoRoute(
             path: '/user_management',
             builder: (context, state) => const UserManagementPage(),
           ),
@@ -394,6 +478,75 @@ class AppPages {
             path: '/assignment_management',
             builder: (context, state) => const AssignmentManagementPage(),
           ),
+
+          // Admin Reports (wrapped in AdminShell for full sidebar)
+          GoRoute(
+            path: '/admin/reports',
+            pageBuilder: (context, state) {
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportListScreen(
+                  currentRole: role,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                  currentUserId: cachedUser?.id ?? 0,
+                ),
+              );
+            },
+          ),
+          // Report Detail (wrapped in AdminShell for full sidebar)
+          GoRoute(
+            path: '/admin/report/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportDetailScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Edit Report (wrapped in AdminShell for full sidebar)
+          GoRoute(
+            path: '/admin/report/edit/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: EditReportScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          // Version History (wrapped in AdminShell for full sidebar)
+          GoRoute(
+            path: '/admin/report/history/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: VersionHistoryScreen(
+                  reportId: id,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
         ],
       ),
       GoRoute(
@@ -412,7 +565,31 @@ class AppPages {
           GoRoute(
             path: '/pm/dashboard',
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ProjectManagerDashboardPage()),
+                const NoTransitionPage(child: PmDashboardScreen()),
+          ),
+          GoRoute(
+            path: '/pm/team',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: TeamPerformanceScreen()),
+          ),
+          GoRoute(
+            path: '/pm/risks',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: RiskScreen()),
+          ),
+          GoRoute(
+            path: '/pm/insights',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: InsightListScreen()),
+          ),
+          GoRoute(
+            path: '/pm/insights/:insightId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['insightId'] ?? '0') ?? 0;
+              return NoTransitionPage(
+                child: InsightDetailScreen(insightId: id),
+              );
+            },
           ),
           GoRoute(
             path: '/pm/projects',
@@ -424,25 +601,81 @@ class AppPages {
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: PmProjectReviewsPage()),
           ),
+        ],
+      ),
+
+      // PM Reports (wrapped in PmShell for full sidebar)
+      ShellRoute(
+        builder: (context, state, child) => PmShell(child: child),
+        routes: [
           GoRoute(
-            path: '/pm/project_members',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ProjectMemberPage()),
+            path: '/pm/reports',
+            pageBuilder: (context, state) {
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportListScreen(
+                  currentRole: role,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                  currentUserId: cachedUser?.id ?? 0,
+                ),
+              );
+            },
           ),
           GoRoute(
-            path: '/pm/project_progress',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ProjectProgressPage()),
+            path: '/pm/report/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: ReportDetailScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
           ),
           GoRoute(
-            path: '/pm/learning_path',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: LearningPathPage()),
+            path: '/pm/report/edit/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: EditReportScreen(
+                  reportId: id,
+                  currentRole: role,
+                  currentUserId: cachedUser?.id ?? 0,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/pm/report/history/:reportId',
+            pageBuilder: (context, state) {
+              final id = int.tryParse(state.pathParameters['reportId'] ?? '0') ?? 0;
+              final cachedUser = AuthService.currentUserCached;
+              final role = cachedUser?.role ?? UserRole.USER;
+              return NoTransitionPage(
+                child: VersionHistoryScreen(
+                  reportId: id,
+                  primaryColor: _reportColor(role),
+                  rolePrefix: _rolePrefix(role),
+                ),
+              );
+            },
           ),
         ],
       ),
 
-      // Report Routes — unified shell with dynamic role-based sidebar
+      // Report Routes (legacy /reports — will redirect based on role)
       ShellRoute(
         builder: (context, state, child) => ReportShell(child: child),
         routes: [
@@ -457,6 +690,7 @@ class AppPages {
                   currentRole: role,
                   primaryColor: _reportColor(role),
                   rolePrefix: _rolePrefix(role),
+                  currentUserId: cachedUser?.id ?? 0,
                 ),
               );
             },

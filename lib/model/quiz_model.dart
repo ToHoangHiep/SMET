@@ -69,8 +69,8 @@ class QuizModel {
       'questionCount': questionCount,
       'showAnswer': showAnswer,
       'isFinalQuiz': isFinalQuiz,
-      if (courseId != null) 'courseId': courseId!.value,
       if (moduleId != null) 'moduleId': moduleId!.value,
+      if (courseId != null) 'courseId': courseId!.value,
     };
   }
 }

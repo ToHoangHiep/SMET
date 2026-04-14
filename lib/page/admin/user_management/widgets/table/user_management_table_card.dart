@@ -1,5 +1,6 @@
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/model/department_model.dart';
 import 'user_management_role_badge.dart';
@@ -122,13 +123,13 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -218,7 +219,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
               const SizedBox(height: 16),
               Text(
                 'Không tìm thấy dữ liệu',
-                style: TextStyle(
+                style: GoogleFonts.notoSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                   color: Colors.grey[600],
@@ -227,7 +228,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
               const SizedBox(height: 8),
               Text(
                 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm',
-                style: TextStyle(
+                style: GoogleFonts.notoSans(
                   fontSize: 14,
                   color: Colors.grey[400],
                 ),
@@ -296,8 +297,8 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
       decoration: BoxDecoration(
         color: const Color(0xFFFAFBFC),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
         border: Border(top: BorderSide(color: Colors.grey.shade100)),
       ),
@@ -306,7 +307,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
         children: [
           Text(
             'Hiển thị $start - $end trong số $total kết quả',
-            style: TextStyle(
+            style: GoogleFonts.notoSans(
               color: Colors.grey[600],
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -353,7 +354,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
     return DataRow(
       color: WidgetStateProperty.resolveWith<Color?>((states) {
         if (states.contains(WidgetState.hovered)) {
-          return widget.primaryColor.withValues(alpha: 0.04);
+          return widget.primaryColor.withValues(alpha: 0.08);
         }
         return index.isEven
             ? Colors.white
@@ -377,9 +378,9 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
                     Text(
                       user.fullName,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: GoogleFonts.notoSans(
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF111827),
+                        color: const Color(0xFF111827),
                         fontSize: 14,
                       ),
                     ),
@@ -388,7 +389,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
                       user.email,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
-                      style: TextStyle(
+                      style: GoogleFonts.notoSans(
                         color: Colors.grey[500],
                         fontSize: 12,
                       ),
@@ -410,7 +411,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
               const SizedBox(width: 8),
               Text(
                 user.department ?? 'Chưa có',
-                style: TextStyle(
+                style: GoogleFonts.notoSans(
                   color: Colors.grey[600],
                   fontSize: 13,
                 ),
@@ -438,7 +439,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
         DataCell(
           Text(
             user.lastUpdated.toString().split(' ')[0],
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            style: GoogleFonts.notoSans(color: Colors.grey[600], fontSize: 13),
           ),
         ),
         DataCell(
@@ -484,9 +485,9 @@ class _TableHeaderLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: GoogleFonts.notoSans(
         fontWeight: FontWeight.w700,
-        color: Color(0xFF6B7280),
+        color: const Color(0xFF6B7280),
         fontSize: 12,
         letterSpacing: 0.5,
       ),

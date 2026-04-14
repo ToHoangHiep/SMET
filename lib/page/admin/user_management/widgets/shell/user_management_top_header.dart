@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class UserManagementTopHeader extends StatefulWidget {
@@ -41,6 +42,7 @@ class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Container(
+        margin: const EdgeInsets.fromLTRB(24, 24, 24, 0),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -77,17 +79,17 @@ class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
                         color: const Color(0xFFEEF2FF),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(
-                        Icons.dashboard_outlined,
-                        color: const Color(0xFF4F46E5),
+                      child: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        color: Color(0xFF4F46E5),
                         size: 18,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Bảng điều khiển quản trị',
-                      style: TextStyle(
-                        color: Color(0xFF374151),
+                    Text(
+                      'Quản trị Hệ thống',
+                      style: GoogleFonts.notoSans(
+                        color: const Color(0xFF374151),
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),

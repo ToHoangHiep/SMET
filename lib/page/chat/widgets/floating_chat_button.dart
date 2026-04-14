@@ -6,6 +6,11 @@ import 'package:smet/service/common/auth_service.dart';
 import 'dart:developer';
 import 'dart:async';
 
+/// GlobalKey dùng chung để điều khiển FloatingChatButton từ bất kỳ đâu.
+/// Ví dụ: `floatingChatKey.currentState?.openChat()` để mở panel chat.
+final GlobalKey<FloatingChatButtonState> floatingChatKey =
+    GlobalKey<FloatingChatButtonState>();
+
 /// FloatingChatButton - Nút chat nổi góc dưới bên phải
 ///
 /// Xuất hiện xuyên suốt tất cả màn hình employee và mentor thông qua Shell.
@@ -21,11 +26,58 @@ class FloatingChatButton extends StatefulWidget {
   });
 
   @override
-  State<FloatingChatButton> createState() => _FloatingChatButtonState();
+  State<FloatingChatButton> createState() => FloatingChatButtonState();
 }
 
-class _FloatingChatButtonState extends State<FloatingChatButton>
+class FloatingChatButtonState extends State<FloatingChatButton>
     with SingleTickerProviderStateMixin {
+  /// Mở panel chat từ bên ngoài (gọi từ DiscussionTab)
+  void openChat() {
+    if (!mounted) return;
+    if (!_isExpanded) {
+      setState(() => _isExpanded = true);
+      _loadRooms();
+    }
+  }
+
+  /// Mở panel chat và chuyển đến room cụ thể (theo roomId).
+  /// Tìm trong danh sách rooms hiện có, nếu không có thì gọi trực tiếp API load messages.
+  Future<void> openChatWithRoom(int roomId) async {
+    if (!mounted) return;
+    setState(() {
+      _isExpanded = true;
+    });
+    await _loadRooms();
+
+    // Tìm room model trong danh sách
+    ChatRoomPreviewModel? targetRoom;
+    for (final room in _rooms) {
+      if (room.roomId == roomId) {
+        targetRoom = room;
+        break;
+      }
+    }
+
+    if (targetRoom != null) {
+      _openRoomChat(targetRoom);
+    } else {
+      // Room chưa có trong danh sách (room mới tạo với mentor mới)
+      _openRoomDirect(roomId);
+    }
+  }
+
+  /// Mở room trực tiếp bằng roomId (không cần model)
+  void _openRoomDirect(int roomId) {
+    setState(() {
+      _activeRoomId = roomId;
+      _loadingMessages = true;
+      _hasMoreMessages = true;
+      _loadMoreLoading = false;
+      _messagesCursor = null;
+    });
+    _loadRoomMessages(roomId);
+  }
+
   static const _bgCard = Color(0xFFFFFFFF);
   static const _border = Color(0xFFE5E7EB);
   static const _textDark = Color(0xFF0F172A);

@@ -5,6 +5,8 @@ import 'package:smet/model/report_model.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/page/report/shared/report_badges.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/mentor/course_service.dart';
+import 'package:smet/service/project/project_service.dart';
 import 'package:smet/service/report/report_service.dart';
 
 final _dateFormat = DateFormat('dd/MM/yyyy HH:mm');
@@ -18,12 +20,14 @@ class ReportListScreen extends StatefulWidget {
   final UserRole currentRole;
   final Color primaryColor;
   final String rolePrefix;
+  final int currentUserId;
 
   const ReportListScreen({
     super.key,
     required this.currentRole,
     required this.primaryColor,
     required this.rolePrefix,
+    required this.currentUserId,
   });
 
   @override
@@ -63,14 +67,23 @@ class _ReportListScreenState extends State<ReportListScreen> {
     });
 
     try {
-      final result = await _svc.listReports(
-        type: _selectedType,
-        status: _selectedStatus,
-        fromDate: _dateRange?.start,
-        toDate: _dateRange?.end,
-        page: _page,
-        size: _pageSize,
-      );
+      final result = widget.currentRole == UserRole.ADMIN
+          ? await _svc.listAdminReports(
+              type: _selectedType,
+              status: _selectedStatus,
+              fromDate: _dateRange?.start,
+              toDate: _dateRange?.end,
+              page: _page,
+              size: _pageSize,
+            )
+          : await _svc.listReports(
+              type: _selectedType,
+              status: _selectedStatus,
+              fromDate: _dateRange?.start,
+              toDate: _dateRange?.end,
+              page: _page,
+              size: _pageSize,
+            );
 
       if (!mounted) return;
 
@@ -99,6 +112,49 @@ class _ReportListScreenState extends State<ReportListScreen> {
     _loadReports();
   }
 
+  Future<void> _onDeleteReport(ReportResponse report) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Xóa báo cáo'),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa báo cáo #${report.id}?\nHành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _svc.deleteDraftReport(report.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Xóa báo cáo thành công!')),
+      );
+      _loadReports();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   void _onFilterChanged() {
     _page = 0;
     _loadReports();
@@ -119,7 +175,7 @@ class _ReportListScreenState extends State<ReportListScreen> {
                 breadcrumbs: [
                   BreadcrumbItem(
                     label: 'Tổng quan',
-                    route: _roleRoute('/${widget.rolePrefix}/dashboard'),
+                    route: _roleRoute(),
                   ),
                   const BreadcrumbItem(label: 'Báo cáo'),
                 ],
@@ -140,6 +196,7 @@ class _ReportListScreenState extends State<ReportListScreen> {
                       const SizedBox(height: 8),
                       _FilterBar(
                         primaryColor: widget.primaryColor,
+                        currentRole: widget.currentRole,
                         selectedType: _selectedType,
                         selectedStatus: _selectedStatus,
                         dateRange: _dateRange,
@@ -219,7 +276,18 @@ class _ReportListScreenState extends State<ReportListScreen> {
           reports: _reports,
           primaryColor: widget.primaryColor,
           rolePrefix: widget.rolePrefix,
-          onView: (r) => context.go('/report/$reportIdParam?reportId=${r.id}'),
+          currentRole: widget.currentRole,
+          currentUserId: widget.currentUserId,
+          onView: (r) {
+            final detailRoute = switch (widget.currentRole) {
+              UserRole.ADMIN => '/admin/report/${r.id}',
+              UserRole.MENTOR => '/mentor/report/${r.id}',
+              UserRole.PROJECT_MANAGER => '/reports/${r.id}',
+              UserRole.USER => '/report/${r.id}',
+            };
+            context.go(detailRoute);
+          },
+          onDelete: (r) => _onDeleteReport(r),
         ),
         const SizedBox(height: 24),
         _PaginationBar(
@@ -234,16 +302,16 @@ class _ReportListScreenState extends State<ReportListScreen> {
     );
   }
 
-  String _roleRoute(String path) {
+  String _roleRoute([String? suffix]) {
     switch (widget.currentRole) {
       case UserRole.ADMIN:
-        return '/user_management';
+        return suffix == 'report' ? '/admin/reports' : '/user_management';
       case UserRole.PROJECT_MANAGER:
-        return '/pm/dashboard';
+        return suffix == 'report' ? '/reports' : '/pm/dashboard';
       case UserRole.MENTOR:
-        return '/mentor/dashboard';
+        return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       case UserRole.USER:
-        return '/employee/dashboard';
+        return suffix == 'report' ? '/reports' : '/employee/dashboard';
     }
   }
 
@@ -262,7 +330,13 @@ class _ReportListScreenState extends State<ReportListScreen> {
               const SnackBar(content: Text('Tạo báo cáo thành công!')),
             );
             _loadReports();
-            context.go('/report/$reportIdParam?reportId=${report.id}');
+            final detailRoute = switch (widget.currentRole) {
+              UserRole.ADMIN => '/admin/report/${report.id}',
+              UserRole.MENTOR => '/mentor/report/${report.id}',
+              UserRole.PROJECT_MANAGER => '/report/${report.id}',
+              UserRole.USER => '/report/${report.id}',
+            };
+            context.go(detailRoute);
           } catch (e) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
@@ -276,12 +350,6 @@ class _ReportListScreenState extends State<ReportListScreen> {
 }
 
 // ================================================================
-// ROUTE PARAM NAME (shared)
-// ================================================================
-
-const reportIdParam = 'reportId';
-
-// ================================================================
 // FILTER BAR
 // ================================================================
 
@@ -290,6 +358,7 @@ class _FilterBar extends StatelessWidget {
   final ReportType? selectedType;
   final ReportStatus? selectedStatus;
   final DateTimeRange? dateRange;
+  final UserRole currentRole;
   final ValueChanged<ReportType?> onTypeChanged;
   final ValueChanged<ReportStatus?> onStatusChanged;
   final ValueChanged<DateTimeRange?> onDateRangeChanged;
@@ -300,11 +369,25 @@ class _FilterBar extends StatelessWidget {
     required this.selectedType,
     required this.selectedStatus,
     required this.dateRange,
+    required this.currentRole,
     required this.onTypeChanged,
     required this.onStatusChanged,
     required this.onDateRangeChanged,
     required this.onReset,
   });
+
+  List<ReportType> get _availableTypes {
+    switch (currentRole) {
+      case UserRole.ADMIN:
+        return ReportType.values;
+      case UserRole.MENTOR:
+        return [ReportType.MENTOR_WEEKLY, ReportType.MENTOR_MONTHLY];
+      case UserRole.PROJECT_MANAGER:
+        return [ReportType.PM_WEEKLY, ReportType.PM_MONTHLY];
+      case UserRole.USER:
+        return [];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -312,12 +395,12 @@ class _FilterBar extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -336,6 +419,7 @@ class _FilterBar extends StatelessWidget {
   }
 
   Widget _typeDropdown() {
+    final types = _availableTypes;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -351,7 +435,7 @@ class _FilterBar extends StatelessWidget {
           isExpanded: true,
           items: [
             const DropdownMenuItem(value: null, child: Text('Tất cả loại')),
-            ...ReportType.values.map((t) => DropdownMenuItem(
+            ...types.map((t) => DropdownMenuItem(
                   value: t,
                   child: Text(t.shortName, style: const TextStyle(fontSize: 14)),
                 )),
@@ -363,6 +447,40 @@ class _FilterBar extends StatelessWidget {
   }
 
   Widget _statusDropdown() {
+    // ADMIN: backend hard-codes status=SUBMITTED, so filter is disabled
+    if (currentRole == UserRole.ADMIN) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Trạng thái',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Chỉ hiển thị báo cáo đã gửi',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF717785)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -479,15 +597,15 @@ class _FilterBar extends StatelessWidget {
       fillColor: const Color(0xFFF8FAFC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: primaryColor, width: 1.5),
       ),
       isDense: true,
@@ -503,79 +621,139 @@ class _ReportTable extends StatelessWidget {
   final List<ReportResponse> reports;
   final Color primaryColor;
   final String rolePrefix;
+  final UserRole currentRole;
+  final int currentUserId;
   final void Function(ReportResponse) onView;
+  final void Function(ReportResponse) onDelete;
 
   const _ReportTable({
     required this.reports,
     required this.primaryColor,
     required this.rolePrefix,
+    required this.currentRole,
+    required this.currentUserId,
     required this.onView,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-          dataRowColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered)) {
-              return const Color(0xFFF1F5F9);
-            }
-            return Colors.white;
-          }),
-          columns: const [
-            DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Loại báo cáo', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Trạng thái', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Người tạo', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Phạm vi', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Ngày tạo', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Phiên bản', style: TextStyle(fontWeight: FontWeight.w700))),
-            DataColumn(label: Text('Hành động', style: TextStyle(fontWeight: FontWeight.w700))),
-          ],
-          rows: reports.map((r) => _buildRow(r)).toList(),
-        ),
-      ),
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: reports.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (context, index) => _buildReportCard(reports[index]),
     );
   }
 
-  DataRow _buildRow(ReportResponse r) {
-    return DataRow(
-      cells: [
-        DataCell(Text('#${r.id}', style: const TextStyle(fontWeight: FontWeight.w600))),
-        DataCell(ReportTypeBadge(type: r.type)),
-        DataCell(ReportStatusBadge(status: r.status)),
-        DataCell(Text(r.ownerName, style: const TextStyle(fontSize: 14))),
-        DataCell(ReportScopeBadge(scope: r.scope)),
-        DataCell(Text(
-          r.generatedAt != null ? _dateFormat.format(r.generatedAt!) : '—',
-          style: const TextStyle(fontSize: 13),
-        )),
-        DataCell(VersionBadge(version: r.version)),
-        DataCell(
-          IconButton(
-            onPressed: () => onView(r),
-            icon: Icon(Icons.visibility_rounded, color: primaryColor, size: 20),
-            tooltip: 'Xem chi tiết',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+  Widget _buildReportCard(ReportResponse r) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
-        ),
-      ],
+        ],
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(Icons.assessment_rounded, color: primaryColor),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('#${r.id}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    const SizedBox(width: 10),
+                    VersionBadge(version: r.version),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  r.generatedAt != null ? _dateFormat.format(r.generatedAt!) : '—',
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Người tạo', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                const SizedBox(height: 4),
+                Text(r.ownerName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ReportTypeBadge(type: r.type),
+                ReportScopeBadge(scope: r.scope),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ReportStatusBadge(status: r.status),
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: () => onView(r),
+                icon: Icon(Icons.visibility_rounded, color: primaryColor, size: 20),
+                tooltip: 'Xem chi tiết',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFFF8FAFC),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.all(12),
+                ),
+              ),
+              if (r.ownerId == currentUserId && r.status == ReportStatus.DRAFT) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => onDelete(r),
+                  icon: Icon(Icons.delete_outline_rounded, color: Colors.red[400], size: 20),
+                  tooltip: 'Xóa báo cáo',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFFEF2F2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -798,7 +976,10 @@ class _GenerateReportDialog extends StatefulWidget {
 
 class _GenerateReportDialogState extends State<_GenerateReportDialog> {
   ReportType? _selectedType;
+  int? _selectedScopeId;
   bool _isLoading = false;
+  bool _isLoadingScopes = false;
+  List<_ScopeOption> _scopeOptions = [];
 
   List<ReportType> get _availableTypes {
     switch (widget.currentRole) {
@@ -808,6 +989,68 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
         return [ReportType.MENTOR_WEEKLY, ReportType.MENTOR_MONTHLY];
       case UserRole.PROJECT_MANAGER:
         return [ReportType.PM_WEEKLY, ReportType.PM_MONTHLY];
+      case UserRole.USER:
+        return [];
+    }
+  }
+
+  bool get _needsScopeSelection {
+    return _selectedType != null &&
+        (_selectedType == ReportType.MENTOR_WEEKLY ||
+            _selectedType == ReportType.MENTOR_MONTHLY ||
+            _selectedType == ReportType.PM_WEEKLY ||
+            _selectedType == ReportType.PM_MONTHLY);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadScopeOptions();
+  }
+
+  Future<void> _loadScopeOptions() async {
+    if (!mounted) return;
+    setState(() => _isLoadingScopes = true);
+
+    try {
+      final options = await _fetchScopeOptions();
+      if (!mounted) return;
+      setState(() {
+        _scopeOptions = options;
+        _isLoadingScopes = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _scopeOptions = [_ScopeOption(id: null, label: 'Tất cả (toàn hệ thống)')];
+        _isLoadingScopes = false;
+      });
+    }
+  }
+
+  Future<List<_ScopeOption>> _fetchScopeOptions() async {
+    switch (widget.currentRole) {
+      case UserRole.MENTOR:
+        final courseSvc = MentorCourseService();
+        final resp = await courseSvc.listCourses(isMine: true, size: 100);
+        return [
+          _ScopeOption(id: null, label: 'Tất cả khóa học của tôi'),
+          ...resp.content.map((c) => _ScopeOption(
+                id: c.id.value,
+                label: c.title,
+              )),
+        ];
+      case UserRole.PROJECT_MANAGER:
+        final result = await ProjectService.getAll(size: 100);
+        return [
+          _ScopeOption(id: null, label: 'Tất cả dự án'),
+          ...result.projects.map((p) => _ScopeOption(
+                id: p.id,
+                label: p.title,
+              )),
+        ];
+      case UserRole.ADMIN:
+        return [_ScopeOption(id: null, label: 'Toàn hệ thống')];
       case UserRole.USER:
         return [];
     }
@@ -825,7 +1068,7 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
         ],
       ),
       content: SizedBox(
-        width: 400,
+        width: 480,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -841,11 +1084,43 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
                   value: t,
                   groupValue: _selectedType,
                   activeColor: widget.primaryColor,
-                  onChanged: (v) => setState(() => _selectedType = v),
+                  onChanged: (v) => setState(() {
+                    _selectedType = v;
+                    _selectedScopeId = null;
+                  }),
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                 )),
             const SizedBox(height: 8),
+            // Scope dropdown — only for MENTOR and PM
+            if (_needsScopeSelection) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Chọn phạm vi (tùy chọn):',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 8),
+              if (_isLoadingScopes)
+                const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2)))
+              else
+                DropdownButtonFormField<int?>(
+                  value: _selectedScopeId,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: widget.primaryColor, width: 1.5)),
+                    isDense: true,
+                  ),
+                  hint: Text(_scopeOptions.isNotEmpty ? _scopeOptions.first.label : 'Đang tải...', style: const TextStyle(fontSize: 14)),
+                  isExpanded: true,
+                  items: _scopeOptions.map((o) => DropdownMenuItem(value: o.id, child: Text(o.label, style: const TextStyle(fontSize: 14)))).toList(),
+                  onChanged: (v) => setState(() => _selectedScopeId = v),
+                ),
+            ],
+            const SizedBox(height: 12),
             if (_selectedType != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -879,7 +1154,7 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
               ? null
               : () {
                   setState(() => _isLoading = true);
-                  widget.onGenerated(_selectedType!, null);
+                  widget.onGenerated(_selectedType!, _selectedScopeId);
                 },
           style: ElevatedButton.styleFrom(
             backgroundColor: widget.primaryColor,
@@ -887,11 +1162,7 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Text('Tạo báo cáo'),
         ),
       ],
@@ -911,4 +1182,11 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
         return ReportScope.SYSTEM;
     }
   }
+}
+
+class _ScopeOption {
+  final int? id;
+  final String label;
+
+  _ScopeOption({required this.id, required this.label});
 }

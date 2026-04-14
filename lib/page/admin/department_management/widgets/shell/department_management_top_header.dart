@@ -47,6 +47,7 @@ class _DepartmentManagementTopHeaderState
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Container(
+        margin: const EdgeInsets.fromLTRB(24, 24, 24, 0),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
         decoration: BoxDecoration(
           color: Colors.white,

@@ -1295,7 +1295,6 @@ class QuizInternalController extends ChangeNotifier {
   DateTime? _startTime;
   bool _showResult = false;
   QuizResult? _quizResult;
-  bool _courseCompleted = false;
 
   QuizInternalController({
     required this.quizId,
@@ -1314,7 +1313,6 @@ class QuizInternalController extends ChangeNotifier {
   int get answeredCount => _answeredQuestions.length;
   bool get isCurrentFlagged => _flaggedQuestions.contains(_currentIndex);
   String? get attemptId => _attemptId;
-  bool get courseCompleted => _courseCompleted;
 
   QuizQuestion? get currentQuestion =>
       _quiz != null && _currentIndex < _quiz!.questions.length
@@ -1448,11 +1446,6 @@ class QuizInternalController extends ChangeNotifier {
       );
       _showResult = true;
 
-      // Sau khi nộp bài thành công và pass → kiểm tra hoàn thành khóa học
-      if (_quizResult!.passed && courseId != null) {
-        _courseCompleted = await QuizService.checkCourseCompletion(courseId!);
-      }
-
       _isLoading = false;
       notifyListeners();
 
@@ -1487,11 +1480,6 @@ class QuizInternalController extends ChangeNotifier {
       );
       _showResult = true;
 
-      // Sau khi nộp bài thành công và pass → kiểm tra hoàn thành khóa học
-      if (_quizResult!.passed && courseId != null) {
-        _courseCompleted = await QuizService.checkCourseCompletion(courseId!);
-      }
-
       _isLoading = false;
       notifyListeners();
 
@@ -1515,9 +1503,16 @@ class QuizInternalController extends ChangeNotifier {
       barrierDismissible: false,
       builder: (ctx) => QuizResultDialog(
         result: _quizResult!,
-        courseCompleted: _courseCompleted,
         courseId: courseId,
         isAutoSubmit: isAutoSubmit,
+        onRetry: () {
+          Navigator.pop(ctx);
+          _handleRetry(context);
+        },
+        onClose: () {
+          Navigator.pop(ctx);
+          _navigateBackToWorkspace(context);
+        },
         onViewCertificate: courseId != null
             ? () {
                 Navigator.pop(ctx);
@@ -1527,38 +1522,33 @@ class QuizInternalController extends ChangeNotifier {
                 });
               }
             : null,
-        onRetry: () async {
-          Navigator.pop(ctx);
-          
-          // Kiểm tra eligibility trước khi retry
-          final eligibility = await QuizService.checkQuizEligibility(quizId);
-          if (!eligibility.canStart) {
-            if (ctx.mounted) {
-              context.showAppToast(
-                'Bạn đã hết lượt thi!',
-                variant: AppToastVariant.error,
-              );
-            }
-            // Quay về quiz detail
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!context.mounted) return;
-              GoRouter.of(context).go('/employee/quiz-detail/$quizId?courseId=${courseId ?? ''}');
-            });
-            return;
-          }
-          
-          reset();
-          loadQuiz();
-        },
-        onClose: () {
-          Navigator.pop(ctx);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!context.mounted) return;
-            GoRouter.of(context).go('/employee/quiz-detail/${_quiz!.id}?courseId=${courseId ?? ''}');
-          });
-        },
       ),
     );
+  }
+
+  void _handleRetry(BuildContext context) async {
+    final eligibility = await QuizService.checkQuizEligibility(quizId);
+    if (!eligibility.canStart) {
+      if (context.mounted) {
+        context.showAppToast(
+          'Bạn đã hết lượt thi!',
+          variant: AppToastVariant.error,
+        );
+        _navigateBackToWorkspace(context);
+      }
+      return;
+    }
+    reset();
+    loadQuiz();
+  }
+
+  void _navigateBackToWorkspace(BuildContext context) {
+    if (!context.mounted) return;
+    if (courseId != null) {
+      GoRouter.of(context).go('/employee/learn/$courseId');
+    } else {
+      GoRouter.of(context).pop();
+    }
   }
 
   void reset() {

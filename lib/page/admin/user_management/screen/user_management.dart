@@ -557,13 +557,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
         padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: _primaryColor.withValues(alpha: 0.08),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
+              color: _primaryColor.withValues(alpha: 0.06),
+              blurRadius: 36,
+              spreadRadius: 4,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -710,28 +716,42 @@ class _UserManagementPageState extends State<UserManagementPage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            _primaryColor.withValues(alpha: 0.2),
-            _primaryColor.withValues(alpha: 0.05),
+            _primaryColor.withValues(alpha: 0.3),
+            Colors.cyanAccent.withValues(alpha: 0.1),
           ],
         ),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryColor.withValues(alpha: 0.15),
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Container(
-        width: 90,
-        height: 90,
+        width: 100,
+        height: 100,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
             colors: [
-              _primaryColor.withValues(alpha: 0.15),
-              _primaryColor.withValues(alpha: 0.05),
+              _primaryColor.withValues(alpha: 0.2),
+              Colors.purpleAccent.withValues(alpha: 0.08),
             ],
           ),
           border: Border.all(
-            color: _primaryColor.withValues(alpha: 0.2),
-            width: 2,
+            color: Colors.white,
+            width: 3,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+            ),
+          ],
         ),
         child: Center(
           child: Text(
@@ -756,78 +776,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     bool isStatus = false,
     bool isActive = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 300 + (index * 50)),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color:
-                    isStatus
-                        ? (isActive
-                            ? const Color(0xFFDCFCE7)
-                            : const Color(0xFFF3F4F6))
-                        : _primaryColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color:
-                    isStatus
-                        ? (isActive
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFF9CA3AF))
-                        : _primaryColor,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Color(0xFF6B7280),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      color:
-                          isStatus
-                              ? (isActive
-                                  ? const Color(0xFF16A34A)
-                                  : const Color(0xFF6B7280))
-                              : const Color(0xFF111827),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _HoverableDetailItem(
+      label: label,
+      value: value,
+      icon: icon,
+      index: index,
+      isStatus: isStatus,
+      isActive: isActive,
+      primaryColor: _primaryColor,
     );
   }
 
@@ -999,6 +955,117 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HoverableDetailItem extends StatefulWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final int index;
+  final bool isStatus;
+  final bool isActive;
+  final Color primaryColor;
+
+  const _HoverableDetailItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.index,
+    this.isStatus = false,
+    this.isActive = false,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_HoverableDetailItem> createState() => _HoverableDetailItemState();
+}
+
+class _HoverableDetailItemState extends State<_HoverableDetailItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: _isHovered ? Colors.white : const Color(0xFFFAFBFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isHovered
+                  ? widget.primaryColor.withValues(alpha: 0.3)
+                  : const Color(0xFFE5E7EB),
+            ),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: widget.primaryColor.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    )
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: widget.isStatus
+                      ? (widget.isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF3F4F6))
+                      : (_isHovered
+                          ? widget.primaryColor
+                          : widget.primaryColor.withValues(alpha: 0.08)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 18,
+                  color: widget.isStatus
+                      ? (widget.isActive ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF))
+                      : (_isHovered ? Colors.white : widget.primaryColor),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.value,
+                      style: TextStyle(
+                        color: widget.isStatus
+                            ? (widget.isActive ? const Color(0xFF16A34A) : const Color(0xFF6B7280))
+                            : const Color(0xFF111827),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

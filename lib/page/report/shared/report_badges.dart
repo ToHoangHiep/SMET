@@ -39,13 +39,13 @@ class ReportStatusBadge extends StatelessWidget {
   Color get _bgColor {
     switch (status) {
       case ReportStatus.DRAFT:
-        return const Color(0xFFFEF3C7);
+        return const Color(0xFFF59E0B).withValues(alpha: 0.12);
       case ReportStatus.SUBMITTED:
-        return const Color(0xFFDBEAFE);
+        return const Color(0xFF3B82F6).withValues(alpha: 0.12);
       case ReportStatus.APPROVED:
-        return const Color(0xFFD1FAE5);
+        return const Color(0xFF10B981).withValues(alpha: 0.12);
       case ReportStatus.REJECTED:
-        return const Color(0xFFFEE2E2);
+        return const Color(0xFFEF4444).withValues(alpha: 0.12);
     }
   }
 
@@ -56,9 +56,9 @@ class ReportStatusBadge extends StatelessWidget {
       case ReportStatus.SUBMITTED:
         return const Color(0xFF1D4ED8);
       case ReportStatus.APPROVED:
-        return const Color(0xFF065F46);
+        return const Color(0xFF047857);
       case ReportStatus.REJECTED:
-        return const Color(0xFF991B1B);
+        return const Color(0xFFB91C1C);
     }
   }
 }
@@ -102,13 +102,13 @@ class ReportTypeBadge extends StatelessWidget {
     switch (type) {
       case ReportType.MENTOR_WEEKLY:
       case ReportType.MENTOR_MONTHLY:
-        return const Color(0xFFEDE9FE);
+        return const Color(0xFF8B5CF6).withValues(alpha: 0.12);
       case ReportType.PM_WEEKLY:
       case ReportType.PM_MONTHLY:
-        return const Color(0xFFFEF9C3);
+        return const Color(0xFFD946EF).withValues(alpha: 0.12);
       case ReportType.ADMIN_WEEKLY:
       case ReportType.ADMIN_MONTHLY:
-        return const Color(0xFFE0F2FE);
+        return const Color(0xFF0EA5E9).withValues(alpha: 0.12);
     }
   }
 
@@ -119,10 +119,10 @@ class ReportTypeBadge extends StatelessWidget {
         return const Color(0xFF6D28D9);
       case ReportType.PM_WEEKLY:
       case ReportType.PM_MONTHLY:
-        return const Color(0xFF92400E);
+        return const Color(0xFFC026D3);
       case ReportType.ADMIN_WEEKLY:
       case ReportType.ADMIN_MONTHLY:
-        return const Color(0xFF0369A1);
+        return const Color(0xFF0284C7);
     }
   }
 }
@@ -141,8 +141,8 @@ class ReportScopeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
@@ -213,13 +213,15 @@ class ActionTypeBadge extends StatelessWidget {
   Color get _bgColor {
     switch (actionType) {
       case ReportActionType.EDIT:
-        return const Color(0xFFF1F5F9);
+        return const Color(0xFF64748B).withValues(alpha: 0.12);
       case ReportActionType.SUBMIT:
-        return const Color(0xFFDBEAFE);
+        return const Color(0xFF3B82F6).withValues(alpha: 0.12);
       case ReportActionType.APPROVE:
-        return const Color(0xFFD1FAE5);
+        return const Color(0xFF10B981).withValues(alpha: 0.12);
       case ReportActionType.REJECT:
-        return const Color(0xFFFEE2E2);
+        return const Color(0xFFEF4444).withValues(alpha: 0.12);
+      case ReportActionType.DELETE:
+        return const Color(0xFFEF4444).withValues(alpha: 0.12);
     }
   }
 
@@ -228,11 +230,13 @@ class ActionTypeBadge extends StatelessWidget {
       case ReportActionType.EDIT:
         return const Color(0xFF475569);
       case ReportActionType.SUBMIT:
-        return const Color(0xFF1D4ED8);
+        return const Color(0xFF2563EB);
       case ReportActionType.APPROVE:
-        return const Color(0xFF065F46);
+        return const Color(0xFF059669);
       case ReportActionType.REJECT:
-        return const Color(0xFF991B1B);
+        return const Color(0xFFDC2626);
+      case ReportActionType.DELETE:
+        return const Color(0xFFDC2626);
     }
   }
 
@@ -246,6 +250,8 @@ class ActionTypeBadge extends StatelessWidget {
         return Icons.check_circle_rounded;
       case ReportActionType.REJECT:
         return Icons.cancel_rounded;
+      case ReportActionType.DELETE:
+        return Icons.delete_rounded;
     }
   }
 }
@@ -265,7 +271,7 @@ class VersionBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Text(

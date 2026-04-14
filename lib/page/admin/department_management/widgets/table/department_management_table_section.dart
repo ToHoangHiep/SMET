@@ -101,13 +101,19 @@ class _DepartmentManagementTableSectionState
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: widget.primaryColor.withValues(alpha: 0.06),
+              blurRadius: 36,
+              spreadRadius: 4,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -240,8 +246,8 @@ class _DepartmentManagementTableSectionState
       decoration: BoxDecoration(
         color: const Color(0xFFFAFBFC),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
         border: Border(top: BorderSide(color: Colors.grey.shade100)),
       ),
@@ -302,7 +308,7 @@ class _DepartmentManagementTableSectionState
     return DataRow(
       color: WidgetStateProperty.resolveWith<Color?>((states) {
         if (states.contains(WidgetState.hovered)) {
-          return widget.primaryColor.withValues(alpha: 0.04);
+          return widget.primaryColor.withValues(alpha: 0.08);
         }
         return index.isEven ? Colors.white : const Color(0xFFFAFBFC);
       }),

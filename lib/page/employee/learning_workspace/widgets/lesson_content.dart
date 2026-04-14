@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/model/Employee_learning_model.dart';
 import 'package:smet/model/chat/chat_message_model.dart';
+import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/service/chat/chat_service.dart';
 
@@ -153,11 +153,17 @@ class LessonOverviewTab extends StatelessWidget {
 class DiscussionTab extends StatefulWidget {
   final String lessonId;
   final List<Discussion> initialDiscussions;
+  /// ID của mentor của khóa học hiện tại
+  final int mentorId;
+  /// Tên của mentor
+  final String mentorName;
 
   const DiscussionTab({
     super.key,
     required this.lessonId,
     this.initialDiscussions = const [],
+    this.mentorId = 0,
+    this.mentorName = 'Giảng viên',
   });
 
   @override
@@ -196,9 +202,9 @@ class _DiscussionTabState extends State<DiscussionTab> {
     try {
       final lessonIdInt = int.tryParse(widget.lessonId) ?? 0;
 
-      // Tạo/lấy room với LESSON context (mentorId = 0 cho group chat)
+      // Tạo/lấy room với LESSON context và mentorId thực tế
       final roomId = await ChatService.createOrGetRoom(
-        mentorId: 0,
+        mentorId: widget.mentorId > 0 ? widget.mentorId : 0,
         contextType: ChatContextType.LESSON,
         contextId: lessonIdInt,
       );
@@ -247,6 +253,35 @@ class _DiscussionTabState extends State<DiscussionTab> {
       });
       if (mounted) {
         context.showAppToast('Không thể gửi bình luận');
+      }
+    }
+  }
+
+  /// Bấm nút "Chat với Mentor":
+  /// 1. Tạo/lấy room chat 1-1 với mentor (theo COURSE context)
+  /// 2. Mở floating chat panel ở room đó
+  Future<void> _onChatWithMentor() async {
+    if (widget.mentorId <= 0) {
+      // Mentor ID không hợp lệ → fallback: chỉ mở floating chat panel
+      floatingChatKey.currentState?.openChat();
+      return;
+    }
+
+    try {
+      // Tạo hoặc lấy room 1-1 với mentor, theo COURSE context
+      final courseIdInt = int.tryParse(widget.lessonId) ?? 0;
+      final roomId = await ChatService.createOrGetRoom(
+        mentorId: widget.mentorId,
+        contextType: ChatContextType.COURSE,
+        contextId: courseIdInt > 0 ? courseIdInt : widget.mentorId,
+      );
+
+      // Mở floating chat panel và chuyển đến room với mentor
+      floatingChatKey.currentState?.openChatWithRoom(roomId);
+    } catch (e) {
+      debugPrint('Error opening chat with mentor: $e');
+      if (mounted) {
+        context.showAppToast('Không thể mở chat với mentor');
       }
     }
   }
@@ -309,9 +344,7 @@ class _DiscussionTabState extends State<DiscussionTab> {
               ),
               // Nút Chat với Mentor
               OutlinedButton.icon(
-                onPressed: () {
-                  context.go('/employee/chat');
-                },
+                onPressed: _onChatWithMentor,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF6366F1),
                   side: const BorderSide(color: Color(0xFF6366F1)),

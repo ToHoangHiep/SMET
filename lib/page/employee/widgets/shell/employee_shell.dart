@@ -153,6 +153,7 @@ class _EmployeeShellState extends State<EmployeeShell> {
             right: 20,
             bottom: 20,
             child: FloatingChatButton(
+              key: floatingChatKey,
               primaryColor: EmployeeShell.employeePrimaryColor,
               rolePrefix: 'employee',
             ),

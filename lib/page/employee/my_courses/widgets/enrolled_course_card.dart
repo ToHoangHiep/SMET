@@ -8,11 +8,6 @@ String _formatDate(DateTime date) {
   return '$day/$month/$year';
 }
 
-/// Enrolled Course Card — modern Coursera-style:
-/// - 16:9 banner with gradient overlay
-/// - Linear progress (single % label, no duplicate ring)
-/// - Rounded pill action button
-/// - Hover scale animation
 class EnrolledCourseCard extends StatefulWidget {
   final EnrolledCourse course;
   final VoidCallback? onTap;
@@ -40,37 +35,31 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()
-          ..scale(_isHovered ? 1.02 : 1.0),
+        transform: Matrix4.identity()..scale(_isHovered ? 1.015 : 1.0),
         transformAlignment: Alignment.center,
         child: GestureDetector(
           onTap: widget.onTap,
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _isHovered
-                    ? const Color(0xFF137FEC).withValues(alpha: 0.35)
+                    ? const Color(0xFF2563EB).withValues(alpha: 0.3)
                     : const Color(0xFFE2E8F0),
               ),
               boxShadow: _isHovered
                   ? [
                       BoxShadow(
-                        color: const Color(0xFF137FEC).withValues(alpha: 0.12),
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
-                      ),
-                      BoxShadow(
                         color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
                       ),
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 12,
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
                     ],
@@ -78,223 +67,143 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ─── Banner (16:9 aspect) ──────────────────────
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Container(
-                          color: const Color(0xFFF1F5F9),
+                // --- TOP 16:9 BANNER ---
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                    child: Stack(
+                      children: [
+                        // Image or Placeholder
+                        Container(
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
+                            ),
+                          ),
                           child: widget.course.imageUrl != null
                               ? Image.network(
                                   widget.course.imageUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _buildBannerPlaceholder(),
+                                  errorBuilder: (_, __, ___) => const _PlaceholderBanner(),
                                 )
-                              : _buildBannerPlaceholder(),
+                              : const _PlaceholderBanner(),
                         ),
-                      ),
-                    ),
-
-                    // Gradient overlay
-                    Positioned.fill(
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.25),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Certificate icon
-                    if (widget.course.certificateAvailable)
-                      Positioned(
-                        top: 10,
-                        left: 10,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF9C3),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFFCA8A04),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                        // Top Badges
+                        if (widget.course.certificateAvailable)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ],
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.workspace_premium, size: 12, color: Color(0xFFFDE047)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Chứng chỉ',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.workspace_premium,
-                            color: Color(0xFFCA8A04),
-                            size: 18,
-                          ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _StatusBadge(status: widget.course.status),
                         ),
-                      ),
-
-                    // Status badge
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: _StatusBadge(
-                        status: widget.course.status,
-                        allQuizPassed: widget.course.allQuizPassed,
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
 
-                // ─── Body ─────────────────────────────────────
+                // --- PROGRESS BAR (Coursera Style, thin line below image) ---
+                Container(
+                  height: 3,
+                  width: double.infinity,
+                  color: const Color(0xFFE2E8F0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 600),
+                          curve: Curves.easeOutCubic,
+                          width: constraints.maxWidth *
+                              (widget.course.progressPercent / 100).clamp(0.0, 1.0),
+                          color: widget.course.progressPercent >= 100
+                              ? const Color(0xFF10B981) // Emerald
+                              : const Color(0xFF2563EB), // Brand blue
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // --- CONTENT ---
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title — stronger hierarchy (single % source of truth below)
-                        Expanded(
-                          child: Text(
-                            widget.course.title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                              color: Color(0xFF0F172A),
-                              height: 1.35,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        // Title
+                        Text(
+                          widget.course.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                            color: Color(0xFF0F172A),
+                            height: 1.3,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 6),
 
-                        // Deadline chip
-                        if (widget.course.deadline != null) ...[
-                          _DeadlineChip(
+                        // Deadline
+                        if (widget.course.deadline != null)
+                          _DeadlineText(
                             deadline: widget.course.deadline!,
                             status: widget.course.deadlineStatus,
                           ),
-                          const SizedBox(height: 14),
-                        ],
 
-                        // Progress: one row + bar only (no duplicate ring %)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.pie_chart_outline_rounded,
-                                  size: 16,
-                                  color: widget.course.progressPercent >= 100
-                                      ? const Color(0xFF22C55E)
-                                      : const Color(0xFF94A3B8),
-                                ),
-                                const SizedBox(width: 6),
-                                const Text(
-                                  'Tiến độ',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '${widget.course.progressPercent.toInt()}%',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -0.2,
-                                    color: widget.course.progressPercent >= 100
-                                        ? const Color(0xFF16A34A)
-                                        : const Color(0xFF137FEC),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE2E8F0),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return Stack(
-                                    children: [
-                                      AnimatedContainer(
-                                        duration: const Duration(
-                                            milliseconds: 600),
-                                        curve: Curves.easeOutCubic,
-                                        width: constraints.maxWidth *
-                                            (widget.course.progressPercent / 100)
-                                                .clamp(0.0, 1.0),
-                                        decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFF137FEC),
-                                              Color(0xFF22C55E),
-                                            ],
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                          boxShadow: widget.course
-                                                      .progressPercent >
-                                                  0
-                                              ? [
-                                                  BoxShadow(
-                                                    color: const Color(
-                                                            0xFF137FEC)
-                                                        .withValues(
-                                                            alpha: 0.35),
-                                                    blurRadius: 4,
-                                                    offset: const Offset(0, 1),
-                                                  ),
-                                                ]
-                                              : null,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
+                        const Spacer(),
 
-                        // Action button — pill style
-                        SizedBox(
-                          width: double.infinity,
-                          child: _ActionButton(
-                            progress: widget.course.progressPercent,
-                            isCompleted: widget.course.status == EnrollmentStatus.completed,
-                            allQuizPassed: widget.course.allQuizPassed,
-                            hasCertificate: widget.course.certificateAvailable,
-                            onTap: widget.onTap,
-                            onViewCertificate: widget.onViewCertificate,
+                        // Tiny progress text
+                        Text(
+                          '${widget.course.progressPercent.toInt()}% hoàn thành',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: widget.course.progressPercent >= 100
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFF64748B),
                           ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Action Row
+                        _ActionButtonRow(
+                          progress: widget.course.progressPercent,
+                          status: widget.course.status,
+                          certificateAvailable: widget.course.certificateAvailable,
+                          onTap: widget.onTap,
+                          onViewCertificate: widget.onViewCertificate,
                         ),
                       ],
                     ),
@@ -307,148 +216,213 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
       ),
     );
   }
+}
 
-  Widget _buildBannerPlaceholder() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1E3A5F),
-            Color(0xFF0F172A),
-          ],
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0.3, -0.4),
-                  radius: 1.2,
-                  colors: [
-                    const Color(0xFF137FEC).withValues(alpha: 0.38),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
+class _PlaceholderBanner extends StatelessWidget {
+  const _PlaceholderBanner();
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(
+          top: -20,
+          right: -20,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF60A5FA).withValues(alpha: 0.15),
             ),
           ),
-          Icon(
-            Icons.school_rounded,
-            size: 44,
-            color: Colors.white.withValues(alpha: 0.88),
+        ),
+        Positioned(
+          bottom: -30,
+          left: -10,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+            ),
           ),
-        ],
+        ),
+        const Center(
+          child: Icon(Icons.school_rounded, size: 40, color: Color(0xFF3B82F6)),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final EnrollmentStatus status;
+
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color bgColor;
+    Color textColor;
+    String label;
+
+    switch (status) {
+      case EnrollmentStatus.notStarted:
+        bgColor = Colors.black.withValues(alpha: 0.4);
+        textColor = Colors.white;
+        label = 'Chưa bắt đầu';
+        break;
+      case EnrollmentStatus.inProgress:
+        bgColor = const Color(0xFFEFF6FF).withValues(alpha: 0.9);
+        textColor = const Color(0xFF1D4ED8);
+        label = 'Đang học';
+        break;
+      case EnrollmentStatus.completed:
+        bgColor = const Color(0xFFD1FAE5).withValues(alpha: 0.95);
+        textColor = const Color(0xFF047857);
+        label = 'Hoàn thành';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
       ),
     );
   }
 }
 
-class _ActionButton extends StatefulWidget {
+class _DeadlineText extends StatelessWidget {
+  final DateTime deadline;
+  final DeadlineStatus status;
+
+  const _DeadlineText({required this.deadline, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    IconData icon;
+
+    switch (status) {
+      case DeadlineStatus.onTime:
+        color = const Color(0xFF0F766E);
+        icon = Icons.schedule;
+        break;
+      case DeadlineStatus.dueSoon:
+        color = const Color(0xFFD97706);
+        icon = Icons.warning_amber_rounded;
+        break;
+      case DeadlineStatus.overdue:
+        color = const Color(0xFFDC2626);
+        icon = Icons.error_outline;
+        break;
+      case DeadlineStatus.none:
+        color = const Color(0xFF64748B);
+        icon = Icons.schedule;
+        break;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            'Hạn: ${_formatDate(deadline)}',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionButtonRow extends StatefulWidget {
   final double progress;
-  final bool isCompleted;
-  /// Chỉ true khi progress=100% VÀ tất cả quiz đều đạt → hiển thị "Hoàn thành"
-  final bool allQuizPassed;
-  final bool hasCertificate;
+  final EnrollmentStatus status;
+  final bool certificateAvailable;
   final VoidCallback? onTap;
   final VoidCallback? onViewCertificate;
 
-  const _ActionButton({
+  const _ActionButtonRow({
     required this.progress,
-    required this.isCompleted,
-    required this.allQuizPassed,
-    required this.hasCertificate,
+    required this.status,
+    required this.certificateAvailable,
     this.onTap,
     this.onViewCertificate,
   });
 
   @override
-  State<_ActionButton> createState() => _ActionButtonState();
+  State<_ActionButtonRow> createState() => _ActionButtonRowState();
 }
 
-class _ActionButtonState extends State<_ActionButton> {
-  bool _isHovered = false;
+class _ActionButtonRowState extends State<_ActionButtonRow> {
+  bool _isHoveredMain = false;
+  bool _isHoveredCert = false;
 
   @override
   Widget build(BuildContext context) {
-    // Hoàn thành thật sự = enrollment COMPLETED + progress 100% + tất cả quiz đạt
-    final isCompleted = widget.isCompleted && widget.progress >= 100 && widget.allQuizPassed;
-    final showCertButton = isCompleted && widget.hasCertificate;
+    final isCompleted = widget.status == EnrollmentStatus.completed;
+    final showCertButton = isCompleted && widget.certificateAvailable;
 
-    final label = isCompleted
-        ? 'Hoàn thành'
+    final String label = isCompleted
+        ? 'Ôn tập lại'
         : widget.progress > 0
             ? 'Tiếp tục học'
             : 'Bắt đầu học';
 
-    final color = isCompleted
-        ? const Color(0xFF22C55E)
-        : const Color(0xFF137FEC);
+    final Color bgColor = isCompleted
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFFEFF6FF); // Brand blue extremely pale
+    final Color textColor = isCompleted
+        ? const Color(0xFF64748B)
+        : const Color(0xFF1D4ED8);
 
-    if (showCertButton) {
-      return Row(
-        children: [
+    return Row(
+      children: [
+        if (showCertButton) ...[
           Expanded(
             child: MouseRegion(
-              onEnter: (_) => setState(() => _isHovered = true),
-              onExit: (_) => setState(() => _isHovered = false),
+              onEnter: (_) => setState(() => _isHoveredCert = true),
+              onExit: (_) => setState(() => _isHoveredCert = false),
               child: GestureDetector(
                 onTap: widget.onViewCertificate,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: _isHovered
-                        ? const Color(0xFFCA8A04).withValues(alpha: 0.9)
-                        : const Color(0xFFCA8A04),
-                    borderRadius: BorderRadius.circular(24),
+                    color: _isHoveredCert
+                        ? const Color(0xFFFEF3C7) // Very pale subtle yellow
+                        : const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFDE047).withValues(alpha: 0.5)),
                   ),
                   child: const Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.workspace_premium, size: 14, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text(
-                          'Xem chứng chỉ',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _isHovered = true),
-              onExit: (_) => setState(() => _isHovered = false),
-              child: GestureDetector(
-                onTap: widget.onTap,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _isHovered ? color.withValues(alpha: 0.9) : color,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Center(
                     child: Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                      'Chứng chỉ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFD97706), // Amber 600
                       ),
                     ),
                   ),
@@ -456,172 +430,41 @@ class _ActionButtonState extends State<_ActionButton> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
-      );
-    }
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: _isHovered ? color.withValues(alpha: 0.9) : color,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+        // Main Action
+        Expanded(
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _isHoveredMain = true),
+            onExit: (_) => setState(() => _isHoveredMain = false),
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isHoveredMain
+                      ? (isCompleted ? const Color(0xFFF1F5F9) : const Color(0xFFDBEAFE))
+                      : bgColor,
+                  borderRadius: BorderRadius.circular(6),
+                  border: isCompleted ? Border.all(color: const Color(0xFFE2E8F0)) : null,
+                ),
+                child: Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final EnrollmentStatus status;
-  /// Nếu true → progress=100% nhưng quiz chưa đạt hết → hiển thị "Đang học"
-  final bool allQuizPassed;
-
-  const _StatusBadge({
-    required this.status,
-    this.allQuizPassed = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Nếu enrollment là COMPLETED nhưng quiz chưa đạt hết → coi như đang học
-    final effectiveStatus = (status == EnrollmentStatus.completed && !allQuizPassed)
-        ? EnrollmentStatus.inProgress
-        : status;
-
-    Color color;
-    Color bgColor;
-    String label;
-
-    switch (effectiveStatus) {
-      case EnrollmentStatus.notStarted:
-        color = const Color(0xFF64748B);
-        bgColor = const Color(0xFFF1F5F9);
-        label = 'Chưa bắt đầu';
-        break;
-      case EnrollmentStatus.inProgress:
-        color = const Color(0xFF137FEC);
-        bgColor = const Color(0xFFDBEAFE);
-        label = 'Đang học';
-        break;
-      case EnrollmentStatus.completed:
-        color = const Color(0xFF22C55E);
-        bgColor = const Color(0xFFDCFCE7);
-        label = 'Hoàn thành';
-        break;
-      case EnrollmentStatus.unknown:
-        color = const Color(0xFF64748B);
-        bgColor = const Color(0xFFF1F5F9);
-        label = '';
-        break;
-    }
-
-    if (label.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
-          letterSpacing: -0.1,
-        ),
-      ),
-    );
-  }
-}
-
-class _DeadlineChip extends StatelessWidget {
-  final DateTime deadline;
-  final DeadlineStatus status;
-
-  const _DeadlineChip({required this.deadline, required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    Color color;
-    Color bgColor;
-    IconData icon;
-
-    switch (status) {
-      case DeadlineStatus.onTime:
-        color = const Color(0xFF15803D);
-        bgColor = const Color(0xFFDCFCE7);
-        icon = Icons.schedule;
-        break;
-      case DeadlineStatus.dueSoon:
-        color = const Color(0xFFF59E0B);
-        bgColor = const Color(0xFFFEF3C7);
-        icon = Icons.warning_amber_rounded;
-        break;
-      case DeadlineStatus.overdue:
-        color = const Color(0xFFEF4444);
-        bgColor = const Color(0xFFFEE2E2);
-        icon = Icons.error_outline;
-        break;
-      case DeadlineStatus.none:
-        color = const Color(0xFF64748B);
-        bgColor = const Color(0xFFF1F5F9);
-        icon = Icons.schedule;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              'Hạn: ${_formatDate(deadline)}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-                letterSpacing: -0.1,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }

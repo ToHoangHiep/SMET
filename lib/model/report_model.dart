@@ -122,7 +122,8 @@ enum ReportActionType {
   EDIT,
   SUBMIT,
   APPROVE,
-  REJECT;
+  REJECT,
+  DELETE;
 
   String get displayName {
     switch (this) {
@@ -134,6 +135,8 @@ enum ReportActionType {
         return 'Phê duyệt';
       case ReportActionType.REJECT:
         return 'Từ chối';
+      case ReportActionType.DELETE:
+        return 'Xóa';
     }
   }
 
@@ -159,6 +162,7 @@ class ReportResponse {
   final int ownerId;
   final String ownerName;
   final ReportScope scope;
+  final int? scopeId;
   final DateTime? generatedAt;
   final DateTime? submittedAt;
   final DateTime? periodStart;
@@ -172,6 +176,7 @@ class ReportResponse {
     required this.ownerId,
     required this.ownerName,
     required this.scope,
+    this.scopeId,
     this.generatedAt,
     this.submittedAt,
     this.periodStart,
@@ -192,6 +197,8 @@ class ReportResponse {
       ownerId: json['ownerId'] ?? 0,
       ownerName: json['ownerName']?.toString() ?? '—',
       scope: ReportScope.fromString(json['scope']),
+      scopeId:
+          json['scopeId'] != null ? (json['scopeId'] as num).toInt() : null,
       generatedAt: parseDate(json['generatedAt']),
       submittedAt: parseDate(json['submittedAt']),
       periodStart: parseDate(json['periodStart']),
@@ -215,7 +222,11 @@ class ReportDetailResponse {
   final String? editableJson;
   final String? comment;
   final String? reviewerComment;
+  final int? scopeId;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
   final int version;
+  final int? ownerId;
 
   ReportDetailResponse({
     required this.id,
@@ -225,10 +236,19 @@ class ReportDetailResponse {
     this.editableJson,
     this.comment,
     this.reviewerComment,
+    this.scopeId,
+    this.periodStart,
+    this.periodEnd,
     required this.version,
+    this.ownerId,
   });
 
   factory ReportDetailResponse.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic val) {
+      if (val == null) return null;
+      return DateTime.tryParse(val.toString());
+    }
+
     return ReportDetailResponse(
       id: json['id'] ?? 0,
       type: ReportType.fromString(json['type']),
@@ -237,7 +257,13 @@ class ReportDetailResponse {
       editableJson: json['editableJson']?.toString(),
       comment: json['comment']?.toString(),
       reviewerComment: json['reviewerComment']?.toString(),
+      scopeId:
+          json['scopeId'] != null ? (json['scopeId'] as num).toInt() : null,
+      periodStart: parseDate(json['periodStart']),
+      periodEnd: parseDate(json['periodEnd']),
       version: json['version'] ?? 1,
+      ownerId:
+          json['ownerId'] != null ? (json['ownerId'] as num).toInt() : null,
     );
   }
 
@@ -306,10 +332,7 @@ class ReportUpdateRequest {
   final String? editableJson;
   final String? comment;
 
-  ReportUpdateRequest({
-    this.editableJson,
-    this.comment,
-  });
+  ReportUpdateRequest({this.editableJson, this.comment});
 
   Map<String, dynamic> toJson() {
     return {
@@ -341,17 +364,13 @@ class ReportSnapshotData {
 
     // Detect type by looking at keys
     if (map.containsKey('summary') && map.containsKey('atRiskUsers')) {
-      return ReportSnapshotData._(
-        mentor: MentorSnapshot.fromMap(map),
-      );
-    } else if (map.containsKey('totalUsers') && !map.containsKey('totalCourses')) {
-      return ReportSnapshotData._(
-        pm: PmSnapshot.fromMap(map),
-      );
-    } else if (map.containsKey('totalUsers') && map.containsKey('totalCourses')) {
-      return ReportSnapshotData._(
-        admin: AdminSnapshot.fromMap(map),
-      );
+      return ReportSnapshotData._(mentor: MentorSnapshot.fromMap(map));
+    } else if (map.containsKey('totalUsers') &&
+        !map.containsKey('totalCourses')) {
+      return ReportSnapshotData._(pm: PmSnapshot.fromMap(map));
+    } else if (map.containsKey('totalUsers') &&
+        map.containsKey('totalCourses')) {
+      return ReportSnapshotData._(admin: AdminSnapshot.fromMap(map));
     }
 
     return ReportSnapshotData._();
@@ -391,9 +410,10 @@ class MentorSnapshot {
       completedStudents: (summary['completedStudents'] ?? 0).toInt(),
       completionRate: (summary['completionRate'] ?? 0).toDouble(),
       avgScore: (summary['avgScore'] ?? 0).toDouble(),
-      atRiskUsers: atRiskList
-          .map((e) => AtRiskUser.fromMap(Map<String, dynamic>.from(e)))
-          .toList(),
+      atRiskUsers:
+          atRiskList
+              .map((e) => AtRiskUser.fromMap(Map<String, dynamic>.from(e)))
+              .toList(),
     );
   }
 }
@@ -493,10 +513,7 @@ class PageResponse<T> {
     List<T> parseData(dynamic raw) {
       if (raw == null) return [];
       if (raw is List) {
-        return raw
-            .whereType<Map<String, dynamic>>()
-            .map(fromJsonT)
-            .toList();
+        return raw.whereType<Map<String, dynamic>>().map(fromJsonT).toList();
       }
       return [];
     }

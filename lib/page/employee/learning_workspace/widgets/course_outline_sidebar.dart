@@ -178,9 +178,9 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
 
   Widget _buildFinalQuizSection() {
     final isActive = widget.currentQuizId != null;
+    // Dùng enrollmentStatus thay vì progressPercent để xác định trạng thái khóa học
     final isLocked = widget.course.progressPercent < 80;
     final isPassed = widget.course.finalQuizPassed;
-    final progress = widget.course.progressPercent / 100;
 
     IconData finalIcon() {
       if (isLocked) return Icons.lock_outline;
@@ -298,17 +298,19 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: progress >= 1.0
+                                    color: widget.course.finalQuizPassed
                                         ? _success.withValues(alpha: 0.1)
                                         : _primary.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
-                                    '${(progress * 100).round()}%',
+                                    '${widget.course.progressPercent.round().clamp(0, 100)}%',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
-                                      color: progress >= 1.0 ? _success : _primary,
+                                      color: widget.course.finalQuizPassed
+                                          ? _success
+                                          : _primary,
                                     ),
                                   ),
                                 ),
@@ -502,10 +504,13 @@ class _ModuleSectionState extends State<_ModuleSection>
     if (_isFinalOnly) return _buildFinalAssessmentRow();
     if (widget.module.isLocked) return _buildLockedModule();
 
-    // Calculate module progress
+    // Lay module.progress tu API da co san
+    // Backend: /lms/lessons/modules/{moduleId}/progress tra ve 0.0 - 1.0
+    final progress = widget.module.progress;
+
+    // completed/total chi dung de hien thi "3/4" - khong dung de tinh progress
     final completed = widget.module.lessons.where((l) => l.isCompleted).length;
     final total = widget.module.lessons.length;
-    final progress = total > 0 ? completed / total : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

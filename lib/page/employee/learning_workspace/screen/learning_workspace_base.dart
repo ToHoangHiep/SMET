@@ -43,7 +43,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
   LearningCourse? _course;
   LessonContent? _lessonContent;
   String? _currentQuizId;
-  LessonTab _selectedTab = LessonTab.overview;
+  LessonTab _selectedTab = LessonTab.discussion;
   bool _isLoading = true;
   String? _error;
   LearningPathDetail? _learningPath;
@@ -435,15 +435,12 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
     if (_lessonContent == null) return const SizedBox.shrink();
 
     switch (_selectedTab) {
-      case LessonTab.overview:
-        return LessonOverviewTab(
-          description: _lessonContent!.description,
-          keyTakeaways: _lessonContent!.keyTakeaways,
-        );
       case LessonTab.discussion:
         return DiscussionTab(
           lessonId: _lessonContent!.id,
           initialDiscussions: const [],
+          mentorId: _course?.mentorId ?? 0,
+          mentorName: _course?.mentorName ?? 'Giảng viên',
         );
     }
   }
@@ -459,6 +456,8 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage> {
       learningPath: _learningPath,
       currentCourseId: widget.courseId,
       onCourseTap: _onCourseInPathTap,
+      courseProgress: _course?.progressPercent,
+      courseCompleted: _course?.isCourseCompleted ?? false,
     );
   }
 

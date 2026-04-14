@@ -168,6 +168,9 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
 
   List<UserModel> get _filteredUsers {
     return widget.users.where((user) {
+      // Ẩn user inactive
+      if (!user.isActive) return false;
+
       // Search filter
       final searchLower = _searchQuery.toLowerCase();
       final matchesSearch = searchLower.isEmpty ||

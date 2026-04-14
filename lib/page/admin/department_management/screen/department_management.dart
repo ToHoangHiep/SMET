@@ -349,6 +349,26 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       return;
     }
 
+    // Kiểm tra trùng mã phòng ban
+    final code = _createCodeController.text.trim();
+    final isCodeDuplicate = _departments.any(
+      (d) => d.code.toLowerCase() == code.toLowerCase(),
+    );
+    if (isCodeDuplicate) {
+      context.showAppToast('Mã phòng ban đã tồn tại', variant: AppToastVariant.error);
+      return;
+    }
+
+    // Kiểm tra trùng tên phòng ban
+    final name = _createNameController.text.trim();
+    final isNameDuplicate = _departments.any(
+      (d) => d.name.toLowerCase() == name.toLowerCase(),
+    );
+    if (isNameDuplicate) {
+      context.showAppToast('Tên phòng ban đã tồn tại', variant: AppToastVariant.error);
+      return;
+    }
+
     // Lưu projectManagerId trước khi gọi API
     final pmId = _selectedManager!.id;
 
@@ -364,25 +384,44 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
             .map((e) => e.id)
             .toList();
 
-    final created = await _departmentService.createDepartment(
-      name: _createNameController.text.trim(),
-      code: _createCodeController.text.trim(),
-      isActive: _createIsActive,
-      projectManagerId: pmId,
-      mentorIds: mentorList.isNotEmpty ? mentorList : null,
-      userIds: userList.isNotEmpty ? userList : null,
-    );
+    try {
+      await _departmentService.createDepartment(
+        name: name,
+        code: code,
+        isActive: _createIsActive,
+        projectManagerId: pmId,
+        mentorIds: mentorList.isNotEmpty ? mentorList : null,
+        userIds: userList.isNotEmpty ? userList : null,
+      );
 
-    setState(() {
-      _isCreateMode = false;
-      _currentPage = 1;
-    });
+      setState(() {
+        _isCreateMode = false;
+        _currentPage = 1;
+      });
 
-    await _fetchDepartments();
+      await _fetchDepartments();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    context.showAppToast('Đã tạo bộ phận thành công');
+      context.showAppToast('Đã tạo bộ phận thành công');
+    } catch (e) {
+      final msg = e.toString();
+
+      if (msg.contains('User inactive')) {
+        context.showAppToast('Một số thành viên đã bị vô hiệu hóa và không thể thêm', variant: AppToastVariant.error);
+      } else if (msg.contains('User must be mentor')) {
+        context.showAppToast('Một số thành viên không có vai trò Mentor', variant: AppToastVariant.error);
+      } else if (msg.contains('User must be USER')) {
+        context.showAppToast('Một số thành viên không có vai trò User', variant: AppToastVariant.error);
+      } else if (msg.contains('Some users not found')) {
+        context.showAppToast('Một số thành viên không tồn tại trong hệ thống', variant: AppToastVariant.error);
+      } else if (msg.contains('Department already has a manager')) {
+        context.showAppToast('Người quản lý này đã thuộc một phòng ban khác', variant: AppToastVariant.error);
+      } else {
+        final cleanMsg = msg.replaceAll('Exception: ', '');
+        context.showAppToast(cleanMsg.length > 100 ? '${cleanMsg.substring(0, 100)}...' : cleanMsg, variant: AppToastVariant.error);
+      }
+    }
   }
 
   Future<void> _handleDeleteDepartment(DepartmentModel department) async {

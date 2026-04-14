@@ -13,6 +13,8 @@ class ResourcesSidebar extends StatelessWidget {
   final String? currentCourseId;
   final Function(String courseId)? onCourseTap;
   final double? courseProgress;
+  /// Backend enrollmentStatus — dùng thay vì courseProgress >= 1 để xác định hoàn thành
+  final bool courseCompleted;
 
   const ResourcesSidebar({
     super.key,
@@ -22,6 +24,7 @@ class ResourcesSidebar extends StatelessWidget {
     this.currentCourseId,
     this.onCourseTap,
     this.courseProgress,
+    this.courseCompleted = false,
   });
 
   @override
@@ -53,8 +56,8 @@ class ResourcesSidebar extends StatelessWidget {
   Widget _buildContinueLearningCard(BuildContext context) {
     final progress = (courseProgress ?? 0).clamp(0.0, 1.0);
     final percent = (progress * 100).round();
-    final color =
-        progress >= 1.0 ? const Color(0xFF22C55E) : const Color(0xFF137FEC);
+    // Dùng courseCompleted (từ enrollmentStatus) thay vì progress >= 1.0
+    final color = courseCompleted ? const Color(0xFF22C55E) : const Color(0xFF137FEC);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -121,7 +124,7 @@ class ResourcesSidebar extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  progress >= 1.0
+                  courseCompleted
                       ? 'Hoàn thành!'
                       : '$percent% đã hoàn thành',
                   style: const TextStyle(

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/page/admin/widgets/admin_sidebar.dart';
+import 'package:smet/page/sidebar/shared_sidebar.dart';
+import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 
@@ -58,9 +59,13 @@ class _AdminShellState extends State<AdminShell> {
       body: SafeArea(
         child: Row(
           children: [
-            AdminSidebar(
+            SharedSidebar(
               primaryColor: const Color(0xFF6366F1),
+              logoIcon: Icons.school,
+              logoText: 'SMETS',
+              subtitle: 'Quản trị hệ thống',
               userDisplayName: _currentUserName,
+              userRole: 'System Admin',
               activeRoute: GoRouterState.of(context).uri.path,
               onProfileTap: () => context.go('/profile'),
               onLogout: () async {
@@ -68,6 +73,38 @@ class _AdminShellState extends State<AdminShell> {
                 if (!mounted) return;
                 context.go('/login');
               },
+              menuItems: const [
+                SidebarMenuItem(
+                  icon: Icons.dashboard_outlined,
+                  title: 'Bảng điều khiển',
+                  route: '/admin/dashboard',
+                  tooltip: 'Bảng điều khiển',
+                ),
+                SidebarMenuItem(
+                  icon: Icons.people_outline_rounded,
+                  title: 'Quản lý nhân viên',
+                  route: '/user_management',
+                  tooltip: 'Quản lý nhân viên',
+                ),
+                SidebarMenuItem(
+                  icon: Icons.apartment_outlined,
+                  title: 'Quản lý phòng ban',
+                  route: '/department_management',
+                  tooltip: 'Quản lý phòng ban',
+                ),
+                SidebarMenuItem(
+                  icon: Icons.assignment_ind_outlined,
+                  title: 'Gán khóa học',
+                  route: '/assignment_management',
+                  tooltip: 'Gán khóa học',
+                ),
+                SidebarMenuItem(
+                  icon: Icons.description_rounded,
+                  title: 'Báo cáo',
+                  route: '/admin/reports',
+                  tooltip: 'Báo cáo',
+                ),
+              ],
             ),
             Expanded(child: widget.child),
           ],

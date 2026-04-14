@@ -530,22 +530,107 @@ class ModuleResponse {
 }
 
 // ============================================
+// LESSON CONTENT TYPE ENUM
+// Backend: LessonContentType (TEXT, VIDEO, LINK)
+// ============================================
+enum LessonContentType {
+  TEXT,
+  VIDEO,
+  LINK;
+
+  String get label {
+    switch (this) {
+      case LessonContentType.TEXT:
+        return 'Văn bản';
+      case LessonContentType.VIDEO:
+        return 'Video';
+      case LessonContentType.LINK:
+        return 'Tài liệu';
+    }
+  }
+}
+
+// ============================================
+// LESSON CONTENT RESPONSE
+// Backend: LessonContentResponse trong mảng contents
+// ============================================
+class LessonContentResponse {
+  final Long id;
+  final LessonContentType type;
+  final String? content;
+  final int orderIndex;
+  final String? thumbnailUrl;
+
+  LessonContentResponse({
+    required this.id,
+    required this.type,
+    this.content,
+    required this.orderIndex,
+    this.thumbnailUrl,
+  });
+
+  factory LessonContentResponse.fromJson(Map<String, dynamic> json) {
+    // Backend trả về type dạng String ("TEXT", "VIDEO", "LINK")
+    LessonContentType parseType(dynamic value) {
+      if (value == null) return LessonContentType.TEXT;
+      final str = value.toString().toUpperCase();
+      for (final t in LessonContentType.values) {
+        if (t.name == str) return t;
+      }
+      return LessonContentType.TEXT;
+    }
+
+    return LessonContentResponse(
+      id: _parseLong(json['id']),
+      type: parseType(json['type']),
+      content: json['content']?.toString(),
+      orderIndex: _parseInt(json['orderIndex']),
+      thumbnailUrl: json['thumbnailUrl']?.toString(),
+    );
+  }
+
+  // Lấy video URL từ content (backend lưu youtube video id)
+  String? get videoUrl {
+    if (type == LessonContentType.VIDEO && content != null) {
+      return 'https://www.youtube.com/watch?v=$content';
+    }
+    return null;
+  }
+
+  // Lấy youtube video id từ content
+  String? get youtubeVideoId => content;
+}
+
+// ============================================
 // LESSON RESPONSE
 // Backend: GET /api/lms/lessons/module/{moduleId}
+// Backend trả về: { id, title, orderIndex, contents: [...], isCompleted }
 // ============================================
 class LessonResponse {
   final Long id;
   final String title;
   final int orderIndex;
+  final List<LessonContentResponse> contents;
+  final bool isCompleted;
+
+  // Deprecated fields - giữ lại để tương thích ngược
+  // Sử dụng firstContent để lấy thông tin thay thế
+  @Deprecated('Use contents instead')
   final String? contentType;
+  @Deprecated('Use contents.firstOrNull?.content instead')
   final String? content;
+  @Deprecated('Use contents.firstOrNull?.videoUrl instead')
   final String? videoUrl;
+  @Deprecated('Use contents.firstOrNull?.id instead')
   final Long? contentId;
 
   LessonResponse({
     required this.id,
     required this.title,
     required this.orderIndex,
+    this.contents = const [],
+    this.isCompleted = false,
+    // Deprecated params - không parse từ JSON nữa
     this.contentType,
     this.content,
     this.videoUrl,
@@ -553,17 +638,62 @@ class LessonResponse {
   });
 
   factory LessonResponse.fromJson(Map<String, dynamic> json) {
+    // Parse mảng contents từ backend
+    final List<LessonContentResponse> parsedContents =
+        (json['contents'] as List<dynamic>?)
+                ?.map((e) =>
+                    LessonContentResponse.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [];
+
+    // Sắp xếp theo orderIndex
+    parsedContents.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
     return LessonResponse(
       id: _parseLong(json['id']),
       title: (json['title'] ?? '').toString(),
       orderIndex: _parseInt(json['orderIndex']),
-      contentType: json['contentType']?.toString(),
-      content: json['content']?.toString(),
-      videoUrl: json['videoUrl']?.toString(),
-      contentId:
-          json['contentId'] != null ? _parseLong(json['contentId']) : null,
+      contents: parsedContents,
+      isCompleted: json['isCompleted'] ?? false,
     );
   }
+
+  // Helper: lấy content đầu tiên
+  LessonContentResponse? get firstContent =>
+      contents.isNotEmpty ? contents.first : null;
+
+  // Helper: lấy content type của content đầu tiên
+  LessonContentType? get primaryType => firstContent?.type;
+
+  // Helper: lấy content text của content đầu tiên
+  String? get primaryContent => firstContent?.content;
+
+  // Helper: lấy video URL của content đầu tiên
+  String? get primaryVideoUrl => firstContent?.videoUrl;
+
+  // Helper: lấy youtube video id của content đầu tiên
+  String? get youtubeVideoId => firstContent?.youtubeVideoId;
+
+  // Helper: lấy content id của content đầu tiên
+  Long? get primaryContentId => firstContent?.id;
+
+  // Helper: kiểm tra có content nào không
+  bool get hasContent => contents.isNotEmpty;
+
+  // Helper: kiểm tra có video không
+  bool get hasVideo => contents.any((c) => c.type == LessonContentType.VIDEO);
+
+  // Helper: lấy tất cả video content
+  List<LessonContentResponse> get videoContents =>
+      contents.where((c) => c.type == LessonContentType.VIDEO).toList();
+
+  // Helper: lấy tất cả text content
+  List<LessonContentResponse> get textContents =>
+      contents.where((c) => c.type == LessonContentType.TEXT).toList();
+
+  // Helper: lấy tất cả link content
+  List<LessonContentResponse> get linkContents =>
+      contents.where((c) => c.type == LessonContentType.LINK).toList();
 }
 
 // ============================================

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 
 enum NotificationType { success, error, warning, info }
@@ -8,8 +9,11 @@ class GlobalNotificationService {
     required String message,
     NotificationType type = NotificationType.success,
   }) {
-    if (!context.mounted) return;
-    
+    if (!context.mounted) {
+      debugPrint('[GlobalNotificationService.show] STOP: context not mounted, message=$message');
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: true,

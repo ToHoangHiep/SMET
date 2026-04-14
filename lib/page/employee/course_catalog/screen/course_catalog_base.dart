@@ -240,10 +240,18 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Color(0xFFEF4444),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(
+                  Icons.error_outline_rounded,
+                  size: 44,
+                  color: Color(0xFFEF4444),
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -275,13 +283,14 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                 width: 88,
                 height: 88,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(20),
+                  color: const Color(0xFFF8FAFC), // Lighter background
+                  borderRadius: BorderRadius.circular(24), // Softer radius
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
                 ),
                 child: const Icon(
                   Icons.search_off_rounded,
                   size: 44,
-                  color: Color(0xFFCBD5E1),
+                  color: Color(0xFF94A3B8), // Slightly stronger icon
                 ),
               ),
               const SizedBox(height: 20),
@@ -337,10 +346,10 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
               opacity: _isPaging ? 0.45 : 1,
               child: GridView.builder(
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 300,
-                  childAspectRatio: 0.78,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                  maxCrossAxisExtent: 330,
+                  childAspectRatio: 0.82,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 24,
                 ),
                 itemCount: _courses.length,
                 padding: const EdgeInsets.only(top: 16),

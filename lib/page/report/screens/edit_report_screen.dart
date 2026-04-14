@@ -208,7 +208,7 @@ class _EditReportScreenState extends State<EditReportScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final updated = await _svc.updateReport(
+      await _svc.updateReport(
         widget.reportId,
         editableJson: jsonText.isNotEmpty ? jsonText : null,
         comment: _commentController.text.trim().isNotEmpty
@@ -223,7 +223,13 @@ class _EditReportScreenState extends State<EditReportScreen> {
       );
 
       // Navigate back to detail
-      context.go('/report/${reportIdParam}?reportId=${widget.reportId}');
+      final detailRoute = switch (widget.currentRole) {
+        UserRole.ADMIN => '/admin/report/${widget.reportId}',
+        UserRole.MENTOR => '/mentor/report/${widget.reportId}',
+        UserRole.PROJECT_MANAGER => '/reports/${widget.reportId}',
+        UserRole.USER => '/report/${widget.reportId}',
+      };
+      context.go(detailRoute);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -253,11 +259,11 @@ class _EditReportScreenState extends State<EditReportScreen> {
                   BreadcrumbItem(label: 'Tổng quan', route: _roleRoute()),
                   BreadcrumbItem(
                     label: 'Báo cáo',
-                    route: _roleRoute().replaceAll('/dashboard', '/reports'),
+                    route: _roleRoute('report'),
                   ),
                   BreadcrumbItem(
                     label: '#${widget.reportId}',
-                    route: '/report/${reportIdParam}?reportId=${widget.reportId}',
+                    route: null, // current page
                   ),
                   const BreadcrumbItem(label: 'Chỉnh sửa'),
                 ],
@@ -265,9 +271,15 @@ class _EditReportScreenState extends State<EditReportScreen> {
                 actions: [
                   if (_report != null && !_isSaving)
                     OutlinedButton.icon(
-                      onPressed: () => context.go(
-                        '/report/${reportIdParam}?reportId=${widget.reportId}',
-                      ),
+                      onPressed: () {
+                        final detailRoute = switch (widget.currentRole) {
+                          UserRole.ADMIN => '/admin/report/${widget.reportId}',
+                          UserRole.MENTOR => '/mentor/report/${widget.reportId}',
+                          UserRole.PROJECT_MANAGER => '/reports/${widget.reportId}',
+                          UserRole.USER => '/report/${widget.reportId}',
+                        };
+                        context.go(detailRoute);
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF64748B),
                         side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -320,16 +332,16 @@ class _EditReportScreenState extends State<EditReportScreen> {
     );
   }
 
-  String _roleRoute() {
+  String _roleRoute([String? suffix]) {
     switch (widget.currentRole) {
       case UserRole.ADMIN:
-        return '/user_management';
+        return suffix == 'report' ? '/admin/reports' : '/user_management';
       case UserRole.PROJECT_MANAGER:
-        return '/pm/dashboard';
+        return suffix == 'report' ? '/reports' : '/pm/dashboard';
       case UserRole.MENTOR:
-        return '/mentor/dashboard';
+        return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       case UserRole.USER:
-        return '/employee/dashboard';
+        return suffix == 'report' ? '/reports' : '/employee/dashboard';
     }
   }
 

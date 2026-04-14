@@ -10,7 +10,7 @@ import 'package:smet/service/common/base_url.dart';
 /// Backend endpoints:
 ///   GET /api/user/dashboard/overview
 ///   GET /api/lms/enrollments/my-courses
-///   GET /api/lms/live-sessions/live-sessions
+///   GET /api/lms/live-sessions/course/{courseId} (goi tung course sau khi lay my-courses)
 ///   GET /api/leaderboard
 /// ============================================================
 class EmployeeDashboardService {
@@ -28,6 +28,14 @@ class EmployeeDashboardService {
 
   void _log(String msg) {
     log("[EmployeeDashboardService] $msg");
+  }
+
+  int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 
   // ============================================
@@ -107,7 +115,8 @@ class EmployeeDashboardService {
 
   // ============================================
   // GET LIVE SESSIONS
-  // GET /api/lms/live-sessions/live-sessions
+  // Logic: lay danh sach course da enroll,
+  // roi goi /live-sessions/course/{courseId} cho tung course
   // ============================================
   Future<List<LiveSession>> getLiveSessions() async {
     try {
@@ -117,19 +126,63 @@ class EmployeeDashboardService {
         return [];
       }
 
-      final res = await http.get(
-        Uri.parse("$baseUrl/lms/live-sessions/live-sessions"),
+      // Lay danh sach course da enroll
+      final coursesRes = await http.get(
+        Uri.parse("$baseUrl/lms/enrollments/my-courses?page=0&size=50"),
         headers: _headers(token),
       );
 
-      if (res.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(res.body);
-        return data
-            .map((s) => LiveSession.fromJson(s as Map<String, dynamic>))
-            .toList();
+      if (coursesRes.statusCode != 200) {
+        _log("getLiveSessions: failed to fetch enrollments, HTTP ${coursesRes.statusCode}");
+        return [];
       }
-      _log("getLiveSessions failed: HTTP ${res.statusCode}");
-      return [];
+
+      final decoded = jsonDecode(coursesRes.body);
+      List<dynamic> courseList;
+
+      if (decoded is List) {
+        courseList = decoded;
+      } else if (decoded is Map) {
+        courseList = decoded['content'] as List<dynamic>? ??
+                    decoded['data'] as List<dynamic>? ??
+                    [];
+      } else {
+        return [];
+      }
+
+      if (courseList.isEmpty) return [];
+
+      // Goi live-sessions/course/{courseId} cho tung course
+      final sessions = <LiveSession>[];
+      final futures = courseList.map<Map<String, dynamic>>((c) {
+        final courseId = _parseInt(c['id']);
+        return {'id': courseId, 'title': c['title'] ?? 'Khóa học'};
+      }).where((c) => c['id'] > 0).map((courseInfo) async {
+        try {
+          final sessionRes = await http.get(
+            Uri.parse("$baseUrl/lms/live-sessions/course/${courseInfo['id']}"),
+            headers: _headers(token),
+          );
+          if (sessionRes.statusCode == 200) {
+            final List<dynamic> sessionData = jsonDecode(sessionRes.body);
+            return sessionData
+                .map((s) => LiveSession.fromJson(s as Map<String, dynamic>))
+                .toList();
+          }
+        } catch (_) {}
+        return <LiveSession>[];
+      });
+
+      final results = await Future.wait(futures);
+      for (final list in results) {
+        sessions.addAll(list);
+      }
+
+      // Sort theo startTime
+      sessions.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      _log("getLiveSessions: fetched ${sessions.length} sessions from ${courseList.length} courses");
+      return sessions;
     } catch (e) {
       _log("getLiveSessions error: $e");
       return [];

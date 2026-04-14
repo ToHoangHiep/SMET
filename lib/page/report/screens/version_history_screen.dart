@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:smet/model/report_model.dart';
-import 'package:smet/model/user_model.dart';
-import 'package:smet/page/report/screens/report_list_screen.dart';
 import 'package:smet/page/report/shared/report_badges.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/report/report_service.dart';
@@ -85,11 +82,11 @@ class _VersionHistoryScreenState extends State<VersionHistoryScreen> {
                   BreadcrumbItem(label: 'Tổng quan', route: _roleRoute()),
                   BreadcrumbItem(
                     label: 'Báo cáo',
-                    route: _roleRoute().replaceAll('/dashboard', '/reports'),
+                    route: _roleRoute('report'),
                   ),
                   BreadcrumbItem(
                     label: '#${widget.reportId}',
-                    route: '/report/$reportIdParam?reportId=${widget.reportId}',
+                    route: null, // current page
                   ),
                   const BreadcrumbItem(label: 'Lịch sử'),
                 ],
@@ -117,16 +114,16 @@ class _VersionHistoryScreenState extends State<VersionHistoryScreen> {
     );
   }
 
-  String _roleRoute() {
+  String _roleRoute([String? suffix]) {
     switch (widget.rolePrefix) {
       case 'admin':
-        return '/user_management';
+        return suffix == 'report' ? '/admin/reports' : '/user_management';
       case 'pm':
-        return '/pm/dashboard';
+        return suffix == 'report' ? '/reports' : '/pm/dashboard';
       case 'mentor':
-        return '/mentor/dashboard';
+        return suffix == 'report' ? '/mentor/reports' : '/mentor/dashboard';
       default:
-        return '/employee/dashboard';
+        return suffix == 'report' ? '/reports' : '/employee/dashboard';
     }
   }
 
@@ -420,6 +417,8 @@ class _VersionCard extends StatelessWidget {
       case ReportActionType.APPROVE:
         return Colors.green;
       case ReportActionType.REJECT:
+        return Colors.red;
+      case ReportActionType.DELETE:
         return Colors.red;
     }
   }

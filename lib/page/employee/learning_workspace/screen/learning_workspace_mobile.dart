@@ -125,6 +125,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
                       ResourcesSidebar(
                         nextLesson: lessonContent!.nextLesson,
                         onJumpToLesson: onLessonTap,
+                        courseCompleted: course.isCourseCompleted,
                       ),
                     ],
                   ],
@@ -141,15 +142,12 @@ class LearningWorkspaceMobile extends StatelessWidget {
     if (lessonContent == null) return const SizedBox.shrink();
 
     switch (selectedTab) {
-      case LessonTab.overview:
-        return LessonOverviewTab(
-          description: lessonContent!.description,
-          keyTakeaways: lessonContent!.keyTakeaways,
-        );
       case LessonTab.discussion:
         return DiscussionTab(
           lessonId: lessonContent!.id,
           initialDiscussions: const [],
+          mentorId: course.mentorId,
+          mentorName: course.mentorName,
         );
     }
   }

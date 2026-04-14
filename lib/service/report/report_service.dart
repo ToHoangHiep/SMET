@@ -5,22 +5,23 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smet/model/report_model.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/common/base_url.dart';
 
 // ================================================================
 // REPORT SERVICE
-// Backend: base.api.report.controller.ReportController
-//
-// Endpoints:
-//   POST   /api/reports                          - Generate report
-//   GET    /api/reports                          - List (paginated, filtered)
-//   GET    /api/reports/{id}                     - Detail
-//   PUT    /api/reports/{id}                     - Update
-//   POST   /api/reports/{id}/submit              - Submit
-//   POST   /api/reports/{id}/approve             - Approve (ADMIN only)
-//   POST   /api/reports/{id}/reject?comment=     - Reject (ADMIN only)
-//   GET    /api/reports/{id}/versions            - Version history
-//   GET    /api/reports/{id}/export?format=      - Export (pdf|excel|csv)
+// Backend endpoints (role-based):
+//   CreatorReportController (/api/reports):
+//     POST   /api/reports                          - Generate report
+//     GET    /api/reports                          - List (paginated, filtered)
+//     GET    /api/reports/{id}                     - Detail
+//     PUT    /api/reports/{id}                     - Update
+//     POST   /api/reports/{id}/submit              - Submit
+//     GET    /api/reports/{id}/versions            - Version history
+//   AdminReportController (/api/admin/reports):
+//     POST   /api/admin/reports/{id}/approve       - Approve
+//     POST   /api/admin/reports/{id}/reject        - Reject
+//     GET    /api/admin/reports/{id}/export        - Export (pdf|excel|csv)
 // ================================================================
 
 class ReportService {
@@ -91,13 +92,75 @@ class ReportService {
 
         _log('listReports OK: ${map['totalElements'] ?? 0} total');
 
-        return PageResponse.fromJson(map.cast<String, dynamic>(), ReportResponse.fromJson);
+        return PageResponse.fromJson(
+          map.cast<String, dynamic>(),
+          ReportResponse.fromJson,
+        );
       }
 
       _log('listReports failed: HTTP ${res.statusCode}');
       throw _parseError(res);
     } catch (e) {
       _log('listReports error: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // LIST ADMIN REPORTS
+  // GET /api/admin/reports
+  // ADMIN only — returns all submitted reports across the system
+  // ============================================
+  Future<PageResponse<ReportResponse>> listAdminReports({
+    ReportType? type,
+    ReportStatus? status,
+    int? ownerId,
+    DateTime? fromDate,
+    DateTime? toDate,
+    int page = 0,
+    int size = 10,
+  }) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final params = <String, String>{};
+    if (type != null) params['type'] = type.name;
+    if (status != null) params['status'] = status.name;
+    if (ownerId != null) params['ownerId'] = ownerId.toString();
+    if (fromDate != null) {
+      params['fromDate'] = fromDate.toIso8601String();
+    }
+    if (toDate != null) {
+      params['toDate'] = toDate.toIso8601String();
+    }
+    params['page'] = page.toString();
+    params['size'] = size.toString();
+
+    final uri = Uri.parse(
+      '$baseUrl/admin/reports',
+    ).replace(queryParameters: params);
+
+    _log('listAdminReports: $uri');
+
+    try {
+      final res = await http.get(uri, headers: _headers(token));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final map = decoded is Map<String, dynamic> ? decoded : {};
+
+        _log('listAdminReports OK: ${map['totalElements'] ?? 0} total');
+
+        return PageResponse.fromJson(
+          map.cast<String, dynamic>(),
+          ReportResponse.fromJson,
+        );
+      }
+
+      _log('listAdminReports failed: HTTP ${res.statusCode}');
+      throw _parseError(res);
+    } catch (e) {
+      _log('listAdminReports error: $e');
       rethrow;
     }
   }
@@ -133,6 +196,36 @@ class ReportService {
   }
 
   // ============================================
+  // GET ADMIN REPORT DETAIL
+  // GET /api/admin/reports/{id}
+  // ============================================
+  Future<ReportDetailResponse> getAdminReportDetail(int id) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final uri = Uri.parse('$baseUrl/admin/reports/$id');
+    _log('getAdminReportDetail: $uri');
+
+    try {
+      final res = await http.get(uri, headers: _headers(token));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        _log('getAdminReportDetail OK: id=$id');
+        return ReportDetailResponse.fromJson(
+          decoded is Map<String, dynamic> ? decoded : {},
+        );
+      }
+
+      _log('getAdminReportDetail failed: HTTP ${res.statusCode}');
+      throw _parseError(res);
+    } catch (e) {
+      _log('getAdminReportDetail error: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
   // UPDATE REPORT (Owner only, DRAFT only)
   // PUT /api/reports/{id}
   // ============================================
@@ -145,10 +238,11 @@ class ReportService {
     if (token == null) throw Exception('Token not found');
 
     final uri = Uri.parse('$baseUrl/reports/$id');
-    final body = ReportUpdateRequest(
-      editableJson: editableJson,
-      comment: comment,
-    ).toJson();
+    final body =
+        ReportUpdateRequest(
+          editableJson: editableJson,
+          comment: comment,
+        ).toJson();
 
     _log('updateReport: $uri');
 
@@ -204,13 +298,13 @@ class ReportService {
 
   // ============================================
   // APPROVE REPORT (Admin only, SUBMITTED only)
-  // POST /api/reports/{id}/approve
+  // POST /api/admin/reports/{id}/approve
   // ============================================
   Future<void> approveReport(int id) async {
     final token = await _getToken();
     if (token == null) throw Exception('Token not found');
 
-    final uri = Uri.parse('$baseUrl/reports/$id/approve');
+    final uri = Uri.parse('$baseUrl/admin/reports/$id/approve');
     _log('approveReport: $uri');
 
     try {
@@ -231,14 +325,15 @@ class ReportService {
 
   // ============================================
   // REJECT REPORT (Admin only, SUBMITTED only)
-  // POST /api/reports/{id}/reject?comment=
+  // POST /api/admin/reports/{id}/reject?comment=
   // ============================================
   Future<void> rejectReport(int id, String comment) async {
     final token = await _getToken();
     if (token == null) throw Exception('Token not found');
 
-    final uri = Uri.parse('$baseUrl/reports/$id/reject')
-        .replace(queryParameters: {'comment': comment});
+    final uri = Uri.parse(
+      '$baseUrl/admin/reports/$id/reject',
+    ).replace(queryParameters: {'comment': comment});
 
     _log('rejectReport: $uri');
 
@@ -254,6 +349,38 @@ class ReportService {
       throw _parseError(res);
     } catch (e) {
       _log('rejectReport error: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // GET ADMIN VERSION HISTORY
+  // GET /api/admin/reports/{id}/versions
+  // ============================================
+  Future<List<ReportVersionResponse>> getAdminReportVersions(int id) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final uri = Uri.parse('$baseUrl/admin/reports/$id');
+    _log('getAdminReportVersions: $uri');
+
+    try {
+      final res = await http.get(uri, headers: _headers(token));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final List<dynamic> list = decoded is List ? decoded : [];
+        _log('getAdminReportVersions OK: ${list.length} versions');
+        return list
+            .whereType<Map<String, dynamic>>()
+            .map((e) => ReportVersionResponse.fromJson(e))
+            .toList();
+      }
+
+      _log('getAdminReportVersions failed: HTTP ${res.statusCode}');
+      throw _parseError(res);
+    } catch (e) {
+      _log('getAdminReportVersions error: $e');
       rethrow;
     }
   }
@@ -292,17 +419,23 @@ class ReportService {
 
   // ============================================
   // EXPORT REPORT
-  // GET /api/reports/{id}/export?format=pdf|excel|csv
-  // Returns binary bytes
+  // GET /api/admin/reports/{id}/export?format=pdf|excel|csv  ← ADMIN
+  // GET /api/reports/{id}/export?format=pdf|excel|csv         ← MENTOR, PM, USER
   // ============================================
   Future<ExportResult> exportReport(int id, String format) async {
     final token = await _getToken();
     if (token == null) throw Exception('Token not found');
 
-    final uri = Uri.parse('$baseUrl/reports/$id/export')
-        .replace(queryParameters: {'format': format.toLowerCase()});
+    // Xác định endpoint theo role — chỉ ADMIN dùng /admin/reports
+    final user = await AuthService.getCurrentUser();
+    final isAdmin = user.role == UserRole.ADMIN;
+    final pathPrefix = isAdmin ? '$baseUrl/admin/reports' : '$baseUrl/reports';
 
-    _log('exportReport: $uri');
+    final uri = Uri.parse(
+      '$pathPrefix/$id/export',
+    ).replace(queryParameters: {'format': format.toLowerCase()});
+
+    _log('exportReport: $uri (role=${user.role.name})');
 
     try {
       final res = await http.get(uri, headers: _headers(token));
@@ -325,10 +458,39 @@ class ReportService {
   }
 
   // ============================================
+  // DELETE DRAFT REPORT
+  // DELETE /api/reports/{id}
+  // Owner only, DRAFT only
+  // ============================================
+  Future<void> deleteDraftReport(int id) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final uri = Uri.parse('$baseUrl/reports/$id');
+    _log('deleteDraftReport: $uri');
+
+    try {
+      final res = await http.delete(uri, headers: _headers(token));
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        _log('deleteDraftReport OK: id=$id');
+        return;
+      }
+
+      _log('deleteDraftReport failed: HTTP ${res.statusCode}');
+      throw _parseError(res);
+    } catch (e) {
+      _log('deleteDraftReport error: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
   // GENERATE REPORT (Create new report with snapshot)
   // POST /api/reports?type={type}&scopeId={id}
+  // Returns ReportDetailResponse
   // ============================================
-  Future<ReportResponse> generateReport({
+  Future<ReportDetailResponse> generateReport({
     required ReportType type,
     int? scopeId,
   }) async {
@@ -348,7 +510,7 @@ class ReportService {
       if (res.statusCode == 200 || res.statusCode == 201) {
         final decoded = jsonDecode(res.body);
         _log('generateReport OK');
-        return ReportResponse.fromJson(
+        return ReportDetailResponse.fromJson(
           decoded is Map<String, dynamic> ? decoded : {},
         );
       }

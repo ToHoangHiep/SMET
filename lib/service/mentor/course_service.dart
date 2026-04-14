@@ -383,7 +383,7 @@ class MentorCourseService {
 
       final body = List.generate(
         moduleIds.length,
-        (i) => {"relationId": moduleIds[i], "orderIndex": i},
+        (i) => {"relationId": moduleIds[i].value, "orderIndex": i},
       );
       _logResult("Body", body);
 

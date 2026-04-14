@@ -259,8 +259,21 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryColor.withValues(alpha: 0.06),
+            blurRadius: 36,
+            spreadRadius: 4,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,8 +374,21 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryColor.withValues(alpha: 0.06),
+            blurRadius: 36,
+            spreadRadius: 4,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +573,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
             _primaryColor.withValues(alpha: 0.02),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _primaryColor.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -828,19 +854,26 @@ class _ActionCardState extends State<_ActionCard> {
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: _isHovered
                   ? widget.primaryColor.withValues(alpha: 0.3)
-                  : const Color(0xFFE5E7EB),
+                  : Colors.grey.shade200.withValues(alpha: 0.8),
+              width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
                 color: _isHovered
                     ? widget.primaryColor.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.04),
-                blurRadius: _isHovered ? 20 : 12,
-                offset: const Offset(0, 6),
+                    : widget.primaryColor.withValues(alpha: 0.06),
+                blurRadius: _isHovered ? 24 : 36,
+                spreadRadius: _isHovered ? 2 : 4,
+                offset: const Offset(0, 12),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),

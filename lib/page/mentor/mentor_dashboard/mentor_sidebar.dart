@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:smet/page/mentor/mentor_course/mentor_course.dart';
-import 'package:smet/page/mentor/mentor_course_report/mentor_course_report.dart';
 import 'package:smet/page/mentor/mentor_dashboard/mentor_dashboard.dart';
 import 'package:smet/page/mentor/mentor_learning_path/mentor_learning_path.dart';
 import 'package:smet/page/mentor/mentor_live_session/screen/mentor_live_session.dart';
 import 'package:smet/page/mentor/mentor_review_assignment/mentor_review_assignment.dart';
+import 'package:smet/page/mentor/mentor_chat/mentor_chat_screen.dart';
+import 'package:smet/page/report/screens/report_list_screen.dart';
+import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 /// Mentor Sidebar - Dùng chung cho cả web và mobile
 class MentorSidebar extends StatelessWidget {
@@ -175,7 +178,13 @@ class MentorSidebar extends StatelessWidget {
         targetPage = const MentorLearningPath();
         break;
       case "Báo cáo":
-        targetPage = const MentorCourseReport();
+        final cachedUser = AuthService.currentUserCached;
+        targetPage = ReportListScreen(
+          currentRole: UserRole.MENTOR,
+          primaryColor: const Color(0xFF6366F1),
+          rolePrefix: 'mentor',
+          currentUserId: cachedUser?.id ?? 0,
+        );
         break;
       case "Lịch mentor":
         targetPage = const MentorLiveSession();
@@ -184,17 +193,21 @@ class MentorSidebar extends StatelessWidget {
         targetPage = const MentorReviewAssignment();
         break;
       case "Học viên":
-      case "Tin nhắn":
         Future.delayed(const Duration(milliseconds: 300), () {
+          if (!context.mounted) return;
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('$title - Đang phát triển')));
         });
         return;
+      case "Tin nhắn":
+        targetPage = const MentorChatScreen();
+        break;
     }
 
     if (targetPage != null) {
       Future.delayed(const Duration(milliseconds: 300), () {
+        if (!context.mounted) return;
         Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => targetPage!));
