@@ -27,10 +27,12 @@ enum UserSelectionContext {
 class UserSelectionConfig {
   final String endpoint;
   final bool requiresDepartmentId;
+  final String? fixedRole;
 
   const UserSelectionConfig({
     required this.endpoint,
     this.requiresDepartmentId = false,
+    this.fixedRole,
   });
 }
 
@@ -39,6 +41,7 @@ UserSelectionConfig _getConfig(UserSelectionContext context) {
     case UserSelectionContext.departmentProjectManager:
       return const UserSelectionConfig(
         endpoint: '/users/department/managers',
+        fixedRole: 'PROJECT_MANAGER',
       );
     case UserSelectionContext.departmentMembers:
       return const UserSelectionConfig(
@@ -48,18 +51,21 @@ UserSelectionConfig _getConfig(UserSelectionContext context) {
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
         requiresDepartmentId: true,
+        fixedRole: 'USER',
       );
 
     case UserSelectionContext.projectMentor:
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
         requiresDepartmentId: true,
+        fixedRole: 'MENTOR',
       );
 
     case UserSelectionContext.projectMembers:
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
         requiresDepartmentId: true,
+        fixedRole: 'USER',
       );
   }
 }
@@ -89,6 +95,11 @@ Future<List<UserModel>> fetchSelectableUsers(
 
   if (keyword != null && keyword.isNotEmpty) {
     queryParams['keyword'] = keyword;
+  }
+
+  // Truyen role xuong API (thay vi filter phia client)
+  if (config.fixedRole != null) {
+    queryParams['role'] = config.fixedRole!;
   }
 
   if (excludeUserIds != null && excludeUserIds.isNotEmpty) {
@@ -126,33 +137,23 @@ Future<List<UserModel>> fetchSelectableUsers(
   log("Response body: ${response.body}");
 
   if (response.statusCode == 200) {
-    final Map<String, dynamic> data = jsonDecode(response.body);
+    final dynamic rawData = jsonDecode(response.body);
 
-    // Backend trả về PageResponse nên cần extract content/data
-    List<dynamic> content = data['content'] ?? data['data'] ?? [];
-
-    final users = content.map((e) => UserModel.fromJson(e)).toList();
-
-    // Filter theo role ở phía client
-    switch (context) {
-      case UserSelectionContext.departmentProjectManager:
-        return users.where((u) => u.role.name == 'PROJECT_MANAGER').toList();
-
-      case UserSelectionContext.departmentMembers:
-        return users
-            .where((u) =>
-                u.role.name == 'MENTOR' || u.role.name == 'USER')
-            .toList();
-
-      case UserSelectionContext.projectLead:
-        return users.where((u) => u.role.name == 'USER').toList();
-
-      case UserSelectionContext.projectMentor:
-        return users.where((u) => u.role.name == 'MENTOR').toList();
-
-      case UserSelectionContext.projectMembers:
-        return users.where((u) => u.role.name == 'USER').toList();
+    List<dynamic> content;
+    if (rawData is List) {
+      content = rawData;
+    } else if (rawData is Map<String, dynamic>) {
+      final data = rawData;
+      content = data['content'] ?? data['data'] ?? [];
+    } else {
+      content = [];
     }
+
+    final users = content.map((e) => UserModel.fromJson(e as Map<String, dynamic>)).toList();
+
+    // Chỉ filter inactive user phía client
+    // Role đã được filter bởi backend qua tham số 'role'
+    return users.where((u) => u.isActive).toList();
   } else {
     throw Exception('Failed to load users: ${response.statusCode}');
   }

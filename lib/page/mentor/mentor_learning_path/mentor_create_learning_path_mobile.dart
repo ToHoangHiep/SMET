@@ -4,7 +4,6 @@ import 'package:smet/core/theme/app_colors.dart';
 import 'package:smet/core/utils/animations.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
-import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Create/Edit Learning Path - Mobile Layout
@@ -23,7 +22,6 @@ class _MentorCreateLearningPathMobileState
     extends State<MentorCreateLearningPathMobile>
     with SingleTickerProviderStateMixin {
   final LearningPathService _service = LearningPathService();
-  final MentorModuleService _moduleService = MentorModuleService();
   final _formKey = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
@@ -91,23 +89,15 @@ class _MentorCreateLearningPathMobileState
     try {
       final courses = await _service.getMentorCourses();
 
-      // Fetch actual module count directly from getModulesByCourse API
-      final futures = courses.map((course) async {
-        try {
-          final modules = await _moduleService.getModulesByCourse(
-            Long(course['id'] as int),
-          );
-            return {
-              ...course,
-              'moduleCount': modules.length,
-              'lessonCount': modules.fold(0, (sum, m) => sum + (m.lessons.length)),
-            };
-        } catch (_) {
-          return course;
-        }
-      });
-
-      final enrichedCourses = await Future.wait(futures);
+      // Backend đã trả moduleCount và lessonCount trong API courses rồi.
+      // Hiện tại dùng luôn dữ liệu từ backend (lấy từ countModulesAndLessons query).
+      final enrichedCourses = courses.map((course) {
+        return {
+          ...course,
+          'moduleCount': course['moduleCount'] ?? 0,
+          'lessonCount': course['lessonCount'] ?? 0,
+        };
+      }).toList();
 
       setState(() {
         _availableCourses = enrichedCourses;
@@ -1048,23 +1038,21 @@ class _TimelineCourseItemState extends State<_TimelineCourseItem> {
                               ],
                             ),
                           ],
-                          if (widget.course.moduleCount != null) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(Icons.layers_outlined,
-                                    size: 13, color: AppColors.textMuted),
-                                const SizedBox(width: 4),
-                                Text(
-                                  "${widget.course.lessonCount ?? widget.course.moduleCount} chương",
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMuted,
-                                  ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.layers_outlined,
+                                  size: 13, color: AppColors.textMuted),
+                              const SizedBox(width: 4),
+                              Text(
+                                "${widget.course.lessonCount ?? widget.course.moduleCount ?? 0} chương",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -1573,12 +1561,24 @@ class _MobileCourseSelectorSheetState
                       onPressed: _selected.isEmpty
                           ? null
                           : () {
-                              final selectedCourses =
-                                  widget.availableCourses
-                                      .where(
-                                        (c) => _selected.contains(c['id']),
-                                      )
-                                      .toList();
+                              // Chỉ lấy courses có trong _selected (parse ID trước khi so sánh)
+                              final selectedCourses = <Map<String, dynamic>>[];
+                              for (final course in widget.availableCourses) {
+                                final cid = course['id'];
+                                int courseId;
+                                if (cid is int) {
+                                  courseId = cid;
+                                } else if (cid is double) {
+                                  courseId = cid.toInt();
+                                } else if (cid is String) {
+                                  courseId = int.tryParse(cid) ?? 0;
+                                } else {
+                                  courseId = 0;
+                                }
+                                if (courseId != 0 && _selected.contains(courseId)) {
+                                  selectedCourses.add(course);
+                                }
+                              }
                               widget.onCoursesSelected(selectedCourses);
                               Navigator.pop(context);
                             },

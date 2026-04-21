@@ -98,6 +98,9 @@ class ChatRoomPreviewModel {
   }
 
   String get contextBadge {
+    if (contextName != null && contextName!.trim().isNotEmpty) {
+      return contextName!;
+    }
     final ctx = contextType?.trim() ?? '';
     if (ctx.isEmpty) return '';
     switch (ctx.toUpperCase()) {

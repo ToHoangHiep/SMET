@@ -170,14 +170,102 @@ class _InsightDetailScreenState extends State<InsightDetailScreen> {
           _detailRow('Key', detail.insightKey),
           const Divider(height: 24),
           _detailRow('Nội dung', detail.content),
-          if (detail.actionLabel != null) ...[
+          if (detail.recommendation != null && detail.recommendation!.isNotEmpty) ...[
             const Divider(height: 24),
-            _detailRow('Hành động', detail.actionLabel!),
+            _detailRow('Khuyến nghị', detail.recommendation!),
+          ],
+          if (detail.severity != null) ...[
+            const Divider(height: 24),
+            _buildSeverityRow('Mức độ', detail.severity!),
+          ],
+          if (detail.status != null) ...[
+            const Divider(height: 24),
+            _buildStatusRow('Trạng thái', detail.status!),
           ],
           const Divider(height: 24),
           _detailRow('Tạo lúc', _formatDate(detail.createdAt)),
+          if (detail.handledAt != null) ...[
+            const Divider(height: 24),
+            _detailRow('Xử lý lúc', _formatDate(detail.handledAt!)),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildSeverityRow(String label, String severity) {
+    Color color;
+    switch (severity.toUpperCase()) {
+      case 'HIGH':
+        color = _error;
+        break;
+      case 'MEDIUM':
+        color = _warning;
+        break;
+      default:
+        color = _success;
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textMuted)),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            severity,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusRow(String label, String status) {
+    Color color;
+    switch (status.toUpperCase()) {
+      case 'NEW':
+        color = _info;
+        break;
+      case 'REVIEWED':
+        color = _warning;
+        break;
+      case 'ACTIONED':
+        color = _success;
+        break;
+      case 'DISMISSED':
+        color = _textMuted;
+        break;
+      default:
+        color = _textMedium;
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textMuted)),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            status,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+          ),
+        ),
+      ],
     );
   }
 

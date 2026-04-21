@@ -151,18 +151,15 @@ class _SharedSidebarState extends State<SharedSidebar>
                     _buildHeader(isExpanded: _isExpanded),
                     const SizedBox(height: 8),
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: SizedBox(
-                          width: _sidebarExpandedWidth,
-                          child: AnimatedCrossFade(
-                            firstChild: _buildExpandedMenu(),
-                            secondChild: _buildCollapsedMenu(),
-                            crossFadeState: _isExpanded
-                                ? CrossFadeState.showFirst
-                                : CrossFadeState.showSecond,
-                            duration: const Duration(milliseconds: 200),
-                          ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: _isExpanded ? _sidebarExpandedWidth : _sidebarCollapsedWidth,
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: _isExpanded
+                              ? _buildExpandedMenu()
+                              : _buildCollapsedMenu(),
                         ),
                       ),
                     ),
@@ -444,14 +441,11 @@ class _SharedSidebarState extends State<SharedSidebar>
   }
 
   Widget _buildFooter({required bool isExpanded}) {
-    return AnimatedCrossFade(
-      firstChild: _buildExpandedFooter(),
-      secondChild: _buildCollapsedFooter(),
-      crossFadeState: isExpanded
-          ? CrossFadeState.showFirst
-          : CrossFadeState.showSecond,
-      duration: const Duration(milliseconds: 200),
-    );
+    if (isExpanded) {
+      return _buildExpandedFooter();
+    } else {
+      return _buildCollapsedFooter();
+    }
   }
 
   Widget _buildMiniRailFooter() {

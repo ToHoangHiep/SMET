@@ -356,11 +356,11 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
                   _fieldLabelRow("Mô tả khóa học", Icons.description_outlined),
                   const SizedBox(height: 8),
                   RichTextEditorWidget(
+                    controller: _quillController,
                     hintText:
                         "Nhập mô tả chi tiết về khóa học, nội dung, và mục tiêu học tập...",
                     primaryColor: _primary,
                     maxHeight: 200,
-                    onContentChanged: (v) {},
                   ),
                 ],
               ),

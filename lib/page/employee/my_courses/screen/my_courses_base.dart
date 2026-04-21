@@ -8,6 +8,7 @@ import 'package:smet/page/employee/my_courses/widgets/my_courses_stats_section.d
 import 'package:smet/page/employee/my_courses/widgets/filter_tabs.dart';
 import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class MyCoursesPage extends StatefulWidget {
@@ -22,6 +23,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
   bool _isLoading = true;
   String? _error;
   CourseFilter _selectedFilter = CourseFilter.all;
+  final Set<String> _leavingCourseIds = {};
 
   // Pagination
   int _currentPage = 0;
@@ -52,10 +54,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
     }
 
     try {
-      final result = await LmsService.getMyCourses(
-        page: page,
-        size: _pageSize,
-      );
+      final result = await LmsService.getMyCourses(page: page, size: _pageSize);
       if (!mounted) return;
       final tp = result.totalPages <= 0 ? 1 : result.totalPages;
       final safePage = result.number.clamp(0, tp - 1);
@@ -86,6 +85,83 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
     _fetchPage(page, isFullReload: false);
   }
 
+  Future<void> _onLeaveCourse(EnrolledCourse course) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Expanded(child: Text('Xác nhận rời khóa học')),
+              ],
+            ),
+            content: Text(
+              'Bạn có chắc chắn muốn rời khóa học "${course.title}" không?\n'
+              'Tiến độ học tập của bạn sẽ bị mất.',
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF64748B),
+                ),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Rời khóa học'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _leavingCourseIds.add(course.id));
+    try {
+      final success = await LmsService.leaveCourse(course.id);
+      if (success) {
+        await _loadCourses();
+        if (mounted) {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Đã rời khóa học thành công',
+            type: NotificationType.success,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Không thể rời khóa học: $e',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _leavingCourseIds.remove(course.id));
+      }
+    }
+  }
+
   Widget _buildPaginationBar() {
     const primary = Color(0xFF137FEC);
     return Padding(
@@ -94,9 +170,10 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            onPressed: !_isPaging && _currentPage > 0
-                ? () => _goToPage(_currentPage - 1)
-                : null,
+            onPressed:
+                !_isPaging && _currentPage > 0
+                    ? () => _goToPage(_currentPage - 1)
+                    : null,
             icon: const Icon(Icons.chevron_left),
             color: const Color(0xFF64748B),
           ),
@@ -104,54 +181,58 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
             opacity: _isPaging ? 0.5 : 1,
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                _totalPages > 5 ? 5 : _totalPages,
-                (index) {
-                  int pageNum;
-                  if (_totalPages > 5) {
-                    if (_currentPage < 3) {
-                      pageNum = index;
-                    } else if (_currentPage > _totalPages - 3) {
-                      pageNum = _totalPages - 5 + index;
-                    } else {
-                      pageNum = _currentPage - 2 + index;
-                    }
-                  } else {
+              children: List.generate(_totalPages > 5 ? 5 : _totalPages, (
+                index,
+              ) {
+                int pageNum;
+                if (_totalPages > 5) {
+                  if (_currentPage < 3) {
                     pageNum = index;
+                  } else if (_currentPage > _totalPages - 3) {
+                    pageNum = _totalPages - 5 + index;
+                  } else {
+                    pageNum = _currentPage - 2 + index;
                   }
-                  final isCurrent = pageNum == _currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: InkWell(
-                      onTap: _isPaging ? null : () => _goToPage(pageNum),
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isCurrent ? primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '${pageNum + 1}',
-                          style: TextStyle(
-                            color: isCurrent ? Colors.white : const Color(0xFF64748B),
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 13,
-                          ),
+                } else {
+                  pageNum = index;
+                }
+                final isCurrent = pageNum == _currentPage;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: InkWell(
+                    onTap: _isPaging ? null : () => _goToPage(pageNum),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isCurrent ? primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${pageNum + 1}',
+                        style: TextStyle(
+                          color:
+                              isCurrent
+                                  ? Colors.white
+                                  : const Color(0xFF64748B),
+                          fontWeight:
+                              isCurrent ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 13,
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              }),
             ),
           ),
           IconButton(
-            onPressed: !_isPaging && _currentPage < _totalPages - 1
-                ? () => _goToPage(_currentPage + 1)
-                : null,
+            onPressed:
+                !_isPaging && _currentPage < _totalPages - 1
+                    ? () => _goToPage(_currentPage + 1)
+                    : null,
             icon: const Icon(Icons.chevron_right),
             color: const Color(0xFF64748B),
           ),
@@ -302,18 +383,11 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.search_off,
-                    size: 48,
-                    color: Colors.grey.shade300,
-                  ),
+                  Icon(Icons.search_off, size: 48, color: Colors.grey.shade300),
                   const SizedBox(height: 12),
                   Text(
                     'Không có khóa học nào trong mục này',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
                 ],
               ),
@@ -329,12 +403,13 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                   Opacity(
                     opacity: _isPaging ? 0.45 : 1,
                     child: GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 300,
-                        childAspectRatio: 0.72,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 300,
+                            childAspectRatio: 0.72,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
                       itemCount: _filteredCourses.length,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -342,10 +417,17 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                         final course = _filteredCourses[index];
                         return EnrolledCourseCard(
                           course: course,
-                          onTap: () => context.go('/employee/learn/${course.id}?from=my_courses'),
-                          onViewCertificate: course.certificateAvailable
-                              ? () => context.go('/employee/certificates?courseId=${course.id}')
-                              : null,
+                          onTap:
+                              () => context.go(
+                                '/employee/learn/${course.id}?from=my_courses',
+                              ),
+                          onViewCertificate:
+                              course.certificateAvailable
+                                  ? () => context.go(
+                                    '/employee/certificates?courseId=${course.id}',
+                                  )
+                                  : null,
+                          onLeaveCourse: () => _onLeaveCourse(course),
                         );
                       },
                     ),
@@ -403,7 +485,9 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                   });
                 },
                 onRetry: _loadCourses,
-                onCourseTap: (courseId) => context.go('/employee/learn/$courseId?from=my_courses'),
+                onCourseTap:
+                    (courseId) =>
+                        context.go('/employee/learn/$courseId?from=my_courses'),
                 onNavigate: (path) => context.go(path),
                 onLogout: () async {
                   await AuthService.logout();
@@ -415,6 +499,7 @@ class _MyCoursesPageState extends State<MyCoursesPage> {
                 totalElements: _totalElements,
                 isPaging: _isPaging,
                 onPageChanged: _goToPage,
+                onLeaveCourse: _onLeaveCourse,
               );
             }
           },

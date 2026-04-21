@@ -4,7 +4,6 @@ import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/common/auth_service.dart';
-import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Course - Web Layout (Danh sách khóa học) — Giao diện mềm mại, hiện đại.
 class MentorCourseWeb extends StatefulWidget {
@@ -139,66 +138,6 @@ class _MentorCourseWebState extends State<MentorCourseWeb>
   void _goToPage(int page) {
     if (page >= 0 && page < _totalPages) {
       _loadCourses(page: page);
-    }
-  }
-
-  Future<void> _deleteCourse(CourseResponse course) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: _danger.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.delete_outline, color: _danger, size: 22),
-            ),
-            const SizedBox(width: 14),
-            const Text("Xóa khóa học"),
-          ],
-        ),
-        content: Text("Bạn có chắc chắn muốn xóa khóa học \"${course.title}\" không? Hành động này không thể hoàn tác."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Hủy bỏ"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _danger,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: const Text("Xóa"),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _service.deleteCourse(course.id);
-        _loadCourses(page: _currentPage);
-        GlobalNotificationService.show(
-          context: context,
-          message: 'Xóa khóa học thành công',
-          type: NotificationType.success,
-        );
-      } catch (e) {
-        GlobalNotificationService.show(
-          context: context,
-          message: e.toString(),
-          type: NotificationType.error,
-        );
-      }
     }
   }
 
@@ -565,11 +504,6 @@ class _MentorCourseWebState extends State<MentorCourseWeb>
         onTap: () => context.go(
           '/mentor/courses/${course.id.value}?title=${Uri.encodeComponent(course.title)}',
         ),
-        onEdit: () => context.go(
-          '/mentor/courses/${course.id.value}?title=${Uri.encodeComponent(course.title)}',
-        ),
-        onPublish: _publishCourse,
-        onDelete: _deleteCourse,
         isOwner: _isOwner(course),
       ),
     );
@@ -665,24 +599,6 @@ class _MentorCourseWebState extends State<MentorCourseWeb>
       ),
     );
   }
-
-  Future<void> _publishCourse(CourseResponse course) async {
-    try {
-      await _service.publishCourse(course.id);
-      _loadCourses(page: _currentPage);
-      GlobalNotificationService.show(
-        context: context,
-        message: 'Xuất bản khóa học thành công',
-        type: NotificationType.success,
-      );
-    } catch (e) {
-      GlobalNotificationService.show(
-        context: context,
-        message: e.toString(),
-        type: NotificationType.error,
-      );
-    }
-  }
 }
 
 /// ─────────────────────────────────────────────────────────────
@@ -699,9 +615,6 @@ class _CourseCardContent extends StatefulWidget {
   final Color warning;
   final Color danger;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final Future<void> Function(CourseResponse) onPublish;
-  final Future<void> Function(CourseResponse) onDelete;
   final bool isOwner;
 
   const _CourseCardContent({
@@ -715,9 +628,6 @@ class _CourseCardContent extends StatefulWidget {
     required this.warning,
     required this.danger,
     required this.onTap,
-    required this.onEdit,
-    required this.onPublish,
-    required this.onDelete,
     required this.isOwner,
   });
 
@@ -774,8 +684,6 @@ class _CourseCardContentState extends State<_CourseCardContent> {
                       const SizedBox(width: 6),
                       _ownershipBadge(course),
                       const Spacer(),
-                      if (widget.isOwner)
-                        _buildPopupMenu(course),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -982,64 +890,6 @@ class _CourseCardContentState extends State<_CourseCardContent> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPopupMenu(CourseResponse course) {
-    return PopupMenuButton<String>(
-      icon: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(Icons.more_horiz, color: widget.textMedium, size: 18),
-      ),
-      onSelected: (value) async {
-        if (value == 'edit') {
-          widget.onEdit();
-        } else if (value == 'publish') {
-          await widget.onPublish(course);
-        } else if (value == 'delete') {
-          await widget.onDelete(course);
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 18, color: widget.textMedium),
-              const SizedBox(width: 10),
-              Text("Chỉnh sửa", style: TextStyle(color: widget.textDark, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-        if (!course.isPublished)
-          PopupMenuItem(
-            value: 'publish',
-            child: Row(
-              children: [
-                Icon(Icons.publish, size: 18, color: widget.success),
-                const SizedBox(width: 10),
-                Text("Xuất bản", style: TextStyle(color: widget.success, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 18, color: widget.danger),
-              const SizedBox(width: 10),
-              Text("Xóa", style: TextStyle(color: widget.danger, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-      ],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 8,
     );
   }
 

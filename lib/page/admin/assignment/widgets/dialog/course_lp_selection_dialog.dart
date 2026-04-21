@@ -124,6 +124,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
   int? _selectedDepartmentId;
   String? _selectedStatus;
   Timer? _debounce;
+  bool _hasDepartmentAccess = false;
 
   String get _baseUrl => baseUrl;
   String get _tokenKey => "token";
@@ -156,11 +157,15 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
             _departments = content
                 .map((e) => Department.fromJson(e as Map<String, dynamic>))
                 .toList();
+            _hasDepartmentAccess = _departments.isNotEmpty;
           });
         }
+      } else {
+        if (mounted) setState(() => _hasDepartmentAccess = false);
       }
     } catch (e) {
       debugPrint('Error loading departments: $e');
+      if (mounted) setState(() => _hasDepartmentAccess = false);
     }
   }
 
@@ -441,7 +446,7 @@ class _CourseLPSelectionDialogState extends State<CourseLPSelectionDialog> {
             _buildStatusDropdown(),
             const SizedBox(width: 8),
           ],
-          _buildDepartmentDropdown(),
+          if (_hasDepartmentAccess) _buildDepartmentDropdown(),
           const Spacer(),
           if (hasFilters)
             TextButton.icon(

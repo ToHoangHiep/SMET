@@ -12,12 +12,14 @@ class EnrolledCourseCard extends StatefulWidget {
   final EnrolledCourse course;
   final VoidCallback? onTap;
   final VoidCallback? onViewCertificate;
+  final VoidCallback? onLeaveCourse;
 
   const EnrolledCourseCard({
     super.key,
     required this.course,
     this.onTap,
     this.onViewCertificate,
+    this.onLeaveCourse,
   });
 
   @override
@@ -123,7 +125,18 @@ class _EnrolledCourseCardState extends State<EnrolledCourseCard> {
                         Positioned(
                           top: 8,
                           right: 8,
-                          child: _StatusBadge(status: widget.course.status),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _StatusBadge(status: widget.course.status),
+                              if (widget.onLeaveCourse != null) ...[
+                                const SizedBox(width: 4),
+                                _LeaveCourseMenu(
+                                  onLeaveCourse: widget.onLeaveCourse!,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -319,6 +332,57 @@ class _StatusBadge extends StatelessWidget {
           color: textColor,
         ),
       ),
+    );
+  }
+}
+
+class _LeaveCourseMenu extends StatelessWidget {
+  final VoidCallback onLeaveCourse;
+
+  const _LeaveCourseMenu({required this.onLeaveCourse});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Icon(
+          Icons.more_horiz,
+          size: 14,
+          color: Colors.white,
+        ),
+      ),
+      padding: EdgeInsets.zero,
+      offset: const Offset(0, 28),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      itemBuilder: (context) => [
+        const PopupMenuItem<String>(
+          value: 'leave',
+          child: Row(
+            children: [
+              Icon(Icons.exit_to_app, size: 18, color: Color(0xFFEF4444)),
+              SizedBox(width: 8),
+              Text(
+                'Rời khóa học',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+      onSelected: (value) {
+        if (value == 'leave') {
+          onLeaveCourse();
+        }
+      },
     );
   }
 }

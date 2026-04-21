@@ -4,6 +4,7 @@ import 'package:smet/model/project_member_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/project/project_service.dart';
+import 'package:smet/service/pm/pm_project_service.dart' show PmProjectListItem;
 import 'dart:developer';
 
 class ProjectMemberService {
@@ -255,6 +256,180 @@ class ProjectMemberService {
   /// Endpoint: GET /api/users/for-project?departmentId=xxx&keyword=xxx&excludeUserIds=xxx&page=0&size=100
   /// Backend: Co endpoint nay trong UserController
   /// ================================================================
+
+  /// CHECK IF USER HAS ANY PROJECTS
+  /// Với mỗi project, gọi GET /api/projects/get/{id} để lấy memberIds đầy đủ
+  /// (Endpoint /api/projects search trả về memberIds = [] luôn)
+  /// Returns: List<PmProjectListItem> - danh sách project mà user tham gia
+  static Future<List<PmProjectListItem>> checkUserProjects({
+    required int departmentId,
+    required int userId,
+  }) async {
+    try {
+      final token = await AuthService.getToken();
+      // Lấy danh sách project IDs của department
+      final uri = Uri.parse("$baseUrl/projects").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("[ProjectMemberService] checkUserProjects - status: ${response.statusCode}, url: $uri");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> content = data['data'] ?? data['content'] ?? [];
+
+        log("[ProjectMemberService] checkUserProjects - total projects in dept $departmentId: ${content.length}");
+
+        final List<PmProjectListItem> userProjects = [];
+
+        for (final item in content) {
+          final status = (item['status'] as String?)?.toUpperCase() ?? '';
+          // Chỉ lấy project KHÔNG phải COMPLETED (backend sẽ block các project này)
+          if (status == 'COMPLETED' || status == 'INACTIVE') {
+            continue;
+          }
+
+          // Gọi GET /api/projects/get/{id} để lấy thông tin đầy đủ (bao gồm memberIds)
+          final projectId = item['id'] as int?;
+          if (projectId == null) continue;
+
+          final projectDetailUri = Uri.parse("$baseUrl/projects/get/$projectId");
+          final projectDetailResponse = await http.get(
+            projectDetailUri,
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+            },
+          );
+
+          if (projectDetailResponse.statusCode != 200) continue;
+
+          final projectDetail = jsonDecode(projectDetailResponse.body);
+
+          // Kiểm tra user có trong project không (leader, mentor, hoặc member)
+          final leaderId = projectDetail['leaderId'] as int?;
+          final mentorId = projectDetail['mentorId'] as int?;
+          final memberIds = projectDetail['memberIds'] != null
+              ? List<int>.from(projectDetail['memberIds'])
+              : <int>[];
+
+          final bool isInProject = leaderId == userId || mentorId == userId || memberIds.contains(userId);
+          log("[ProjectMemberService] checkUserProjects - userId=$userId, project=${item['title']}, status=$status, isInProject=$isInProject");
+
+          if (isInProject) {
+            userProjects.add(PmProjectListItem.fromJson(projectDetail));
+          }
+        }
+
+        log("[ProjectMemberService] checkUserProjects - found ${userProjects.length} projects for user $userId");
+        return userProjects;
+      }
+
+      return [];
+    } catch (e) {
+      log("[ProjectMemberService] checkUserProjects ERROR: $e");
+      return [];
+    }
+  }
+
+  /// QUICK CHECK: User có đang tham gia project active nào không
+  /// @deprecated Dùng isUserInAnyProject thay thế (kiểm tra tất cả trạng thái)
+  static Future<bool> isUserInActiveProject({
+    required int departmentId,
+    required int userId,
+  }) async {
+    final projects = await checkUserProjects(
+      departmentId: departmentId,
+      userId: userId,
+    );
+    return projects.isNotEmpty;
+  }
+
+  /// QUICK CHECK: User có đang thuộc bất kỳ project nào không (không phân biệt trạng thái)
+  static Future<bool> isUserInAnyProject({
+    required int departmentId,
+    required int userId,
+  }) async {
+    return checkUserInAnyProject(
+      departmentId: departmentId,
+      userId: userId,
+    );
+  }
+
+  /// CHECK USER IN ANY PROJECT — không filter status, lấy tất cả project
+  static Future<bool> checkUserInAnyProject({
+    required int departmentId,
+    required int userId,
+  }) async {
+    try {
+      final token = await AuthService.getToken();
+      final uri = Uri.parse("$baseUrl/projects").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> content = data['data'] ?? data['content'] ?? [];
+
+        for (final item in content) {
+          final projectId = item['id'] as int?;
+          if (projectId == null) continue;
+
+          final projectDetailUri = Uri.parse("$baseUrl/projects/get/$projectId");
+          final projectDetailResponse = await http.get(
+            projectDetailUri,
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+            },
+          );
+
+          if (projectDetailResponse.statusCode != 200) continue;
+
+          final projectDetail = jsonDecode(projectDetailResponse.body);
+
+          final leaderId = projectDetail['leaderId'] as int?;
+          final mentorId = projectDetail['mentorId'] as int?;
+          final memberIds = projectDetail['memberIds'] != null
+              ? List<int>.from(projectDetail['memberIds'])
+              : <int>[];
+
+          if (leaderId == userId || mentorId == userId || memberIds.contains(userId)) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (e) {
+      log("[ProjectMemberService] checkUserInAnyProject ERROR: $e");
+      return false;
+    }
+  }
 
   static Future<List<Map<String, dynamic>>> getUsersForProject({
     required int departmentId,

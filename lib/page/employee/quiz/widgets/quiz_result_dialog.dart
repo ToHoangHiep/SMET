@@ -8,6 +8,7 @@ class QuizResultDialog extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onClose;
   final VoidCallback? onViewCertificate;
+  final VoidCallback? onPassed;
   final bool isAutoSubmit;
 
   const QuizResultDialog({
@@ -17,6 +18,7 @@ class QuizResultDialog extends StatelessWidget {
     required this.onRetry,
     required this.onClose,
     this.onViewCertificate,
+    this.onPassed,
     this.isAutoSubmit = false,
   });
 
@@ -297,7 +299,12 @@ class QuizResultDialog extends StatelessWidget {
             ],
             Expanded(
               child: ElevatedButton(
-                onPressed: onClose,
+                onPressed: () {
+                  if (result.passed && onPassed != null) {
+                    onPassed!();
+                  }
+                  onClose();
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       result.passed

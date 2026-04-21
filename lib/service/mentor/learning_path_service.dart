@@ -587,10 +587,10 @@ class LearningPathService {
       }
 
       _logResult("Mentor courses loaded", "${allCourses.length} total courses");
-      for (int i = 0; i < allCourses.length && i < 10; i++) {
+      for (int i = 0; i < allCourses.length && i < 3; i++) {
         _logResult(
           "  Course[$i]",
-          "id=${allCourses[i]['id']}, title=${allCourses[i]['title']}",
+          "id=${allCourses[i]['id']}, title=${allCourses[i]['title']}, moduleCount=${allCourses[i]['moduleCount']}, lessonCount=${allCourses[i]['lessonCount']}, keys=${allCourses[i].keys.toList()}",
         );
       }
       return allCourses;

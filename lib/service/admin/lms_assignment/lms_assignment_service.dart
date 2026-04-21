@@ -230,54 +230,153 @@ class LmsAssignmentService {
     }
   }
 
-  /// GET /api/lms/enrollments/my-courses?page=0&size=1000
-  /// Lay danh sach tat ca enrollment toan he thong (cho admin quan ly huy gan)
-  Future<List<UserEnrollmentData>> getAllEnrollments() async {
+  /// GET /api/admin/enrollments
+  /// Lay danh sach enrollment phan trang (cho admin quan ly huy gan)
+  /// Query params: page, size, userId, courseId, status, minProgress, maxProgress, q
+  Future<PageResultEnrollment> getEnrollments({
+    int page = 0,
+    int size = 20,
+    int? userId,
+    int? courseId,
+    String? status,
+    int? minProgress,
+    int? maxProgress,
+    String? q,
+  }) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception("Token not found");
 
-      final url = "$baseUrl/lms/enrollments/my-courses?page=0&size=1000";
-      _logRequest("GET ALL ENROLLMENTS", url);
+      final params = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (userId != null) params['userId'] = userId.toString();
+      if (courseId != null) params['courseId'] = courseId.toString();
+      if (status != null && status.isNotEmpty) params['status'] = status;
+      if (minProgress != null) params['minProgress'] = minProgress.toString();
+      if (maxProgress != null) params['maxProgress'] = maxProgress.toString();
+      if (q != null && q.isNotEmpty) params['q'] = q;
 
-      final res = await http.get(Uri.parse(url), headers: _headers(token));
+      final uri = Uri.parse("$baseUrl/admin/enrollments")
+          .replace(queryParameters: params);
+      _logRequest("GET ENROLLMENTS", uri.toString());
+
+      final res = await http.get(uri, headers: _headers(token));
       _logResponse(res);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        final List<dynamic> content = data['content'] ?? data as List<dynamic>;
-        return content.map((e) => UserEnrollmentData.fromJson(e as Map<String, dynamic>)).toList();
+        return PageResultEnrollment.fromJson(data as Map<String, dynamic>);
       }
-      throw Exception("Get all enrollments failed: HTTP ${res.statusCode} - ${res.body}");
+      throw Exception("Get enrollments failed: HTTP ${res.statusCode} - ${res.body}");
     } catch (e) {
-      log("GET ALL ENROLLMENTS ERROR: $e");
+      log("GET ENROLLMENTS ERROR: $e");
       rethrow;
     }
   }
 
-  /// GET /api/lms/learning-paths?assignedToMe=true&page=0&size=1000
-  /// Lay danh sach learning path assignment toan he thong (cho admin)
-  Future<List<UserLearningPathData>> getAllLearningPathAssignments() async {
+  /// GET /api/admin/learning-path-assignments
+  /// Lay danh sach learning path assignment phan trang (cho admin quan ly huy gan)
+  /// Query params: page, size, userId, learningPathId, q
+  Future<PageResultLearningPath> getLearningPathAssignments({
+    int page = 0,
+    int size = 20,
+    int? userId,
+    int? learningPathId,
+    String? q,
+  }) async {
     try {
       final token = await _getToken();
       if (token == null) throw Exception("Token not found");
 
-      final url = "$baseUrl/lms/learning-paths?assignedToMe=true&page=0&size=1000";
-      _logRequest("GET ALL LEARNING PATH ASSIGNMENTS", url);
+      final params = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (userId != null) params['userId'] = userId.toString();
+      if (learningPathId != null) params['learningPathId'] = learningPathId.toString();
+      if (q != null && q.isNotEmpty) params['q'] = q;
 
-      final res = await http.get(Uri.parse(url), headers: _headers(token));
+      final uri = Uri.parse("$baseUrl/admin/learning-path-assignments")
+          .replace(queryParameters: params);
+      _logRequest("GET LEARNING PATH ASSIGNMENTS", uri.toString());
+
+      final res = await http.get(uri, headers: _headers(token));
       _logResponse(res);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        final List<dynamic> content = data['content'] ?? data as List<dynamic>;
-        return content.map((e) => UserLearningPathData.fromJson(e as Map<String, dynamic>)).toList();
+        return PageResultLearningPath.fromJson(data as Map<String, dynamic>);
       }
-      throw Exception("Get all learning path assignments failed: HTTP ${res.statusCode} - ${res.body}");
+      throw Exception("Get learning path assignments failed: HTTP ${res.statusCode} - ${res.body}");
     } catch (e) {
-      log("GET ALL LEARNING PATH ASSIGNMENTS ERROR: $e");
+      log("GET LEARNING PATH ASSIGNMENTS ERROR: $e");
       rethrow;
     }
+  }
+}
+
+/// ============================================================
+/// PageResult - Wrapper cho phan trang (Backend tra PageResponse<T>)
+/// ============================================================
+class PageResultEnrollment {
+  final List<UserEnrollmentData> data;
+  final int page;
+  final int size;
+  final int totalElements;
+  final int totalPages;
+  final bool last;
+
+  PageResultEnrollment({
+    required this.data,
+    required this.page,
+    required this.size,
+    required this.totalElements,
+    required this.totalPages,
+    required this.last,
+  });
+
+  factory PageResultEnrollment.fromJson(Map<String, dynamic> json) {
+    final List<dynamic> dataList = json['data'] ?? [];
+    return PageResultEnrollment(
+      data: dataList.map((e) => UserEnrollmentData.fromJson(e as Map<String, dynamic>)).toList(),
+      page: json['page'] ?? 0,
+      size: json['size'] ?? 20,
+      totalElements: json['totalElements'] ?? 0,
+      totalPages: json['totalPages'] ?? 0,
+      last: json['last'] ?? true,
+    );
+  }
+}
+
+class PageResultLearningPath {
+  final List<UserLearningPathData> data;
+  final int page;
+  final int size;
+  final int totalElements;
+  final int totalPages;
+  final bool last;
+
+  PageResultLearningPath({
+    required this.data,
+    required this.page,
+    required this.size,
+    required this.totalElements,
+    required this.totalPages,
+    required this.last,
+  });
+
+  factory PageResultLearningPath.fromJson(Map<String, dynamic> json) {
+    final List<dynamic> dataList = json['data'] ?? [];
+    return PageResultLearningPath(
+      data: dataList.map((e) => UserLearningPathData.fromJson(e as Map<String, dynamic>)).toList(),
+      page: json['page'] ?? 0,
+      size: json['size'] ?? 20,
+      totalElements: json['totalElements'] ?? 0,
+      totalPages: json['totalPages'] ?? 0,
+      last: json['last'] ?? true,
+    );
   }
 }
 
@@ -308,11 +407,11 @@ class UserEnrollmentData {
   factory UserEnrollmentData.fromJson(Map<String, dynamic> json) {
     return UserEnrollmentData(
       courseId: int.tryParse(json['courseId']?.toString() ?? '') ?? 0,
-      courseTitle: json['title'] ?? json['courseTitle'] ?? '',
+      courseTitle: json['courseTitle'] ?? '',
       userId: int.tryParse(json['userId']?.toString() ?? '') ?? 0,
-      userName: json['userName'] ?? json['user']?['name'] ?? '',
+      userName: json['userName'] ?? '',
       status: json['status'] ?? 'NOT_STARTED',
-      progressPercent: json['progressPercent'] ?? json['progress'] ?? 0,
+      progressPercent: (json['progressPercent'] ?? 0).toInt(),
       enrolledAt: json['enrolledAt'] != null ? DateTime.tryParse(json['enrolledAt'].toString()) : null,
       deadline: json['deadline'] != null ? DateTime.tryParse(json['deadline'].toString()) : null,
     );
@@ -320,32 +419,35 @@ class UserEnrollmentData {
 }
 
 class UserLearningPathData {
-  final int pathId;
-  final String pathTitle;
+  final int learningPathId;
+  final String learningPathTitle;
   final int userId;
   final String userName;
-  final int courseCount;
+  final DateTime? assignedAt;
+  final DateTime? dueDate;
 
   UserLearningPathData({
-    required this.pathId,
-    required this.pathTitle,
+    required this.learningPathId,
+    required this.learningPathTitle,
     required this.userId,
     required this.userName,
-    this.courseCount = 0,
+    this.assignedAt,
+    this.dueDate,
   });
 
   factory UserLearningPathData.fromJson(Map<String, dynamic> json) {
     return UserLearningPathData(
-      pathId: int.tryParse(json['id']?.toString() ?? '') ?? 0,
-      pathTitle: json['title'] ?? json['pathTitle'] ?? '',
+      learningPathId: int.tryParse(json['learningPathId']?.toString() ?? '') ?? 0,
+      learningPathTitle: json['learningPathTitle'] ?? '',
       userId: int.tryParse(json['userId']?.toString() ?? '') ?? 0,
       userName: json['userName'] ?? '',
-      courseCount: json['courseCount'] ?? 0,
+      assignedAt: json['assignedAt'] != null ? DateTime.tryParse(json['assignedAt'].toString()) : null,
+      dueDate: json['dueDate'] != null ? DateTime.tryParse(json['dueDate'].toString()) : null,
     );
   }
 }
 
-/// Wrapper cho so nguyen (vì JS ko co Long)
+/// Wrapper cho so nguyen (vi JS ko co Long)
 class Long {
   final int value;
   Long(this.value);

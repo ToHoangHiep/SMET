@@ -30,9 +30,10 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
   int _currentPage = 0;
   int _totalPages = 1;
   int _totalElements = 0;
-  static const int _pageSize = 9;
+  static const int _pageSize = 10;
 
-  final List<String> _levelOptions = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
+  String _sortColumn = 'title';
+  bool _sortAscending = true;
 
   @override
   void initState() {
@@ -106,6 +107,56 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
     _loadCourses();
   }
 
+  void _sortData(String column) {
+    setState(() {
+      if (_sortColumn == column) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumn = column;
+        _sortAscending = true;
+      }
+    });
+  }
+
+  List<Map<String, dynamic>> _getSortedCourses() {
+    final sorted = List<Map<String, dynamic>>.from(_courses);
+    sorted.sort((a, b) {
+      int compare;
+      switch (_sortColumn) {
+        case 'title':
+          final titleA = a['title'] ?? a['name'] ?? '';
+          final titleB = b['title'] ?? b['name'] ?? '';
+          compare = titleA.toString().compareTo(titleB.toString());
+          break;
+        case 'enrolled':
+          final enrolledA = _parseIntValue(a['enrolledCount'] ?? a['studentCount'] ?? a['enrolled'] ?? 0);
+          final enrolledB = _parseIntValue(b['enrolledCount'] ?? b['studentCount'] ?? b['enrolled'] ?? 0);
+          compare = enrolledA.compareTo(enrolledB);
+          break;
+        default:
+          compare = 0;
+      }
+      return _sortAscending ? compare : -compare;
+    });
+    return sorted;
+  }
+
+  int _parseIntValue(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed ?? 0;
+    }
+    if (value is Map || value is List) return 0;
+    try {
+      return int.parse(value.toString());
+    } catch (_) {
+      return 0;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -121,7 +172,7 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
 
   Widget _buildLoading() {
     return const Padding(
-      padding: EdgeInsets.fromLTRB(0, 24, 24, 24),
+      padding: EdgeInsets.all(24),
       child: Align(
         alignment: Alignment.centerLeft,
         child: CircularProgressIndicator(),
@@ -131,7 +182,7 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
 
   Widget _buildError() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 24, 24, 24),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -158,7 +209,7 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
         _buildSearchAndFilter(),
         const SizedBox(height: 16),
         Expanded(
-          child: _courses.isEmpty ? _buildEmpty() : _buildCourseGrid(),
+          child: _courses.isEmpty ? _buildEmpty() : _buildCourseList(),
         ),
         if (_courses.isNotEmpty) _buildPagination(),
       ],
@@ -274,42 +325,124 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
     );
   }
 
-  Widget _buildCourseGrid() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth > 900
-            ? 3
-            : constraints.maxWidth > 600
-                ? 2
-                : 1;
+  Widget _buildCourseList() {
+    final sortedCourses = _getSortedCourses();
 
-        return GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.5,
-          ),
-          itemCount: _courses.length + (_isLoadingMore ? 1 : 0),
-          itemBuilder: (context, index) {
-            if (index >= _courses.length) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final course = _courses[index];
-            return _CourseCard(
-              course: course,
-              primaryColor: widget.primaryColor,
-              onTap: () {
-                final courseId = course['id']?.toString();
-                if (courseId != null) {
-                  context.go('/admin/course/$courseId');
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          _buildTableHeader(),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          Expanded(
+            child: ListView.separated(
+              itemCount: sortedCourses.length + (_isLoadingMore ? 1 : 0),
+              separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE5E7EB)),
+              itemBuilder: (context, index) {
+                if (index >= sortedCourses.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
                 }
+                final course = sortedCourses[index];
+                return _CourseListItem(
+                  course: course,
+                  index: index,
+                  primaryColor: widget.primaryColor,
+                  onTap: () {
+                    final courseId = course['id']?.toString();
+                    if (courseId != null) {
+                      context.go('/admin/course/$courseId');
+                    }
+                  },
+                );
               },
-            );
-          },
-        );
-      },
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildTableHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      child: Row(
+        children: [
+          _buildHeaderCell('STT', 'index', width: 60),
+          _buildHeaderCell('Tên khóa học', 'title', flex: 4),
+          _buildHeaderCell('Người đăng ký', 'enrolled', width: 140),
+          _buildHeaderCell('Thao tác', 'actions', width: 100),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String label, String column, {double? width, int flex = 1}) {
+    final isActive = _sortColumn == column;
+
+    return width != null
+        ? SizedBox(
+            width: width,
+            child: InkWell(
+              onTap: () => _sortData(column),
+              child: Row(
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isActive ? widget.primaryColor : const Color(0xFF64748B),
+                    ),
+                  ),
+                  if (isActive) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                      size: 14,
+                      color: widget.primaryColor,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          )
+        : Expanded(
+            flex: flex,
+            child: InkWell(
+              onTap: () => _sortData(column),
+              child: Row(
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isActive ? widget.primaryColor : const Color(0xFF64748B),
+                    ),
+                  ),
+                  if (isActive) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                      size: 14,
+                      color: widget.primaryColor,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
   }
 
   Widget _buildPagination() {
@@ -345,148 +478,129 @@ class _DepartmentCoursesTabState extends State<DepartmentCoursesTab> {
   }
 }
 
-class _CourseCard extends StatefulWidget {
+class _CourseListItem extends StatefulWidget {
   final Map<String, dynamic> course;
+  final int index;
   final Color primaryColor;
   final VoidCallback onTap;
 
-  const _CourseCard({
+  const _CourseListItem({
     required this.course,
+    required this.index,
     required this.primaryColor,
     required this.onTap,
   });
 
   @override
-  State<_CourseCard> createState() => _CourseCardState();
+  State<_CourseListItem> createState() => _CourseListItemState();
 }
 
-class _CourseCardState extends State<_CourseCard> {
+class _CourseListItemState extends State<_CourseListItem> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final title = widget.course['title'] ?? widget.course['name'] ?? 'Khóa học';
     final description = widget.course['description'] ?? '';
-    final level = widget.course['level'] ?? 'INTERMEDIATE';
     final imageUrl = widget.course['imageUrl'] ?? widget.course['thumbnail'];
-    final enrolledCount = widget.course['enrolledCount'] ??
+    final enrolledCount = _parseIntValue(
+        widget.course['enrolledCount'] ??
         widget.course['studentCount'] ??
         widget.course['enrolled'] ??
-        0;
-    final rating = (widget.course['rating'] ?? widget.course['averageRating'] ?? 0).toDouble();
-
-    final levelLabel = _getLevelLabel(level);
-    final levelColor = _getLevelColor(level);
+        0);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
+      child: InkWell(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _isHovered
-                  ? widget.primaryColor.withValues(alpha: 0.3)
-                  : const Color(0xFFE5E7EB),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _isHovered
-                    ? widget.primaryColor.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: 0.04),
-                blurRadius: _isHovered ? 12 : 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          color: _isHovered ? widget.primaryColor.withValues(alpha: 0.04) : Colors.transparent,
+          child: Row(
             children: [
-              Container(
-                height: 100,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      widget.primaryColor.withValues(alpha: 0.15),
-                      widget.primaryColor.withValues(alpha: 0.05),
-                    ],
-                  ),
-                  image: imageUrl != null
-                      ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
-                      : null,
+              SizedBox(
+                width: 60,
+                child: Text(
+                  '${widget.index + 1}',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
-                child: imageUrl == null
-                    ? Center(
-                        child: Icon(Icons.school, size: 40, color: widget.primaryColor.withValues(alpha: 0.5)),
-                      )
-                    : null,
               ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
+                flex: 4,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            widget.primaryColor.withValues(alpha: 0.15),
+                            widget.primaryColor.withValues(alpha: 0.05),
+                          ],
                         ),
+                        image: imageUrl != null
+                            ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
+                            : null,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                      const Spacer(),
-                      Row(
+                      child: imageUrl == null
+                          ? Icon(Icons.school, size: 22, color: widget.primaryColor.withValues(alpha: 0.6))
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: levelColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              levelLabel,
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: levelColor),
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
                             ),
                           ),
-                          const Spacer(),
-                          if (enrolledCount is int && enrolledCount > 0) ...[
-                            Icon(Icons.people_outline, size: 14, color: Colors.grey[400]),
-                            const SizedBox(width: 4),
+                          if (description.isNotEmpty) ...[
+                            const SizedBox(height: 2),
                             Text(
-                              '$enrolledCount',
-                              style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-                            ),
-                          ],
-                          if (rating > 0) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.star, size: 14, color: Colors.amber[600]),
-                            const SizedBox(width: 2),
-                            Text(
-                              rating.toStringAsFixed(1),
-                              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                              description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                             ),
                           ],
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 140,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.people_outline, size: 16, color: Colors.grey[400]),
+                    const SizedBox(width: 6),
+                    Text(
+                      enrolledCount > 0 ? '$enrolledCount' : '-',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 100,
+                child: IconButton(
+                  onPressed: widget.onTap,
+                  icon: Icon(Icons.visibility_outlined, size: 20, color: widget.primaryColor),
+                  tooltip: 'Xem chi tiết',
                 ),
               ),
             ],
@@ -496,29 +610,19 @@ class _CourseCardState extends State<_CourseCard> {
     );
   }
 
-  String _getLevelLabel(String level) {
-    switch (level.toUpperCase()) {
-      case 'BEGINNER':
-        return 'Cơ bản';
-      case 'INTERMEDIATE':
-        return 'Trung bình';
-      case 'ADVANCED':
-        return 'Nâng cao';
-      default:
-        return level;
+  int _parseIntValue(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed ?? 0;
     }
-  }
-
-  Color _getLevelColor(String level) {
-    switch (level.toUpperCase()) {
-      case 'BEGINNER':
-        return Colors.green;
-      case 'INTERMEDIATE':
-        return Colors.orange;
-      case 'ADVANCED':
-        return Colors.red;
-      default:
-        return widget.course['color'] ?? widget.primaryColor;
+    if (value is Map || value is List) return 0;
+    try {
+      return int.parse(value.toString());
+    } catch (_) {
+      return 0;
     }
   }
 }

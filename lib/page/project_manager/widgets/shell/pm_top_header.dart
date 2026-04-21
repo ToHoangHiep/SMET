@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/page/shared/widgets/notification_bell_button.dart';
 
 class PmTopHeader extends StatelessWidget {
   final String currentPage;
@@ -45,10 +45,8 @@ class PmTopHeader extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () => context.go('/notifications'),
-                tooltip: 'Thông báo',
+              NotificationBellButton(
+                primaryColor: _primary,
               ),
             ],
           ),

@@ -10,8 +10,13 @@ import 'package:smet/page/admin/department_management/widgets/department_project
 
 class DepartmentDetailPage extends StatefulWidget {
   final int departmentId;
+  final VoidCallback? onDataChanged;
 
-  const DepartmentDetailPage({super.key, required this.departmentId});
+  const DepartmentDetailPage({
+    super.key,
+    required this.departmentId,
+    this.onDataChanged,
+  });
 
   @override
   State<DepartmentDetailPage> createState() => _DepartmentDetailPageState();
@@ -21,6 +26,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
     with SingleTickerProviderStateMixin {
   final DepartmentService _departmentService = DepartmentService();
   DepartmentModel? _department;
+  List<DepartmentModel> _departments = [];
   bool _isLoading = true;
   String? _error;
   int _selectedTabIndex = 0;
@@ -42,9 +48,18 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
     });
 
     try {
-      final dept = await _departmentService.getDepartmentById(widget.departmentId);
+      final results = await Future.wait([
+        _departmentService.getDepartmentById(widget.departmentId),
+        _departmentService.searchDepartments(page: 0, size: 100),
+      ]);
+
+      final dept = results[0] as DepartmentModel?;
+      final deptResult = results[1] as Map<String, dynamic>;
+      final depts = deptResult['departments'] as List<DepartmentModel>? ?? [];
+
       setState(() {
         _department = dept;
+        _departments = depts;
         _isLoading = false;
       });
     } catch (e) {
@@ -57,6 +72,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
 
   Future<void> _afterSettingsSaved() async {
     await _loadData();
+    widget.onDataChanged?.call();
     if (mounted) {
       setState(() => _membersTabRefreshKey++);
     }
@@ -219,14 +235,18 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
               departmentId: widget.departmentId,
               primaryColor: _primaryColor,
             )
-          : _selectedTabIndex == 1
-              ? DepartmentMembersTab(
-                  key: ValueKey(
-                    'members_${widget.departmentId}_$_membersTabRefreshKey',
-                  ),
-                  departmentId: widget.departmentId,
-                  primaryColor: _primaryColor,
-                )
+              : _selectedTabIndex == 1
+                  ? DepartmentMembersTab(
+                      key: ValueKey(
+                        'members_${widget.departmentId}_$_membersTabRefreshKey',
+                      ),
+                      departmentId: widget.departmentId,
+                      primaryColor: _primaryColor,
+                      allDepartments: _departments,
+                      onRefresh: () {
+                        setState(() => _membersTabRefreshKey++);
+                      },
+                    )
               : _selectedTabIndex == 2
                   ? DepartmentProjectsTab(
                       key: ValueKey('projects_${widget.departmentId}'),
@@ -234,10 +254,11 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage>
                       primaryColor: _primaryColor,
                     )
                   : DepartmentSettingsTab(
-                      key: const ValueKey('settings'),
+                      key: ValueKey('settings_$_membersTabRefreshKey'),
                       departmentId: widget.departmentId,
                       primaryColor: _primaryColor,
                       onSaved: _afterSettingsSaved,
+                      departmentIsActive: _department?.isActive,
                     ),
     );
   }

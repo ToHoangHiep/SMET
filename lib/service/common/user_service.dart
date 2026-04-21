@@ -6,6 +6,34 @@ import 'package:smet/service/common/auth_service.dart';
 import 'dart:developer';
 
 class UserService {
+  /// GET USER BY ID
+  static Future<UserModel?> getUserById(int userId) async {
+    if (userId <= 0) return null;
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/users/$userId");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("GET USER BY ID STATUS: ${response.statusCode}, userId=$userId");
+
+      if (response.statusCode == 200) {
+        return UserModel.fromJson(jsonDecode(response.body));
+      } else {
+        return null;
+      }
+    } catch (e) {
+      log("UserService.getUserById failed: $e");
+      return null;
+    }
+  }
+
   /// GET USER PROFILE — dùng cùng endpoint /auth/me như đăng nhập
   static Future<UserModel> getProfile() async {
     final userJson = await AuthService.getMe();

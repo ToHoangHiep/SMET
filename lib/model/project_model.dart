@@ -97,30 +97,33 @@ class ProjectModel {
       leaderName: json['leaderName']?.toString(),
       mentorId: json['mentorId'] as int?,
       mentorName: json['mentorName']?.toString(),
-      memberIds: json['memberIds'] != null
-          ? List<int>.from(json['memberIds'])
-          : null,
-      memberNames: json['memberNames'] != null
-          ? List<String>.from(json['memberNames'])
-          : null,
+      memberIds:
+          json['memberIds'] != null ? List<int>.from(json['memberIds']) : null,
+      memberNames:
+          json['memberNames'] != null
+              ? List<String>.from(json['memberNames'])
+              : null,
       // Trường phê duyệt
       submitted: json['submitted'] == true,
       submissionLink: json['submissionLink']?.toString(),
-      submittedAt: json['submittedAt'] != null
-          ? DateTime.tryParse(json['submittedAt'].toString())
-          : null,
+      submittedAt:
+          json['submittedAt'] != null
+              ? DateTime.tryParse(json['submittedAt'].toString())
+              : null,
       submittedBy: json['submittedBy'] as int?,
       mentorApproved: json['mentorApproved'] == true,
       mentorApprovedBy: json['mentorApprovedBy'] as int?,
-      mentorApprovedAt: json['mentorApprovedAt'] != null
-          ? DateTime.tryParse(json['mentorApprovedAt'].toString())
-          : null,
+      mentorApprovedAt:
+          json['mentorApprovedAt'] != null
+              ? DateTime.tryParse(json['mentorApprovedAt'].toString())
+              : null,
       mentorFeedback: json['mentorFeedback']?.toString(),
       pmApproved: json['pmApproved'] == true,
       pmApprovedBy: json['pmApprovedBy'] as int?,
-      pmApprovedAt: json['pmApprovedAt'] != null
-          ? DateTime.tryParse(json['pmApprovedAt'].toString())
-          : null,
+      pmApprovedAt:
+          json['pmApprovedAt'] != null
+              ? DateTime.tryParse(json['pmApprovedAt'].toString())
+              : null,
       pmFeedback: json['pmFeedback']?.toString(),
     );
   }

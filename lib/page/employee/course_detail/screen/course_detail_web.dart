@@ -12,9 +12,11 @@ class CourseDetailWeb extends StatelessWidget {
   final bool isEnrolling;
   final bool isPreviewMode;
   final VoidCallback? onEnroll;
+  final VoidCallback? onLeaveCourse;
   final VoidCallback? onStartLearning;
   final VoidCallback? onShare;
   final VoidCallback? onBookmark;
+  final VoidCallback? onChatWithMentor;
   final List<BreadcrumbItem>? breadcrumbs;
 
   const CourseDetailWeb({
@@ -25,9 +27,11 @@ class CourseDetailWeb extends StatelessWidget {
     required this.isEnrolling,
     required this.isPreviewMode,
     required this.onEnroll,
+    this.onLeaveCourse,
     required this.onStartLearning,
     this.onShare,
     this.onBookmark,
+    this.onChatWithMentor,
     this.breadcrumbs,
   });
 
@@ -189,6 +193,27 @@ class CourseDetailWeb extends StatelessWidget {
                               ],
                             ),
                           ],
+                          const Spacer(),
+                          if (course.enrolled)
+                            OutlinedButton.icon(
+                              onPressed: onChatWithMentor,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                              label: const Text(
+                                'Chat với Mentor',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -295,6 +320,7 @@ class CourseDetailWeb extends StatelessWidget {
                             child: EnrollCard(
                               onEnroll: isPreviewMode ? null : onEnroll,
                               onStartLearning: onStartLearning,
+                              onLeaveCourse: isPreviewMode ? null : onLeaveCourse,
                               moduleCount: course.moduleCount,
                               lessonCount: course.lessonCount,
                               isEnrolled: course.enrolled,

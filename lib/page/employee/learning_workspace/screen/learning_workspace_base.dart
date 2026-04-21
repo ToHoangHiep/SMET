@@ -11,12 +11,12 @@ import 'package:smet/page/employee/learning_workspace/widgets/quiz_lesson_view.d
 import 'package:smet/page/employee/learning_workspace/widgets/resources_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart';
 import 'package:smet/page/chat/widgets/floating_chat_button.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/employee/course_service.dart';
 import 'package:smet/service/chat/chat_service.dart';
 import 'package:smet/model/chat/chat_models.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class LearningWorkspacePage extends StatefulWidget {
@@ -52,6 +52,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
   bool _isQuizMode = false;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+
+  Future<void> _onQuizResetSuccess() async {
+    await _loadCourseOnly();
+  }
 
   @override
   void initState() {
@@ -123,9 +127,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     });
 
     try {
+      final user = await AuthService.getCurrentUser();
       final course = await LmsService.getCourseProgress(
         widget.courseId,
-        'user_1',
+        user.id.toString(),
       );
 
       LearningPathDetail? pathDetail;
@@ -212,11 +217,46 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     if (_lessonContent == null) return;
 
     try {
-      await CourseService.completeLesson(_lessonContent!.id);
-      if (mounted) {
-        context.showAppToast('Đã đánh dấu hoàn thành!');
+      final lessonSuccess = await CourseService.completeLesson(_lessonContent!.id);
+
+      if (lessonSuccess) {
+        await _loadCourseOnly();
+
+        // Sau khi reload, neu progress = 100% nhung chua COMPLETED -> goi completeCourse
+        final course = _course;
+        if (course != null &&
+            course.progressPercent >= 100 &&
+            !course.isCourseCompleted) {
+          final completeSuccess = await CourseService.completeCourse(widget.courseId);
+          if (completeSuccess) {
+            // Reload lai de lay enrollmentStatus moi
+            await _loadCourseOnly();
+            if (mounted) {
+              GlobalNotificationService.show(
+                context: context,
+                message: 'Chuc mung! Ban da hoan thanh khoa hoc!',
+                type: NotificationType.success,
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            GlobalNotificationService.show(
+              context: context,
+              message: 'Da danh dau hoan thanh!',
+              type: NotificationType.success,
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Khong the danh dau hoan thanh. Vui long thu lai.',
+            type: NotificationType.error,
+          );
+        }
       }
-      await _loadCourseOnly();
     } catch (e) {
       debugPrint('Error marking complete: $e');
     }
@@ -224,9 +264,10 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
 
   Future<void> _loadCourseOnly() async {
     try {
+      final user = await AuthService.getCurrentUser();
       final course = await LmsService.getCourseProgress(
         widget.courseId,
-        'user_1',
+        user.id.toString(),
       );
       LearningPathDetail? pathDetail;
       if (widget.learningPathId != null) {
@@ -266,7 +307,12 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
   }
 
   void _onTakeQuiz(String quizId) {
+    QuizLessonView.onQuizPassedFromQuizPage = _onQuizPassedFromLessonView;
     context.go('/employee/learn/${widget.courseId}?quizId=$quizId');
+  }
+
+  void _onQuizPassedFromLessonView() {
+    _loadCourseOnly();
   }
 
   void _onQuizTap(String quizId) {
@@ -291,6 +337,47 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     context.go('/login');
   }
 
+  Future<void> _showVideoCompleteDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Color(0xFF137FEC), size: 28),
+            SizedBox(width: 12),
+            Text('Hoàn thành bài học'),
+          ],
+        ),
+        content: const Text(
+          'Video đã phát xong. Bạn có chắc chắn muốn đánh dấu hoàn thành bài học này?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF137FEC),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _onMarkComplete();
+    }
+  }
+
   Widget buildContentArea() {
     if (_isQuizMode && widget.quizId != null) {
       return Padding(
@@ -298,6 +385,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
         child: QuizLessonView(
           quizId: widget.quizId!,
           courseId: widget.courseId,
+          onResetSuccess: _onQuizResetSuccess,
         ),
       );
     }
@@ -317,7 +405,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
         },
         onVideoComplete: () {
           debugPrint('Video completed');
-          _onMarkComplete();
+          _showVideoCompleteDialog();
         },
       );
     }
@@ -424,11 +512,6 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     );
   }
 
-  bool _isFinalQuiz() {
-    if (_course == null || widget.quizId == null) return false;
-    return _course!.finalQuizId?.toString() == widget.quizId.toString();
-  }
-
   Widget buildTabs() {
     if (_isQuizMode && widget.quizId != null) {
       return const SizedBox.shrink();
@@ -452,6 +535,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
       case LessonTab.discussion:
         return DiscussionTab(
           lessonId: _lessonContent!.id,
+          courseId: widget.courseId,
           initialDiscussions: const [],
           mentorId: _course?.mentorId ?? 0,
           mentorName: _course?.mentorName ?? 'Giảng viên',
@@ -573,6 +657,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
                       onQuizTap: _onQuizTap,
                       onNavigate: _onNavigateTo,
                       onLogout: _handleLogout,
+                      onQuizResetSuccess: _onQuizResetSuccess,
                     ),
                     Positioned(
                       right: 20,

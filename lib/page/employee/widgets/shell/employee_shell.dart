@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/page/sidebar/shared_sidebar.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
 import 'package:smet/service/common/auth_service.dart';
@@ -141,7 +141,11 @@ class _EmployeeShellState extends State<EmployeeShell> {
                 onLogout: () async {
                   await AuthService.logout();
                   if (!mounted) return;
-                  context.showAppToast('Đăng xuất thành công!');
+                  GlobalNotificationService.show(
+                    context: context,
+                    message: 'Đăng xuất thành công!',
+                    type: NotificationType.success,
+                  );
                   context.go('/login');
                 },
               ),

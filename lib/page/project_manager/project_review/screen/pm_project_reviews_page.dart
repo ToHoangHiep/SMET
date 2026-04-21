@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/model/project_model.dart';
 import 'package:smet/page/project_manager/project_review/screen/pm_project_review_detail_page.dart';
 import 'package:smet/page/project_manager/project_review/widgets/pm_approval_card.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/pm/pm_project_service.dart';
-import 'package:smet/model/project_model.dart';
 import 'dart:developer';
 
 /// Trang danh sách dự án cần PM phê duyệt
@@ -41,11 +41,11 @@ class _PmProjectReviewsPageState extends State<PmProjectReviewsPage> {
     });
 
     try {
-      final response = await PmProjectService.getProjectsForReview(
+      // Gọi đúng endpoint backend: /api/projects/submitted
+      // Backend tự động filter submitted=true và thuộc department của PM
+      final response = await PmProjectService.getSubmittedProjects(
         page: page,
         size: _pageSize,
-        keyword: _searchKeyword.isNotEmpty ? _searchKeyword : null,
-        status: _filterStatus,
       );
 
       if (mounted) {
@@ -69,9 +69,16 @@ class _PmProjectReviewsPageState extends State<PmProjectReviewsPage> {
   }
 
   List<PmProjectListItem> get _filteredProjects {
-    if (_searchKeyword.isEmpty) return _projects;
-
     return _projects.where((p) {
+      // Lọc theo status
+      if (_filterStatus != null) {
+        final targetStatus = ProjectStatus.fromString(_filterStatus);
+        if (p.status != targetStatus) return false;
+      }
+
+      // Lọc theo từ khóa tìm kiếm
+      if (_searchKeyword.isEmpty) return true;
+
       return p.title.toLowerCase().contains(_searchKeyword.toLowerCase()) ||
           (p.description?.toLowerCase().contains(_searchKeyword.toLowerCase()) ?? false) ||
           (p.leaderName?.toLowerCase().contains(_searchKeyword.toLowerCase()) ?? false) ||
@@ -94,14 +101,7 @@ class _PmProjectReviewsPageState extends State<PmProjectReviewsPage> {
   }
 
   void _onProjectTap(PmProjectListItem project) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PmProjectReviewDetailPage(
-          projectId: project.id,
-          onRefresh: () => _loadProjects(page: _currentPage),
-        ),
-      ),
-    );
+    context.push('/pm/project-reviews/${project.id}');
   }
 
   void _goToPage(int page) {

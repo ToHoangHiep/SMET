@@ -198,7 +198,7 @@ class _ProjectDetailLeadDialogState extends State<ProjectDetailLeadDialog> {
                 ),
               ),
               IconButton(
-                onPressed: _openAssignmentDialog,
+                onPressed: widget.project.submitted ? null : _openAssignmentDialog,
                 icon: const Icon(Icons.assignment_ind, color: Colors.white),
                 tooltip: 'Quan ly gan',
               ),

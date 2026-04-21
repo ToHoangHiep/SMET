@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:smet/service/common/user_service.dart';
 import 'package:smet/service/pm/pm_project_service.dart';
 
 /// Card hiển thị dự án cần PM phê duyệt
-class PmApprovalCard extends StatelessWidget {
+class PmApprovalCard extends StatefulWidget {
   final PmProjectListItem project;
   final VoidCallback onTap;
 
@@ -11,6 +12,88 @@ class PmApprovalCard extends StatelessWidget {
     required this.project,
     required this.onTap,
   });
+
+  @override
+  State<PmApprovalCard> createState() => _PmApprovalCardState();
+}
+
+class _PmApprovalCardState extends State<PmApprovalCard> {
+  String? _leaderName;
+  String? _mentorName;
+  bool _isLoadingNames = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMissingNames();
+  }
+
+  @override
+  void didUpdateWidget(PmApprovalCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.project.id != widget.project.id) {
+      _loadMissingNames();
+    }
+  }
+
+  Future<void> _loadMissingNames() async {
+    final project = widget.project;
+    final needsLeader = project.leaderName == null && project.leaderId > 0;
+    final needsLeaderViaSubmitter = project.leaderName == null
+        && project.leaderId <= 0
+        && project.submittedBy != null;
+    final needsMentor = project.hasMentor && project.mentorName == null && project.mentorId != null;
+
+    if (!needsLeader && !needsLeaderViaSubmitter && !needsMentor) return;
+
+    setState(() => _isLoadingNames = true);
+
+    try {
+      final results = await Future.wait([
+        needsLeader ? _resolveLeaderName(project.leaderId) : Future.value(null),
+        needsLeaderViaSubmitter ? _resolveLeaderName(project.submittedBy!) : Future.value(null),
+        needsMentor ? _resolveMentorName(project.mentorId!) : Future.value(null),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _leaderName = (needsLeader ? results[0] : null) ?? (needsLeaderViaSubmitter ? results[1] : null);
+          _mentorName = needsMentor ? results[2] : null;
+          _isLoadingNames = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingNames = false);
+      }
+    }
+  }
+
+  Future<String?> _resolveLeaderName(int leaderId) async {
+    if (leaderId <= 0) return null;
+    try {
+      final user = await UserService.getUserById(leaderId);
+      return user?.fullName;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _resolveMentorName(int mentorId) async {
+    if (mentorId <= 0) return null;
+    try {
+      final user = await UserService.getUserById(mentorId);
+      return user?.fullName;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String get _displayLeaderName =>
+      widget.project.leaderName ?? _leaderName ?? 'N/A';
+
+  String get _displayMentorName =>
+      widget.project.mentorName ?? _mentorName ?? 'N/A';
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +107,7 @@ class PmApprovalCard extends StatelessWidget {
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -35,7 +118,7 @@ class PmApprovalCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      project.title,
+                      widget.project.title,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -48,11 +131,11 @@ class PmApprovalCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              if (project.description != null && project.description!.isNotEmpty)
+              if (widget.project.description != null && widget.project.description!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    project.description!,
+                    widget.project.description!,
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey[600],
@@ -66,14 +149,18 @@ class PmApprovalCard extends StatelessWidget {
                 children: [
                   _buildInfoChip(
                     icon: Icons.person_outline,
-                    label: project.leaderName ?? 'N/A',
+                    label: _isLoadingNames && widget.project.leaderName == null
+                        ? '...'
+                        : _displayLeaderName,
                     color: Colors.grey[700]!,
                   ),
                   const SizedBox(width: 8),
-                  if (project.hasMentor)
+                  if (widget.project.hasMentor)
                     _buildInfoChip(
                       icon: Icons.school_outlined,
-                      label: project.mentorName ?? 'N/A',
+                      label: _isLoadingNames && widget.project.mentorName == null
+                          ? '...'
+                          : _displayMentorName,
                       color: Colors.purple[600]!,
                     ),
                 ],
@@ -83,30 +170,32 @@ class PmApprovalCard extends StatelessWidget {
                 children: [
                   _buildStatusIndicator(
                     icon: Icons.check_circle_outline,
-                    label: project.mentorApproved == true ? 'Mentor da duyet' : 'Chua co mentor',
-                    isActive: project.mentorApproved == true,
-                    hasMentor: project.hasMentor,
+                    label: widget.project.mentorApproved == true
+                        ? 'Mentor da duyet'
+                        : 'Chua co mentor',
+                    isActive: widget.project.mentorApproved == true,
+                    hasMentor: widget.project.hasMentor,
                   ),
                   const SizedBox(width: 16),
                   _buildStatusIndicator(
                     icon: Icons.verified_user_outlined,
                     label: 'PM',
-                    isActive: project.pmApproved == true,
+                    isActive: widget.project.pmApproved == true,
                     hasMentor: true,
                   ),
                 ],
               ),
-              if (project.submittedAt != null) ...[
+              if (widget.project.submittedAt != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Ngay nop: ${_formatDate(project.submittedAt!)}',
+                  'Ngay nop: ${_formatDate(widget.project.submittedAt!)}',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[500],
                   ),
                 ),
               ],
-              if (project.submissionLink != null && project.submissionLink!.isNotEmpty) ...[
+              if (widget.project.submissionLink != null && widget.project.submissionLink!.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -114,7 +203,7 @@ class PmApprovalCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        project.submissionLink!,
+                        widget.project.submissionLink!,
                         style: TextStyle(
                           fontSize: 12,
                           color: primaryColor,
@@ -140,15 +229,15 @@ class PmApprovalCard extends StatelessWidget {
     Color textColor;
     String label;
 
-    if (project.pmApproved == true) {
+    if (widget.project.pmApproved == true) {
       bgColor = Colors.green.shade50;
       textColor = Colors.green[700]!;
       label = 'Da duyet';
-    } else if (project.canApproveByPM) {
+    } else if (widget.project.canApproveByPM) {
       bgColor = primaryColor.withValues(alpha: 0.1);
       textColor = primaryColor;
       label = 'San sang duyet';
-    } else if (project.currentStage == 'WAITING_MENTOR') {
+    } else if (widget.project.currentStage == 'WAITING_MENTOR') {
       bgColor = Colors.orange.shade50;
       textColor = Colors.orange[700]!;
       label = 'Cho mentor';

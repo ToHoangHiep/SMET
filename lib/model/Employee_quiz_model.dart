@@ -142,6 +142,7 @@ class QuizResult {
   final String quizId;
   final int totalScore;
   final int maxScore;
+  final double percentage;
   final bool passed;
   final int correctCount;
   final int totalQuestions;
@@ -152,14 +153,13 @@ class QuizResult {
     required this.quizId,
     required this.totalScore,
     required this.maxScore,
+    double? percentage,
     required this.passed,
     required this.correctCount,
     required this.totalQuestions,
     required this.timeSpent,
     required this.questionResults,
-  });
-
-  double get percentage => maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+  }) : percentage = percentage ?? (maxScore > 0 ? (totalScore / maxScore) * 100 : 0);
 }
 
 class QuestionResult {

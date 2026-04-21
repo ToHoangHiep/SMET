@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/Employee_quiz_model.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/service/employee/quiz_service.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_question_card.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_timer.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_progress_bar.dart';
 import 'package:smet/page/employee/quiz/widgets/quiz_result_dialog.dart';
+import 'package:smet/page/employee/learning_workspace/widgets/quiz_lesson_view.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // ENTRY POINTS
@@ -18,13 +19,15 @@ import 'package:smet/page/employee/quiz/widgets/quiz_result_dialog.dart';
 class QuizPage extends StatelessWidget {
   final String quizId;
   final String? courseId;
-  final String? attemptId; // Thêm: để resume attempt cũ
+  final String? attemptId;
+  final VoidCallback? onQuizPassed;
 
   const QuizPage({
     super.key,
     required this.quizId,
     this.courseId,
     this.attemptId,
+    this.onQuizPassed,
   });
 
   @override
@@ -38,6 +41,7 @@ class QuizPage extends StatelessWidget {
       isWebLayout: isWebOrDesktop,
       courseId: courseId,
       resumeAttemptId: attemptId,
+      onQuizPassed: onQuizPassed,
     );
   }
 }
@@ -46,7 +50,8 @@ class QuizBasePage extends StatefulWidget {
   final String quizId;
   final bool isWebLayout;
   final String? courseId;
-  final String? resumeAttemptId; // Thêm: attempt cần resume
+  final String? resumeAttemptId;
+  final VoidCallback? onQuizPassed;
 
   const QuizBasePage({
     super.key,
@@ -54,6 +59,7 @@ class QuizBasePage extends StatefulWidget {
     this.isWebLayout = false,
     this.courseId,
     this.resumeAttemptId,
+    this.onQuizPassed,
   });
 
   @override
@@ -70,6 +76,7 @@ class _QuizBasePageState extends State<QuizBasePage> {
       quizId: widget.quizId,
       courseId: widget.courseId,
       resumeAttemptId: widget.resumeAttemptId,
+      onQuizPassed: widget.onQuizPassed,
     );
   }
 
@@ -424,7 +431,7 @@ class _QuizMainContent extends StatelessWidget {
           // Timer
           if (controller.quiz != null)
             QuizTimer(
-              totalSeconds: controller.quiz!.timeLimitMinutes * 60,
+              totalSeconds: controller.timeLimitMinutes * 60,
               onTimeUp: () => controller.handleAutoSubmit(context),
             ),
           const SizedBox(width: 12),
@@ -931,7 +938,11 @@ class _QuizSidebar extends StatelessWidget {
   }
 
   void _handleSaveDraft(BuildContext context) {
-    context.showAppToast('Đã lưu bài làm');
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Đã lưu bài làm',
+      type: NotificationType.success,
+    );
   }
 }
 
@@ -1167,7 +1178,7 @@ class _QuizMobileView extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: QuizTimer(
-                    totalSeconds: controller.quiz!.timeLimitMinutes * 60,
+                    totalSeconds: controller.timeLimitMinutes * 60,
                     onTimeUp: () => controller.handleAutoSubmit(context),
                   ),
                 ),
@@ -1284,7 +1295,9 @@ class QuizInternalController extends ChangeNotifier {
   final String quizId;
   final String? courseId;
   final String? resumeAttemptId;
+  final VoidCallback? onQuizPassed;
   String? _attemptId;
+  int _timeLimitMinutes = 10; // Lưu từ startAttempt, dùng cho timer
   Quiz? _quiz;
   bool _isLoading = true;
   String? _error;
@@ -1300,10 +1313,12 @@ class QuizInternalController extends ChangeNotifier {
     required this.quizId,
     this.courseId,
     this.resumeAttemptId,
+    this.onQuizPassed,
   }) {
     loadQuiz();
   }
 
+  int get timeLimitMinutes => _timeLimitMinutes;
   Quiz? get quiz => _quiz;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -1330,20 +1345,48 @@ class QuizInternalController extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      String? activeAttemptId = resumeAttemptId;
-
-      // Nếu không có attemptId được truyền vào → kiểm tra attempt đang làm
-      if (activeAttemptId == null) {
+      // Bước 1: Kiểm tra attempt đang làm dở trước
+      String? existingAttemptId = resumeAttemptId;
+      if (existingAttemptId == null) {
         final activeAttempt = await QuizService.getActiveAttempt(quizId);
-        activeAttemptId = activeAttempt?.attemptId;
+        existingAttemptId = activeAttempt?.attemptId;
       }
 
-      // Bước 1: Start attempt (hoặc lấy attempt đang làm)
-      final startResult = await QuizService.startAttempt(quizId);
-      _attemptId = startResult.attemptId;
+      // Bước 2: Chỉ start attempt mới khi KHÔNG có attempt cũ đang làm dở
+      if (existingAttemptId != null) {
+        _attemptId = existingAttemptId;
+        // Lấy timeLimitMinutes từ quiz info
+        final info = await QuizService.getQuizInfo(quizId);
+        _timeLimitMinutes = info.timeLimitMinutes;
+      } else {
+        try {
+          final startResult = await QuizService.startAttempt(quizId);
+          _attemptId = startResult.attemptId;
+          _timeLimitMinutes = startResult.timeLimitMinutes;
+        } on Exception catch (e) {
+          final errorMsg = e.toString().toLowerCase();
+          if (errorMsg.contains('already have an active attempt') ||
+              errorMsg.contains('active attempt')) {
+            // Backend đã có attempt đang active → lấy attempt đó để resume
+            final activeAttempt = await QuizService.getActiveAttempt(quizId);
+            if (activeAttempt != null) {
+              _attemptId = activeAttempt.attemptId;
+              final info = await QuizService.getQuizInfo(quizId);
+              _timeLimitMinutes = info.timeLimitMinutes;
+            } else {
+              _isLoading = false;
+              _error = 'Không thể khôi phục bài thi đang làm dở. Vui lòng thử lại.';
+              notifyListeners();
+              return;
+            }
+          } else {
+            rethrow;
+          }
+        }
+      }
 
-      // Bước 2: Lấy câu hỏi của attempt
-      _quiz = await QuizService.getAttemptQuestions(_attemptId!, startResult.quizId);
+      // Bước 3: Lấy câu hỏi của attempt
+      _quiz = await QuizService.getAttemptQuestions(_attemptId!, quizId, timeLimitMinutes: _timeLimitMinutes);
 
       // Bước 3: Tính thời gian bắt đầu
       _startTime = DateTime.now();
@@ -1355,8 +1398,11 @@ class QuizInternalController extends ChangeNotifier {
       // Xử lý lỗi cụ thể
       final errorMsg = e.toString().toLowerCase();
       
-      if (errorMsg.contains('required lessons') || 
-          errorMsg.contains('must complete')) {
+      if (errorMsg.contains('required lessons') ||
+          errorMsg.contains('must complete') ||
+          errorMsg.contains('progress reset') ||
+          errorMsg.contains('access denied') ||
+          errorMsg.contains('prerequisites not completed')) {
         // User bị reset progress → cần học lại bài
         _error = 'RESET_PROGRESS';
       } else {
@@ -1366,7 +1412,43 @@ class QuizInternalController extends ChangeNotifier {
     }
   }
 
-  void selectOption(String optionId) {
+  /// Xử lý khi backend thông báo attempt đã bị submitted (hết giờ / background).
+  /// Gọi submitAttempt để lấy kết quả và hiển thị dialog.
+  Future<void> _handleAlreadySubmitted() async {
+    if (_quiz == null || _attemptId == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      _quizResult = await QuizService.submitAttempt(
+        _attemptId!,
+        _quiz!.id,
+        _answers,
+        _startTime != null ? DateTime.now().difference(_startTime!) : Duration.zero,
+        questionCountFallback: _quiz!.questions.length,
+      );
+      _showResult = true;
+    } catch (_) {
+      // Nếu submit lỗi (đã submitted rồi), vẫn hiển thị kết quả rỗng
+      _quizResult = QuizResult(
+        quizId: _quiz!.id,
+        totalScore: 0,
+        maxScore: 100,
+        percentage: 0,
+        passed: false,
+        correctCount: 0,
+        totalQuestions: _quiz!.questions.length,
+        timeSpent: _startTime != null ? DateTime.now().difference(_startTime!) : Duration.zero,
+        questionResults: [],
+      );
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void selectOption(String optionId) async {
     if (_quiz == null || _showResult) return;
 
     final question = currentQuestion;
@@ -1391,12 +1473,20 @@ class QuizInternalController extends ChangeNotifier {
       _answeredQuestions.remove(_currentIndex);
     }
 
-    if (_attemptId != null) {
-      final selected = _answers[question.id] ?? [];
-      QuizService.saveAnswer(_attemptId!, question.id, selected);
-    }
-
     notifyListeners();
+
+    if (_attemptId != null) {
+      try {
+        final selected = _answers[question.id] ?? [];
+        await QuizService.saveAnswer(_attemptId!, question.id, selected);
+      } catch (e) {
+        final errorMsg = e.toString().toLowerCase();
+        if (errorMsg.contains('already submitted') ||
+            errorMsg.contains('attempt already')) {
+          await _handleAlreadySubmitted();
+        }
+      }
+    }
   }
 
   void toggleFlag() {
@@ -1455,8 +1545,19 @@ class QuizInternalController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
+      final errorMsg = e.toString().toLowerCase();
+      if (errorMsg.contains('already submitted') ||
+          errorMsg.contains('attempt already')) {
+        // Backend đã tự động nộp bài (hết giờ) → lấy kết quả và hiển thị
+        await _handleAlreadySubmitted();
+        return;
+      }
       if (context.mounted) {
-        context.showAppToast('Nộp bài thất bại: $e', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Nộp bài thất bại: $e',
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -1490,7 +1591,11 @@ class QuizInternalController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       if (context.mounted) {
-        context.showAppToast('Auto submit thất bại: $e', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Auto submit thất bại: $e',
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -1522,17 +1627,39 @@ class QuizInternalController extends ChangeNotifier {
                 });
               }
             : null,
+        onPassed: courseId != null
+            ? () => _reloadCourseAfterQuiz()
+            : null,
       ),
     );
   }
 
+  void _reloadCourseAfterQuiz() {
+    QuizLessonView.onQuizPassedFromQuizPage?.call();
+  }
+
   void _handleRetry(BuildContext context) async {
     final eligibility = await QuizService.checkQuizEligibility(quizId);
+    if (!eligibility.progressReady) {
+      if (context.mounted) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Tiến trình đã được reset. Vui lòng học lại các bài học.',
+          type: NotificationType.warning,
+        );
+        _navigateBackToWorkspace(context);
+      }
+      return;
+    }
     if (!eligibility.canStart) {
       if (context.mounted) {
-        context.showAppToast(
-          'Bạn đã hết lượt thi!',
-          variant: AppToastVariant.error,
+        final message = eligibility.passed
+            ? 'Bạn đã đạt bài kiểm tra, không cần thi lại.'
+            : 'Bạn đã hết lượt thi!';
+        GlobalNotificationService.show(
+          context: context,
+          message: message,
+          type: eligibility.passed ? NotificationType.info : NotificationType.error,
         );
         _navigateBackToWorkspace(context);
       }
@@ -1559,6 +1686,7 @@ class QuizInternalController extends ChangeNotifier {
     _startTime = DateTime.now();
     _showResult = false;
     _quizResult = null;
+    _attemptId = null;
     notifyListeners();
   }
 }

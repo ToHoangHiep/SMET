@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/model/course_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/common/auth_service.dart';
-import 'package:smet/service/common/global_notification_service.dart';
 
 /// Mentor Course - Mobile Layout (Danh sách khóa học)
 /// UI mềm mại, hiện đại với gradient cards và animations.
@@ -141,59 +140,6 @@ class _MentorCourseMobileState extends State<MentorCourseMobile>
   void _onListScopeChanged(String scope) {
     setState(() => _listScope = scope);
     _loadCourses(page: 0);
-  }
-
-  Future<void> _deleteCourse(CourseResponse course) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: _danger.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.delete_outline, color: _danger, size: 20),
-            ),
-            const SizedBox(width: 12),
-            const Text("Xóa khóa học"),
-          ],
-        ),
-        content: Text("Bạn có chắc muốn xóa \"${course.title}\"? Hành động này không thể hoàn tác."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy bỏ")),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _danger, foregroundColor: Colors.white,
-              elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text("Xóa"),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _service.deleteCourse(course.id);
-        final targetPage = _courses.length == 1 && _currentPage > 0 ? _currentPage - 1 : _currentPage;
-        _loadCourses(page: targetPage);
-        GlobalNotificationService.show(context: context, message: 'Xóa khóa học thành công', type: NotificationType.success);
-      } catch (e) {
-        GlobalNotificationService.show(context: context, message: e.toString(), type: NotificationType.error);
-      }
-    }
-  }
-
-  Future<void> _publishCourse(CourseResponse course) async {
-    try {
-      await _service.publishCourse(course.id);
-      _loadCourses(page: _currentPage);
-      GlobalNotificationService.show(context: context, message: 'Xuất bản thành công', type: NotificationType.success);
-    } catch (e) {
-      GlobalNotificationService.show(context: context, message: e.toString(), type: NotificationType.error);
-    }
   }
 
   @override
@@ -436,9 +382,6 @@ class _MentorCourseMobileState extends State<MentorCourseMobile>
               danger: _danger,
               isOwner: _isOwner(_courses[index]),
               onTap: () => context.go('/mentor/courses/${_courses[index].id.value}?title=${Uri.encodeComponent(_courses[index].title)}'),
-              onEdit: () => context.go('/mentor/courses/${_courses[index].id.value}?title=${Uri.encodeComponent(_courses[index].title)}'),
-              onPublish: () => _publishCourse(_courses[index]),
-              onDelete: () => _deleteCourse(_courses[index]),
             );
           },
         ),
@@ -511,9 +454,6 @@ class _MobileCourseCard extends StatefulWidget {
   final Color danger;
   final bool isOwner;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onPublish;
-  final VoidCallback onDelete;
 
   const _MobileCourseCard({
     required this.course,
@@ -527,9 +467,6 @@ class _MobileCourseCard extends StatefulWidget {
     required this.danger,
     required this.isOwner,
     required this.onTap,
-    required this.onEdit,
-    required this.onPublish,
-    required this.onDelete,
   });
 
   @override
@@ -644,7 +581,6 @@ class _MobileCourseCardState extends State<_MobileCourseCard> {
                           const SizedBox(width: 6),
                           _ownershipBadge(course),
                           const Spacer(),
-                          if (widget.isOwner) _buildPopupMenu(course),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -746,56 +682,6 @@ class _MobileCourseCardState extends State<_MobileCourseCard> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPopupMenu(CourseResponse course) {
-    return PopupMenuButton<String>(
-      icon: Container(
-        width: 28, height: 28,
-        decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
-        child: Icon(Icons.more_horiz, color: widget.textMedium, size: 18),
-      ),
-      onSelected: (value) async {
-        if (value == 'edit') widget.onEdit();
-        else if (value == 'publish') widget.onPublish();
-        else if (value == 'delete') widget.onDelete();
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 18, color: widget.textMedium),
-              const SizedBox(width: 10),
-              Text("Chỉnh sửa", style: TextStyle(color: widget.textDark, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-        if (!course.isPublished)
-          PopupMenuItem(
-            value: 'publish',
-            child: Row(
-              children: [
-                Icon(Icons.publish, size: 18, color: widget.success),
-                const SizedBox(width: 10),
-                Text("Xuất bản", style: TextStyle(color: widget.success, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 18, color: widget.danger),
-              const SizedBox(width: 10),
-              Text("Xóa", style: TextStyle(color: widget.danger, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-      ],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 8,
     );
   }
 

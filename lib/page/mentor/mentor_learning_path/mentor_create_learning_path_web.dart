@@ -5,8 +5,8 @@ import 'package:smet/core/utils/animations.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/service/mentor/learning_path_service.dart';
-import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
+import 'dart:developer';
 
 /// Mentor Create/Edit Learning Path - Web Layout
 /// Nâng cấp UI: drag-drop course cards với hover, live preview, dialog nâng cấp.
@@ -24,7 +24,6 @@ class _MentorCreateLearningPathWebState
     extends State<MentorCreateLearningPathWeb>
     with SingleTickerProviderStateMixin {
   final LearningPathService _service = LearningPathService();
-  final MentorModuleService _moduleService = MentorModuleService();
   final _formKey = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
@@ -91,37 +90,35 @@ class _MentorCreateLearningPathWebState
   Future<void> _loadAvailableCourses() async {
     try {
       final courses = await _service.getMentorCourses();
+      log("[MentorCreateLearningPath] _loadAvailableCourses: fetched ${courses.length} courses");
 
-      // Fetch actual module count directly from getModulesByCourse API
-      final futures = courses.map((course) async {
-        try {
-          final modules = await _moduleService.getModulesByCourse(
-            Long(course['id'] as int),
-          );
-            return {
-              ...course,
-              'moduleCount': modules.length,
-              'lessonCount': modules.fold(0, (sum, m) => sum + (m.lessons.length)),
-            };
-        } catch (_) {
-          // Fallback: keep the raw data if module fetch fails
-          return course;
-        }
-      });
-
-      final enrichedCourses = await Future.wait(futures);
+      // Backend đã trả moduleCount và lessonCount trong API courses rồi.
+      // Chỉ cần fetch thêm từ getModulesByCourse nếu cần (ví dụ: lấy chi tiết lesson).
+      // Hiện tại dùng luôn dữ liệu từ backend.
+      final enrichedCourses = courses.map((course) {
+        // Đảm bảo luôn có moduleCount và lessonCount, fallback về 0 nếu null
+        return {
+          ...course,
+          'moduleCount': course['moduleCount'] ?? 0,
+          'lessonCount': course['lessonCount'] ?? 0,
+        };
+      }).toList();
 
       setState(() {
         _availableCourses = enrichedCourses;
         _loadingCourses = false;
       });
+      log("[MentorCreateLearningPath] _loadAvailableCourses done: ${_availableCourses.length} courses");
     } catch (e) {
+      log("[MentorCreateLearningPath] _loadAvailableCourses FAILED: $e");
       setState(() => _loadingCourses = false);
-      GlobalNotificationService.show(
-        context: context,
-        message: 'Lỗi tải khóa học: $e',
-        type: NotificationType.error,
-      );
+      if (mounted) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi tải khóa học: $e',
+          type: NotificationType.error,
+        );
+      }
     }
   }
 
@@ -1178,18 +1175,17 @@ class _CourseCardWebState extends State<_CourseCardWeb> {
                           ),
                           const SizedBox(width: 12),
                         ],
-                        if (widget.course.moduleCount != null) ...[
-                          Icon(Icons.layers_outlined,
-                              size: 12, color: AppColors.textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            "${widget.course.lessonCount ?? widget.course.moduleCount} chương",
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textMuted,
-                            ),
+                        // Always show module count row, even when 0
+                        Icon(Icons.layers_outlined,
+                            size: 12, color: AppColors.textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${widget.course.lessonCount ?? widget.course.moduleCount ?? 0} chương",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ],
@@ -1197,25 +1193,23 @@ class _CourseCardWebState extends State<_CourseCardWeb> {
               ),
 
               /// Module badge (tách khỏi cụm kéo + xóa)
-              if (widget.course.moduleCount != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentPurple.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    "${widget.course.lessonCount ?? widget.course.moduleCount} chương",
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.accentPurple,
-                    ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.accentPurple.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "${widget.course.lessonCount ?? widget.course.moduleCount ?? 0} chương",
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accentPurple,
                   ),
                 ),
-              ],
+              ),
 
               /// Kéo + X: cùng một hàng, SizedBox cố định giữa hai nút
               Row(
@@ -1576,6 +1570,14 @@ class _CourseSelectorDialogState extends State<_CourseSelectorDialog> {
   final Set<int> _selected = {};
   String _searchQuery = '';
 
+  int _parseCourseId(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1832,12 +1834,14 @@ class _CourseSelectorDialogState extends State<_CourseSelectorDialog> {
                         onTap: _selected.isEmpty
                             ? null
                             : () {
-                                final selectedCourses =
-                                    widget.availableCourses
-                                        .where(
-                                          (c) => _selected.contains(c['id']),
-                                        )
-                                        .toList();
+                                // Chỉ lấy courses có trong _selected
+                                final selectedCourses = <Map<String, dynamic>>[];
+                                for (final course in widget.availableCourses) {
+                                  final courseId = _parseCourseId(course['id']);
+                                  if (courseId != 0 && _selected.contains(courseId)) {
+                                    selectedCourses.add(course);
+                                  }
+                                }
                                 widget.onCoursesSelected(selectedCourses);
                                 Navigator.pop(context);
                               },

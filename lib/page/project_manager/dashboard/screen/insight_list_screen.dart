@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/model/pm_dashboard_models.dart';
 import 'package:smet/service/pm/pm_dashboard_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 // ============================================================
 // INSIGHT LIST SCREEN
-// GET /api/pm/dashboard/insights
+// GET /api/pm/insights
 // ============================================================
 class InsightListScreen extends StatefulWidget {
   const InsightListScreen({super.key});
@@ -62,6 +61,21 @@ class _InsightListScreenState extends State<InsightListScreen> {
     }
   }
 
+  String _actionLabelFor(String? actionTaken) {
+    switch (actionTaken) {
+      case 'EXTEND_DEADLINE':
+        return 'Gia hạn deadline';
+      case 'NOTIFY':
+        return 'Gửi thông báo';
+      case 'ASSIGN_MENTOR':
+        return 'Gán mentor';
+      case 'NONE':
+        return 'Bỏ qua';
+      default:
+        return '';
+    }
+  }
+
   Color _colorForKey(String key) {
     final k = key.toUpperCase();
     if (k.contains('RISK') || k.contains('LOW')) return _error;
@@ -89,7 +103,7 @@ class _InsightListScreenState extends State<InsightListScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _border),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withOpacity( 0.03), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -98,7 +112,7 @@ class _InsightListScreenState extends State<InsightListScreen> {
           SharedBreadcrumb(
             items: const [
               BreadcrumbItem(label: 'PM', route: '/pm/dashboard'),
-              BreadcrumbItem(label: 'Insights', route: '/pm/insights'),
+              BreadcrumbItem(label: 'Nhận định', route: '/pm/insights'),
             ],
             primaryColor: _primary,
             fontSize: 13,
@@ -110,7 +124,7 @@ class _InsightListScreenState extends State<InsightListScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: _success.withValues(alpha: 0.08),
+                  color: _success.withOpacity( 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.lightbulb_rounded, color: _success, size: 22),
@@ -121,7 +135,7 @@ class _InsightListScreenState extends State<InsightListScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Insights',
+                      'Nhận định',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _textDark),
                     ),
                     const SizedBox(height: 4),
@@ -156,7 +170,7 @@ class _InsightListScreenState extends State<InsightListScreen> {
           padding: const EdgeInsets.all(48),
           child: Column(
             children: [
-              Icon(Icons.error_outline_rounded, size: 48, color: _error.withValues(alpha: 0.7)),
+              Icon(Icons.error_outline_rounded, size: 48, color: _error.withOpacity( 0.7)),
               const SizedBox(height: 16),
               Text(_errorMessage ?? 'Lỗi', style: const TextStyle(fontSize: 14, color: _textMedium)),
               const SizedBox(height: 16),
@@ -173,7 +187,7 @@ class _InsightListScreenState extends State<InsightListScreen> {
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.lightbulb_outline_rounded, size: 56, color: _textMuted.withValues(alpha: 0.5)),
+              Icon(Icons.lightbulb_outline_rounded, size: 56, color: _textMuted.withOpacity( 0.5)),
               const SizedBox(height: 16),
               const Text('Không có insight nào', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _textDark)),
               const SizedBox(height: 8),
@@ -203,102 +217,82 @@ class _InsightListScreenState extends State<InsightListScreen> {
           BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => context.go('/pm/insights/${item.id}'),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              item.insightKey,
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            _formatRelative(item.createdAt),
-                            style: const TextStyle(fontSize: 11, color: _textMuted),
-                          ),
-                        ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          item.insightKey,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const Spacer(),
                       Text(
-                        item.content,
-                        style: const TextStyle(fontSize: 14, color: _textDark),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          if (item.actionLabel != null && item.actionLabel!.isNotEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _primary,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    item.actionLabel!,
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Colors.white),
-                                ],
-                              ),
-                            ),
-                          ] else ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _textMuted.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'Xem chi tiết',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textMuted),
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
-                        ],
+                        _formatRelative(item.createdAt),
+                        style: const TextStyle(fontSize: 11, color: _textMuted),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    item.content,
+                    style: const TextStyle(fontSize: 14, color: _textDark),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      if (_actionLabelFor(item.actionTaken).isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _primary,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _actionLabelFor(item.actionTaken),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

@@ -12,3 +12,7 @@ void downloadPdfWeb(Uint8List bytes, String filename) {
   anchor.remove();
   html.Url.revokeObjectUrl(url);
 }
+
+void openPdfInNewTab(String pdfUrl) {
+  html.window.open(pdfUrl, '_blank');
+}

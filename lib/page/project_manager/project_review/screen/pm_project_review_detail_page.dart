@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smet/page/project_manager/project_review/widgets/approval_status_section.dart';
 import 'package:smet/page/project_manager/project_review/widgets/pm_action_buttons.dart';
 import 'package:smet/page/project_manager/project_review/widgets/submission_viewer.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/common/global_notification_service.dart';
+import 'package:smet/service/common/user_service.dart';
 import 'package:smet/service/pm/pm_project_service.dart';
 import 'package:smet/service/employee/employee_project_service.dart';
 import 'dart:developer';
@@ -31,6 +33,9 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
   bool _isLoading = true;
   bool _isActionLoading = false;
   String? _error;
+  String? _resolvedLeaderName;
+  String? _resolvedMentorName;
+  List<String>? _resolvedMemberNames;
 
   @override
   void initState() {
@@ -47,6 +52,8 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
     try {
       final detail = await PmProjectService.getProjectDetail(widget.projectId);
       final reviewState = await PmProjectService.getReviewState(widget.projectId);
+
+      await _resolveMissingUserNames(detail);
 
       if (mounted) {
         setState(() {
@@ -66,6 +73,51 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
     }
   }
 
+  Future<void> _resolveMissingUserNames(PmProjectDetail project) async {
+    bool needsLeader = project.leaderName == null && project.leaderId > 0;
+    bool needsMentor = project.hasMentor && project.mentorName == null && project.mentorId != null;
+    bool needsMembers = (project.memberNames == null || project.memberNames!.isEmpty)
+        && project.memberIds != null && project.memberIds!.isNotEmpty;
+
+    if (!needsLeader && !needsMentor && !needsMembers) return;
+
+    final futures = <Future<void>>[];
+    if (needsLeader) {
+      futures.add(_resolveLeaderName(project.leaderId));
+    }
+    if (needsMentor) {
+      futures.add(_resolveMentorName(project.mentorId!));
+    }
+    if (needsMembers) {
+      futures.add(_resolveMemberNames(project.memberIds!));
+    }
+
+    await Future.wait(futures);
+  }
+
+  Future<void> _resolveLeaderName(int leaderId) async {
+    final user = await UserService.getUserById(leaderId);
+    if (mounted && user != null) {
+      setState(() => _resolvedLeaderName = user.fullName);
+    }
+  }
+
+  Future<void> _resolveMentorName(int mentorId) async {
+    final user = await UserService.getUserById(mentorId);
+    if (mounted && user != null) {
+      setState(() => _resolvedMentorName = user.fullName);
+    }
+  }
+
+  Future<void> _resolveMemberNames(List<int> memberIds) async {
+    final futures = memberIds.map((id) => UserService.getUserById(id));
+    final users = await Future.wait(futures);
+    final names = users.where((u) => u != null).map((u) => u!.fullName).toList();
+    if (mounted && names.isNotEmpty) {
+      setState(() => _resolvedMemberNames = names);
+    }
+  }
+
   Future<void> _handleApprove() async {
     setState(() => _isActionLoading = true);
 
@@ -78,7 +130,7 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
           type: NotificationType.success,
         );
         widget.onRefresh?.call();
-        Navigator.pop(context);
+        context.pop();
       }
     } catch (e) {
       if (mounted) {
@@ -104,7 +156,7 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
           type: NotificationType.success,
         );
         widget.onRefresh?.call();
-        Navigator.pop(context);
+        context.pop();
       }
     } catch (e) {
       if (mounted) {
@@ -131,7 +183,7 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
         actions: [
           IconButton(
@@ -316,13 +368,15 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
           _buildInfoRow(
             icon: Icons.person_outline,
             label: 'Nhóm trưởng',
-            value: project.leaderName ?? 'N/A',
+            value: project.leaderName ?? _resolvedLeaderName ?? 'N/A',
           ),
           const SizedBox(height: 10),
           _buildInfoRow(
             icon: Icons.school_outlined,
             label: 'Mentor',
-            value: project.hasMentor ? (project.mentorName ?? 'N/A') : 'Không có',
+            value: project.hasMentor
+                ? (project.mentorName ?? _resolvedMentorName ?? 'N/A')
+                : 'Không có',
             valueColor: project.hasMentor ? null : Colors.grey[400],
           ),
           const SizedBox(height: 10),
@@ -331,7 +385,7 @@ class _PmProjectReviewDetailPageState extends State<PmProjectReviewDetailPage> {
             label: 'Thành viên',
             value: project.memberNames != null && project.memberNames!.isNotEmpty
                 ? project.memberNames!.join(', ')
-                : 'N/A',
+                : (_resolvedMemberNames?.join(', ') ?? 'N/A'),
           ),
           if (project.submittedAt != null) ...[
             const SizedBox(height: 10),

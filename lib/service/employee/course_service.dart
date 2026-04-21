@@ -50,6 +50,10 @@ class CourseService {
     return await LmsService.completeLesson(lessonId);
   }
 
+  static Future<bool> completeCourse(String courseId) async {
+    return await LmsService.completeCourse(courseId);
+  }
+
   static Future<LessonContent?> getLessonContent(String lessonId) async {
     return await LmsService.getLessonContent(lessonId);
   }

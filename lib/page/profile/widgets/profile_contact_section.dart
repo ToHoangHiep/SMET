@@ -12,6 +12,7 @@ class ProfileContactSection extends StatelessWidget {
   final Color primaryColor;
   final VoidCallback onCancel;
   final VoidCallback onSave;
+  final String? pendingEmail;
 
   const ProfileContactSection({
     super.key,
@@ -24,6 +25,7 @@ class ProfileContactSection extends StatelessWidget {
     required this.primaryColor,
     required this.onCancel,
     required this.onSave,
+    this.pendingEmail,
   });
 
   @override
@@ -65,9 +67,34 @@ class ProfileContactSection extends StatelessWidget {
             label: "Địa chỉ email",
             controller: emailController,
             icon: Icons.mail_outline,
-            readOnly: true,
             primaryColor: primaryColor,
           ),
+          if (pendingEmail != null && pendingEmail!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.amber.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Email đang chờ xác nhận: $pendingEmail\nVui lòng kiểm tra hộp thư để xác nhận thay đổi.",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.amber.shade900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           ProfileTextField(
             label: "Số điện thoại",

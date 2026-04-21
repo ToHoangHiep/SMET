@@ -1,3 +1,12 @@
+// ============================================================
+// Interface chung cho page response de dialog co the dung chung
+// ============================================================
+abstract class AssignablePageResult {
+  List<AssignableUser> get data;
+  bool get hasNext;
+  int get page;
+}
+
 class AssignableUser {
   final int userId;
   final String fullName;
@@ -20,6 +29,29 @@ class AssignableUser {
   });
 
   factory AssignableUser.fromJson(Map<String, dynamic> json) {
+    // Backend ProjectAssignmentView: userId, userName, courses, learningPaths, totalCourses, completedCourses
+    // Backend UserAssignment: userId, fullName, email, phone, departmentName, projectCount...
+    // Dua vao cac truong co san de xac dinh loai response
+
+    final isProjectAssignmentView = json.containsKey('userName') && json.containsKey('courses');
+
+    if (isProjectAssignmentView) {
+      final courses = json['courses'] as List<dynamic>?;
+      final learningPaths = json['learningPaths'] as List<dynamic>?;
+      final completedCourses = json['completedCourses'] ?? 0;
+
+      return AssignableUser(
+        userId: json['userId'] ?? json['id'] ?? 0,
+        fullName: json['userName']?.toString() ?? '',
+        email: json['email']?.toString() ?? '',
+        phone: json['phone']?.toString() ?? '',
+        departmentName: json['departmentName']?.toString(),
+        projectCount: completedCourses is int ? completedCourses : 0,
+        enrolledCourseCount: courses?.length ?? json['totalCourses'] ?? 0,
+        learningPathCount: learningPaths?.length ?? 0,
+      );
+    }
+
     return AssignableUser(
       userId: json['userId'] ?? json['id'] ?? 0,
       fullName: json['fullName']?.toString() ?? '',
@@ -42,7 +74,7 @@ class AssignableUser {
   }
 }
 
-class AssignableUserPageResponse {
+class AssignableUserPageResponse extends AssignablePageResult {
   final List<AssignableUser> data;
   final int page;
   final int size;
@@ -58,6 +90,9 @@ class AssignableUserPageResponse {
     required this.totalPages,
     required this.last,
   });
+
+  @override
+  bool get hasNext => !last;
 
   factory AssignableUserPageResponse.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawList =
@@ -82,7 +117,4 @@ class AssignableUserPageResponse {
       last: json['last'] ?? true,
     );
   }
-
-  bool get hasNext => !last;
-  int get currentPage => page + 1;
 }

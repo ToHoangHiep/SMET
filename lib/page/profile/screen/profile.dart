@@ -92,6 +92,8 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
+    final bool emailChanged = _emailController.text != _currentUser!.email;
+
     setState(() => _isSaving = true);
 
     try {
@@ -109,11 +111,20 @@ class _ProfilePageState extends State<ProfilePage> {
         _currentUser = updatedUser;
         _isSaving = false;
       });
-      GlobalNotificationService.show(
-        context: context,
-        message: "Cập nhật hồ sơ thành công!",
-        type: NotificationType.success,
-      );
+
+      if (emailChanged) {
+        GlobalNotificationService.show(
+          context: context,
+          message: "Đã gửi email xác nhận đến \"${_emailController.text}\". Vui lòng kiểm tra hộp thư để xác nhận thay đổi.",
+          type: NotificationType.success,
+        );
+      } else {
+        GlobalNotificationService.show(
+          context: context,
+          message: "Cập nhật hồ sơ thành công!",
+          type: NotificationType.success,
+        );
+      }
     } catch (e) {
       setState(() => _isSaving = false);
       GlobalNotificationService.show(
@@ -290,6 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
           primaryColor: _primaryColor,
           onCancel: _handleCancel,
           onSave: _handleSaveProfile,
+          pendingEmail: _currentUser?.pendingEmail,
         ),
         const SizedBox(height: 24),
         ProfileSecuritySection(

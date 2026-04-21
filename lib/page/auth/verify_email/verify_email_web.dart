@@ -89,8 +89,9 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
                   height: 40,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF6366F1),
+                    ),
                   ),
                 ),
               ),
@@ -106,10 +107,7 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
               const SizedBox(height: 8),
               Text(
                 'Vui lòng chờ trong giây lát',
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
               ),
             ],
           ),
@@ -146,10 +144,7 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
               const SizedBox(height: 8),
               Text(
                 'Địa chỉ email của bạn đã được xác thực thành công.',
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: Colors.grey[500], fontSize: 15),
               ),
               const SizedBox(height: 32),
               SizedBox(
@@ -210,11 +205,7 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
                   color: Colors.red[50],
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  Icons.error,
-                  color: Colors.red[700],
-                  size: 32,
-                ),
+                child: Icon(Icons.error, color: Colors.red[700], size: 32),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -228,10 +219,7 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
               const SizedBox(height: 8),
               Text(
                 'Đã xảy ra lỗi khi xác thực email.',
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: Colors.grey[500], fontSize: 15),
               ),
               const SizedBox(height: 16),
               Container(
@@ -431,10 +419,7 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF6366F1),
-                                Color(0xFF8B5CF6),
-                              ],
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -484,7 +469,7 @@ class _VerifyEmailWebState extends State<VerifyEmailWeb>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '© 2026 SMETS Platform. All rights reserved.',
+                          '© 2026 SMETS System. All rights reserved.',
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 13,

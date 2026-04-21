@@ -10,9 +10,11 @@ class CourseDetailMobile extends StatelessWidget {
   final bool isEnrolling;
   final bool isPreviewMode;
   final VoidCallback? onEnroll;
+  final VoidCallback? onLeaveCourse;
   final VoidCallback? onStartLearning;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
+  final VoidCallback? onChatWithMentor;
 
   const CourseDetailMobile({
     super.key,
@@ -22,9 +24,11 @@ class CourseDetailMobile extends StatelessWidget {
     required this.isEnrolling,
     required this.isPreviewMode,
     required this.onEnroll,
+    this.onLeaveCourse,
     required this.onStartLearning,
     required this.onNavigate,
     required this.onLogout,
+    this.onChatWithMentor,
   });
 
   String get _deadlineText {
@@ -217,6 +221,29 @@ class CourseDetailMobile extends StatelessWidget {
                           ],
                         ),
                       ],
+                      if (course.enrolled) ...[
+                        const SizedBox(height: 12),
+                        // Nút chat với mentor
+                        OutlinedButton.icon(
+                          onPressed: onChatWithMentor,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                          label: const Text(
+                            'Chat',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -254,6 +281,7 @@ class CourseDetailMobile extends StatelessWidget {
                   EnrollCard(
                     onEnroll: isPreviewMode ? null : onEnroll,
                     onStartLearning: onStartLearning,
+                    onLeaveCourse: isPreviewMode ? null : onLeaveCourse,
                     moduleCount: course.moduleCount,
                     lessonCount: course.lessonCount,
                     isEnrolled: course.enrolled,

@@ -46,8 +46,7 @@ class MentorQuizService {
       final parsed = QuizModel.fromJson(jsonDecode(response.body));
       dev.log(
         '[MentorQuizService.createQuiz] parsed id=${parsed.id?.value} '
-        'moduleId=${parsed.moduleId?.value} courseId=${parsed.courseId?.value} '
-        'isFinal=${parsed.isFinalQuiz}',
+        'moduleId=${parsed.moduleId?.value} courseId=${parsed.courseId?.value}',
         name: 'QuizDebug',
       );
       return parsed;
@@ -108,24 +107,6 @@ class MentorQuizService {
       return QuizModel.fromJson(jsonDecode(response.body));
     } else {
       throw Exception("Get module quiz failed: ${response.body}");
-    }
-  }
-
-  Future<QuizModel> getFinalQuizByCourse(Long courseId) async {
-    final token = await _getToken();
-    if (token == null) {
-      throw Exception("No auth token found. Please login again.");
-    }
-
-    final response = await http.get(
-      Uri.parse("$baseUrl/lms/quizzes/course/${courseId.value}/final"),
-      headers: _headers(token),
-    );
-
-    if (response.statusCode == 200) {
-      return QuizModel.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception("Get final quiz failed: ${response.body}");
     }
   }
 

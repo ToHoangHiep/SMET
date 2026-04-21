@@ -6,12 +6,11 @@ import 'package:smet/page/employee/course_catalog/screen/course_catalog_web.dart
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_mobile.dart';
 import 'package:smet/page/employee/course_catalog/widgets/course_card.dart';
 import 'package:smet/page/employee/course_catalog/widgets/search_filters.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/employee/course_service.dart';
-import 'package:smet/service/employee/lms_service.dart'
-    show CatalogCourse, LmsService;
+import 'package:smet/service/employee/lms_service.dart' show CatalogCourse;
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 class CourseCatalogPage extends StatefulWidget {
   const CourseCatalogPage({super.key});
@@ -73,20 +72,10 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
       );
       if (!mounted) return;
 
-      // Lấy danh sách khóa đã đăng ký của user để đánh dấu enrolled
-      final myCourses = await LmsService.getMyCourses(page: 0, size: 1000);
-      final enrolledIds = myCourses.content.map((c) => c.id).toSet();
-
-      // Đánh dấu enrolled = true cho những khóa trùng ID
-      for (var course in result.content) {
-        course.enrolled = enrolledIds.contains(course.id);
-      }
-
-      final tp = result.totalPages <= 0 ? 1 : result.totalPages;
-      final safePage = result.number.clamp(0, tp - 1);
       setState(() {
         _courses = result.content;
-        _currentPage = safePage;
+        final tp = result.totalPages <= 0 ? 1 : result.totalPages;
+        _currentPage = result.number.clamp(0, tp - 1);
         _totalPages = tp;
         _totalElements = result.totalElements;
         _isLoading = false;
@@ -405,13 +394,22 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     try {
       final success = await CourseService.enrollCourse(courseId);
       if (success && mounted) {
-        context.showAppToast('Đăng ký khóa học thành công!');
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Đăng ký khóa học thành công!',
+          type: NotificationType.success,
+        );
+        await Future.delayed(const Duration(milliseconds: 200));
         _loadCourses();
       }
     } catch (e) {
       debugPrint('Error enrolling course: $e');
       if (mounted) {
-        context.showAppToast('Lỗi đăng ký: $e', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi đăng ký: $e',
+          type: NotificationType.error,
+        );
       }
     }
   }

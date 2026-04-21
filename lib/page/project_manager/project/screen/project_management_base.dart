@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_web.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_mobile.dart';
@@ -11,6 +12,7 @@ import 'package:smet/service/project/project_member_service.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/page/project_manager/project/screen/mentor_picker.dart';
 import 'package:smet/service/common/global_notification_service.dart';
+import 'package:smet/page/shared/widgets/rich_text_editor.dart';
 import 'dart:developer';
 
 class ProjectManagementPage extends StatefulWidget {
@@ -46,17 +48,21 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       TextEditingController();
   final TextEditingController _createManagerController =
       TextEditingController();
+  QuillController? _descriptionQuillController;
   String _createStatus = 'INACTIVE';
   DateTime? _startDate;
   DateTime? _endDate;
   int? _selectedLeaderId; // Leader của dự án
   String?
   _selectedLeaderName; // Tên trưởng nhóm (để hiển thị khi không có _leadOptions)
+  Map<String, dynamic>? _selectedLeaderData; // Lưu full data leader
   int? _selectedMentorId; // Mentor của dự án
   String?
   _selectedMentorName; // Tên người hướng dẫn (để hiển thị khi không có _mentorOptions)
+  Map<String, dynamic>? _selectedMentorData; // Lưu full data mentor
   List<Map<String, dynamic>> _selectedMembers = [];
-  int? _editingDepartmentId; // Department của project đang edit (dùng cho picker thay vì _currentDepartmentId)
+  int?
+  _editingDepartmentId; // Department của project đang edit (dùng cho picker thay vì _currentDepartmentId)
 
   // Separate lists for Lead, Mentor, Members
   List<Map<String, dynamic>> _leadOptions = [];
@@ -211,22 +217,25 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
       setState(() {
         // Leader: USER role
-        _leadOptions = allUsers.where((u) {
-          final role = (u['role'] ?? '').toString().toUpperCase();
-          return role == 'USER';
-        }).toList();
+        _leadOptions =
+            allUsers.where((u) {
+              final role = (u['role'] ?? '').toString().toUpperCase();
+              return role == 'USER';
+            }).toList();
 
         // Mentor: MENTOR role
-        _mentorOptions = allUsers.where((u) {
-          final role = (u['role'] ?? '').toString().toUpperCase();
-          return role == 'MENTOR';
-        }).toList();
+        _mentorOptions =
+            allUsers.where((u) {
+              final role = (u['role'] ?? '').toString().toUpperCase();
+              return role == 'MENTOR';
+            }).toList();
 
         // Members: USER role (loại trừ leader)
-        _memberOptions = allUsers.where((u) {
-          final role = (u['role'] ?? '').toString().toUpperCase();
-          return role == 'USER';
-        }).toList();
+        _memberOptions =
+            allUsers.where((u) {
+              final role = (u['role'] ?? '').toString().toUpperCase();
+              return role == 'USER';
+            }).toList();
       });
     } catch (e) {
       debugPrint('Error loading employees: $e');
@@ -240,6 +249,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _createNameController.dispose();
     _createDescriptionController.dispose();
     _createManagerController.dispose();
+    _descriptionQuillController?.dispose();
     super.dispose();
   }
 
@@ -269,34 +279,82 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     try {
       // Gọi getById để lấy đầy đủ leaderId, mentorId, memberIds, memberNames
       final fullProject = await ProjectService.getById(project.id);
-      log("openEditProjectScreen - full data: "
-          "leaderId=${fullProject.leaderId}, "
-          "mentorId=${fullProject.mentorId}, "
-          "memberIds=${fullProject.memberIds}");
+      log(
+        "openEditProjectScreen - full data: "
+        "leaderId=${fullProject.leaderId}, "
+        "mentorId=${fullProject.mentorId}, "
+        "memberIds=${fullProject.memberIds}",
+      );
 
+      _descriptionQuillController?.dispose();
+      _descriptionQuillController = QuillController(
+        document: Document()..insert(0, fullProject.description ?? ''),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
       setState(() {
         _isUpdateMode = true;
         _isCreateMode = false;
         _editingProjectId = project.id.toString();
-        _editingDepartmentId = project.departmentId > 0 ? project.departmentId : null;
+        _editingDepartmentId =
+            project.departmentId > 0 ? project.departmentId : null;
         _createNameController.text = fullProject.title;
         _createDescriptionController.text = fullProject.description ?? '';
         _createStatus = fullProject.status.name;
-        _selectedLeaderId = fullProject.leaderId > 0 ? fullProject.leaderId : null;
+        _selectedLeaderId =
+            fullProject.leaderId > 0 ? fullProject.leaderId : null;
         _selectedLeaderName = fullProject.leaderName;
+        _selectedLeaderData = _selectedLeaderId != null
+            ? {
+                'id': _selectedLeaderId,
+                'firstName': fullProject.leaderName?.split(' ').first ?? '',
+                'lastName': (fullProject.leaderName?.contains(' ') ?? false)
+                    ? fullProject.leaderName!.substring(
+                        fullProject.leaderName!.indexOf(' ') + 1)
+                    : '',
+                'email': '',
+                'phone': '',
+                'department': '',
+                'role': 'USER',
+                'avatarUrl': null,
+              }
+            : null;
         _selectedMentorId = fullProject.mentorId;
         _selectedMentorName = fullProject.mentorName;
+        _selectedMentorData = _selectedMentorId != null
+            ? {
+                'id': _selectedMentorId,
+                'firstName': fullProject.mentorName?.split(' ').first ?? '',
+                'lastName': (fullProject.mentorName?.contains(' ') ?? false)
+                    ? fullProject.mentorName!.substring(
+                        fullProject.mentorName!.indexOf(' ') + 1)
+                    : '',
+                'email': '',
+                'phone': '',
+                'department': '',
+                'role': 'MENTOR',
+                'avatarUrl': null,
+              }
+            : null;
 
         _selectedMembers = [];
         if (fullProject.memberIds != null) {
-          for (final memberId in fullProject.memberIds!) {
+          for (int i = 0; i < fullProject.memberIds!.length; i++) {
+            final memberId = fullProject.memberIds![i];
+            final memberName = (fullProject.memberNames != null &&
+                    i < fullProject.memberNames!.length)
+                ? fullProject.memberNames![i]
+                : 'User $memberId';
             _selectedMembers.add({
               'id': memberId,
-              'name': fullProject.memberNames != null &&
-                      fullProject.memberNames!.length > fullProject.memberIds!.indexOf(memberId)
-                  ? fullProject.memberNames![fullProject.memberIds!.indexOf(memberId)]
-                  : 'User $memberId',
+              'name': memberName,
               'email': '',
+              'firstName': memberName.split(' ').first,
+              'lastName': (memberName.contains(' '))
+                  ? memberName.substring(memberName.indexOf(' ') + 1)
+                  : '',
+              'department': '',
+              'role': 'USER',
+              'avatarUrl': null,
             });
           }
         }
@@ -371,18 +429,32 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Đóng'),
               ),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  openEditProjectScreen(project);
-                },
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Cập nhật'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  foregroundColor: Colors.white,
+              if (project.status != ProjectStatus.COMPLETED)
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    openEditProjectScreen(project);
+                  },
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Cập nhật'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                  ),
                 ),
-              ),
+              if (project.status == ProjectStatus.COMPLETED)
+                Tooltip(
+                  message: 'Không thể chỉnh sửa dự án đã hoàn thành',
+                  child: FilledButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Cập nhật'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      foregroundColor: Colors.grey[600],
+                    ),
+                  ),
+                ),
             ],
           ),
     );
@@ -424,11 +496,21 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         // Chuyển memberIds thành danh sách Map để hiển thị
         _selectedMembers = [];
         if (project.memberIds != null) {
-          for (final memberId in project.memberIds!) {
+          for (int i = 0; i < project.memberIds!.length; i++) {
+            final memberId = project.memberIds![i];
+            final memberName = (project.memberNames != null &&
+                    i < project.memberNames!.length)
+                ? project.memberNames![i]
+                : 'User $memberId';
             _selectedMembers.add({
               'id': memberId,
-              'name': 'User $memberId',
+              'name': memberName,
               'email': '',
+              'firstName': '',
+              'lastName': '',
+              'department': '',
+              'role': 'USER',
+              'avatarUrl': null,
             });
           }
         }
@@ -452,17 +534,25 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     _endDate = null;
     _selectedLeaderId = null;
     _selectedLeaderName = null;
+    _selectedLeaderData = null;
     _selectedMentorId = null;
     _selectedMentorName = null;
+    _selectedMentorData = null;
     _selectedMembers = [];
+    _descriptionQuillController?.dispose();
+    _descriptionQuillController = QuillController.basic();
   });
 
-  void closeFormScreen() => setState(() {
-    _isCreateMode = false;
-    _isUpdateMode = false;
-    _editingProjectId = null;
-    _editingDepartmentId = null;
-  });
+  void closeFormScreen() {
+    _descriptionQuillController?.dispose();
+    _descriptionQuillController = null;
+    setState(() {
+      _isCreateMode = false;
+      _isUpdateMode = false;
+      _editingProjectId = null;
+      _editingDepartmentId = null;
+    });
+  }
 
   void submitCreateProject() async {
     if (_createNameController.text.isEmpty) {
@@ -492,6 +582,58 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       return;
     }
 
+    // 4. Members bat buoc
+    if (_selectedMembers.isEmpty) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Vui lòng thêm ít nhất 1 thành viên',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
+    // 5. Leader khong duoc la member
+    if (_selectedMembers.any((m) => int.parse(m['id'].toString()) == _selectedLeaderId)) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Trưởng nhóm không được là thành viên',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
+    // 6. Mentor khong duoc la Leader
+    if (_selectedMentorId != null && _selectedMentorId == _selectedLeaderId) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Người hướng dẫn không được là Trưởng nhóm',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
+    // 7. Mentor khong duoc la Member
+    if (_selectedMentorId != null &&
+        _selectedMembers.any((m) => int.parse(m['id'].toString()) == _selectedMentorId)) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Người hướng dẫn không được là Thành viên',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
+    // 8. Kiem tra duplicate trong memberIds
+    final memberIdList = _selectedMembers.map((m) => int.parse(m['id'].toString())).toList();
+    if (memberIdList.toSet().length != memberIdList.length) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Danh sách thành viên chứa trùng lặp',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -505,8 +647,9 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       await ProjectService.create(
         title: _createNameController.text,
         description:
-            _createDescriptionController.text.isNotEmpty
-                ? _createDescriptionController.text
+            _descriptionQuillController != null &&
+                    _descriptionQuillController!.document.toPlainText().trim().isNotEmpty
+                ? _descriptionQuillController!.document.toPlainText().trim()
                 : null,
         departmentId: _currentDepartmentId!,
         leaderId: _selectedLeaderId!,
@@ -519,6 +662,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
       setState(() {
         _isCreateMode = false;
+        _isUpdateMode = false;
         _currentPage = 1;
       });
 
@@ -531,10 +675,43 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       }
     } catch (e) {
       debugPrint('Error creating project: $e');
+      String message = 'Lỗi khi tạo dự án';
+
+      // Parse error message tu backend
+      final errorStr = e.toString();
+      if (errorStr.contains('Department has no PM')) {
+        message = 'Phòng ban chưa có Quản lý dự án (PM)';
+      } else if (errorStr.contains('Only PM allowed') || errorStr.contains('Only department PM')) {
+        message = 'Chỉ Quản lý dự án (PM) mới được tạo dự án';
+      } else if (errorStr.contains('Leader must be USER')) {
+        message = 'Trưởng nhóm phải có vai trò USER';
+      } else if (errorStr.contains('Mentor must be MENTOR')) {
+        message = 'Người hướng dẫn phải có vai trò MENTOR';
+      } else if (errorStr.contains('User inactive')) {
+        message = 'Người dùng đã bị vô hiệu hóa';
+      } else if (errorStr.contains('User must be in same department')) {
+        message = 'Tất cả thành viên phải thuộc cùng phòng ban';
+      } else if (errorStr.contains('Some users not found')) {
+        message = 'Một số người dùng không tồn tại';
+      } else if (errorStr.contains('Must have 1 leader')) {
+        message = 'Dự án phải có đúng 1 Trưởng nhóm';
+      } else if (errorStr.contains('Only 1 mentor allowed')) {
+        message = 'Dự án chỉ được có tối đa 1 Người hướng dẫn';
+      } else if (errorStr.contains('Must have at least 1 member')) {
+        message = 'Dự án phải có ít nhất 1 Thành viên';
+      } else if (errorStr.contains('Cannot edit completed project') ||
+                 errorStr.contains('Cannot modify completed project')) {
+        message = 'Không thể chỉnh sửa dự án đã hoàn thành';
+      } else if (errorStr.contains('Department not found')) {
+        message = 'Phòng ban không tồn tại';
+      } else if (errorStr.contains('Access Denied') || errorStr.contains('AccessDeniedException')) {
+        message = 'Bạn không có quyền thực hiện thao tác này';
+      }
+
       if (mounted) {
         GlobalNotificationService.show(
           context: context,
-          message: 'Lỗi khi tạo dự án: $e',
+          message: message,
           type: NotificationType.error,
         );
       }
@@ -557,6 +734,51 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       return;
     }
 
+    // Chi ap dung khi co thanh vien duoc chon
+    if (_selectedMembers.isNotEmpty) {
+      // Leader khong duoc la member
+      if (_selectedMembers.any((m) => int.parse(m['id'].toString()) == _selectedLeaderId)) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Trưởng nhóm không được là thành viên',
+          type: NotificationType.warning,
+        );
+        return;
+      }
+
+      // Mentor khong duoc la Leader
+      if (_selectedMentorId != null && _selectedMentorId == _selectedLeaderId) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Người hướng dẫn không được là Trưởng nhóm',
+          type: NotificationType.warning,
+        );
+        return;
+      }
+
+      // Mentor khong duoc la Member
+      if (_selectedMentorId != null &&
+          _selectedMembers.any((m) => int.parse(m['id'].toString()) == _selectedMentorId)) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Người hướng dẫn không được là Thành viên',
+          type: NotificationType.warning,
+        );
+        return;
+      }
+
+      // Kiem tra duplicate trong memberIds
+      final updateMemberIdList = _selectedMembers.map((m) => int.parse(m['id'].toString())).toList();
+      if (updateMemberIdList.toSet().length != updateMemberIdList.length) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Danh sách thành viên chứa trùng lặp',
+          type: NotificationType.warning,
+        );
+        return;
+      }
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -575,8 +797,9 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         id: int.parse(_editingProjectId!),
         title: _createNameController.text,
         description:
-            _createDescriptionController.text.isNotEmpty
-                ? _createDescriptionController.text
+            _descriptionQuillController != null &&
+                    _descriptionQuillController!.document.toPlainText().trim().isNotEmpty
+                ? _descriptionQuillController!.document.toPlainText().trim()
                 : null,
         departmentId: editingProject.departmentId,
         leaderId: _selectedLeaderId!,
@@ -594,7 +817,9 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       // Update project in list directly to avoid API not returning status
       final newStatus = ProjectStatus.fromString(_createStatus);
       setState(() {
-        final idx = _projects.indexWhere((p) => p.id == int.parse(_editingProjectId!));
+        final idx = _projects.indexWhere(
+          (p) => p.id == int.parse(_editingProjectId!),
+        );
         if (idx != -1) {
           _projects[idx] = _projects[idx].copyWith(status: newStatus);
         }
@@ -611,10 +836,48 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       }
     } catch (e) {
       debugPrint('Error updating project: $e');
+      String message = 'Lỗi khi cập nhật dự án';
+
+      // Parse error message tu backend
+      final errorStr = e.toString();
+      if (errorStr.contains('Department has no PM')) {
+        message = 'Phòng ban chưa có Quản lý dự án (PM)';
+      } else if (errorStr.contains('Only PM allowed') || errorStr.contains('Only department PM')) {
+        message = 'Chỉ Quản lý dự án (PM) mới được chỉnh sửa dự án';
+      } else if (errorStr.contains('Only PM can modify') || errorStr.contains('Only PM can')) {
+        message = 'Chỉ Quản lý dự án (PM) mới được chỉnh sửa dự án';
+      } else if (errorStr.contains('Leader must be USER')) {
+        message = 'Trưởng nhóm phải có vai trò USER';
+      } else if (errorStr.contains('Mentor must be MENTOR')) {
+        message = 'Người hướng dẫn phải có vai trò MENTOR';
+      } else if (errorStr.contains('User inactive')) {
+        message = 'Người dùng đã bị vô hiệu hóa';
+      } else if (errorStr.contains('User must be in same department')) {
+        message = 'Tất cả thành viên phải thuộc cùng phòng ban';
+      } else if (errorStr.contains('Some users not found')) {
+        message = 'Một số người dùng không tồn tại';
+      } else if (errorStr.contains('Must have 1 leader')) {
+        message = 'Dự án phải có đúng 1 Trưởng nhóm';
+      } else if (errorStr.contains('Only 1 mentor allowed')) {
+        message = 'Dự án chỉ được có tối đa 1 Người hướng dẫn';
+      } else if (errorStr.contains('Must have at least 1 member')) {
+        message = 'Dự án phải có ít nhất 1 Thành viên';
+      } else if (errorStr.contains('Cannot edit completed project') ||
+                 errorStr.contains('Cannot modify completed project') ||
+                 errorStr.contains('Cannot change completed project')) {
+        message = 'Không thể chỉnh sửa dự án đã hoàn thành';
+      } else if (errorStr.contains('Department not found')) {
+        message = 'Phòng ban không tồn tại';
+      } else if (errorStr.contains('Access Denied') || errorStr.contains('AccessDeniedException')) {
+        message = 'Bạn không có quyền thực hiện thao tác này';
+      } else if (errorStr.contains('Project not found')) {
+        message = 'Dự án không tồn tại';
+      }
+
       if (mounted) {
         GlobalNotificationService.show(
           context: context,
-          message: 'Lỗi khi cập nhật dự án: $e',
+          message: message,
           type: NotificationType.error,
         );
       }
@@ -630,28 +893,28 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       context: context,
       builder:
           (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        title: const Text('Xóa dự án'),
-        content: Text(
-          'Bạn có chắc muốn xóa dự án "${project.title}" không?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: const Text('Xóa'),
+            title: const Text('Xóa dự án'),
+            content: Text(
+              'Bạn có chắc muốn xóa dự án "${project.title}" không?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Xóa'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     if (confirmed == true) {
       try {
@@ -666,10 +929,24 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         }
       } catch (e) {
         debugPrint('Error deleting project: $e');
+        String message = 'Lỗi khi xóa dự án';
+
+        final errorStr = e.toString();
+        if (errorStr.contains('Only INACTIVE project can be deleted') ||
+            errorStr.contains('Only inactive project can be deleted')) {
+          message = 'Chỉ dự án ở trạng thái Khởi tạo mới có thể xóa';
+        } else if (errorStr.contains('Only PM can') || errorStr.contains('Only PM allowed')) {
+          message = 'Chỉ Quản lý dự án (PM) mới được xóa dự án';
+        } else if (errorStr.contains('Project not found')) {
+          message = 'Dự án không tồn tại';
+        } else if (errorStr.contains('Access Denied') || errorStr.contains('AccessDeniedException')) {
+          message = 'Bạn không có quyền thực hiện thao tác này';
+        }
+
         if (mounted) {
           GlobalNotificationService.show(
             context: context,
-            message: 'Lỗi khi xóa dự án: $e',
+            message: message,
             type: NotificationType.error,
           );
         }
@@ -862,7 +1139,9 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                             flex: 2,
                             child: _buildInfoCard(
                               label: 'Phòng ban',
-                              value: _currentDepartmentName ?? 'Chưa gán phòng ban',
+                              value:
+                                  _currentDepartmentName ??
+                                  'Chưa gán phòng ban',
                               icon: Icons.business_outlined,
                               color: const Color(0xFF6366F1),
                             ),
@@ -889,12 +1168,37 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildModernTextField(
-                        controller: _createDescriptionController,
-                        label: 'Mô tả dự án',
-                        hint: 'Mô tả ngắn gọn về mục tiêu và phạm vi dự án...',
-                        prefixIcon: Icons.description_outlined,
-                        maxLines: 4,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 8),
+                            child: Row(
+                              children: [
+                                Icon(Icons.description_outlined,
+                                    size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Mô tả dự án',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          RichTextEditorWidget(
+                            controller: _descriptionQuillController,
+                            hintText: 'Mô tả ngắn gọn về mục tiêu và phạm vi dự án...',
+                            primaryColor: const Color(0xFF6366F1),
+                            maxHeight: 180,
+                            onContentChanged: (plainText) {
+                              _createDescriptionController.text = plainText;
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1362,22 +1666,55 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   ),
                   if (_selectedLeaderId != null) ...[
                     const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF8B5CF6).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF8B5CF6)),
-                      ),
-                      child: const Text(
-                        'Leader',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF8B5CF6),
+                    if (_selectedLeaderData?['email']?.isNotEmpty == true) ...[
+                      Text(
+                        _selectedLeaderData!['email'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 2),
+                    ],
+                    if (_selectedLeaderData?['department']?.isNotEmpty == true) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.apartment_outlined,
+                            size: 12,
+                            color: Color(0xFF8B5CF6),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _selectedLeaderData!['department'] ?? '',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF8B5CF6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF8B5CF6)),
+                        ),
+                        child: const Text(
+                          'Leader',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF8B5CF6),
+                          ),
+                        ),
+                      ),
+                    ],
                   ] else
                     Text(
                       'Nhấn để chọn người quản lý',
@@ -1417,9 +1754,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _selectedMentorId != null
-                ? const Color(0xFFF59E0B)
-                : const Color(0xFFE5E7EB),
+            color:
+                _selectedMentorId != null
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFFE5E7EB),
             width: _selectedMentorId != null ? 2 : 1,
           ),
         ),
@@ -1427,33 +1765,36 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           children: [
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              child: _selectedMentorId != null
-                  ? CircleAvatar(
-                      key: const ValueKey('mentor-selected'),
-                      backgroundColor: const Color(0xFFF59E0B),
-                      radius: 20,
-                      child: Text(
-                        _getMentorName(_selectedMentorId!).isNotEmpty
-                            ? _getMentorName(_selectedMentorId!)[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+              child:
+                  _selectedMentorId != null
+                      ? CircleAvatar(
+                        key: const ValueKey('mentor-selected'),
+                        backgroundColor: const Color(0xFFF59E0B),
+                        radius: 20,
+                        child: Text(
+                          _getMentorName(_selectedMentorId!).isNotEmpty
+                              ? _getMentorName(
+                                _selectedMentorId!,
+                              )[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                      : Container(
+                        key: const ValueKey('mentor-empty'),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.school_outlined,
+                          color: Color(0xFFF59E0B),
                         ),
                       ),
-                    )
-                  : Container(
-                      key: const ValueKey('mentor-empty'),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.school_outlined,
-                        color: Color(0xFFF59E0B),
-                      ),
-                    ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -1469,16 +1810,19 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: _selectedMentorId != null
-                              ? const Color(0xFF1F2937)
-                              : Colors.grey[400],
+                          color:
+                              _selectedMentorId != null
+                                  ? const Color(0xFF1F2937)
+                                  : Colors.grey[400],
                         ),
                       ),
                       if (_selectedMentorId != null) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEF3C7),
                             borderRadius: BorderRadius.circular(8),
@@ -1496,7 +1840,62 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       ],
                     ],
                   ),
-                  if (_selectedMentorId == null)
+                  if (_selectedMentorId != null) ...[
+                    const SizedBox(height: 2),
+                    if (_selectedMentorData?['email']?.isNotEmpty == true) ...[
+                      Text(
+                        _selectedMentorData!['email'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
+                    if (_selectedMentorData?['department']?.isNotEmpty == true) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.apartment_outlined,
+                            size: 12,
+                            color: Color(0xFFF59E0B),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _selectedMentorData!['department'] ?? '',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFF59E0B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFF59E0B)),
+                            ),
+                            child: const Text(
+                              'Mentor',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFD97706),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ] else
                     Text(
                       'Tùy chọn - Không bắt buộc',
                       style: TextStyle(fontSize: 13, color: Colors.grey[400]),
@@ -1506,17 +1905,23 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             ),
             if (_selectedMentorId != null)
               GestureDetector(
-                onTap: () => setState(() {
-                  _selectedMentorId = null;
-                  _selectedMentorName = null;
-                }),
+                onTap:
+                    () => setState(() {
+                      _selectedMentorId = null;
+                      _selectedMentorName = null;
+                      _selectedMentorData = null;
+                    }),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.close, size: 18, color: Colors.red.shade400),
+                  child: Icon(
+                    Icons.close,
+                    size: 18,
+                    color: Colors.red.shade400,
+                  ),
                 ),
               )
             else
@@ -1583,8 +1988,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 ),
                 const SizedBox(height: 12),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 10,
+                  runSpacing: 10,
                   children:
                       _selectedMembers
                           .map((member) => _buildMemberChip(member))
@@ -1601,11 +2006,16 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   Widget _buildMemberChip(Map<String, dynamic> member) {
+    final name = (member['name'] as String?)?.trim() ?? '';
+    final email = (member['email'] as String?)?.trim() ?? '';
+    final department = (member['department'] as String?)?.trim() ?? '';
+    final firstChar = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -1613,59 +2023,140 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             offset: const Offset(0, 2),
           ),
         ],
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: const Color(0xFF10B981),
-            child: Text(
-              (member['name'] as String?)?.isNotEmpty == true
-                  ? member['name']![0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+          // Avatar
+          _buildMemberAvatar(member, firstChar),
+          const SizedBox(width: 12),
+          // Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name.isNotEmpty ? name : 'User ${member['id']}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFF10B981)),
+                      ),
+                      child: const Text(
+                        'Nhân viên',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+                if (department.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.apartment_outlined,
+                        size: 11,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          department,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            member['name'] ?? '',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFD1D5DB)),
-            ),
-            child: const Text(
-              'Member',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF6B7280),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
+          // Remove button
           InkWell(
             onTap: () => setState(() => _selectedMembers.remove(member)),
             child: Container(
-              padding: const EdgeInsets.all(2),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.close, size: 14, color: Colors.grey),
+              child: const Icon(Icons.close, size: 16, color: Color(0xFF9CA3AF)),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMemberAvatar(Map<String, dynamic> member, String firstChar) {
+    final avatarUrl = member['avatarUrl'] as String?;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: const Color(0xFF10B981),
+        child: CircleAvatar(
+          radius: 19,
+          backgroundImage: NetworkImage(avatarUrl),
+          backgroundColor: const Color(0xFF10B981),
+          child: avatarUrl.isEmpty
+              ? Text(
+                  firstChar,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                )
+              : null,
+        ),
+      );
+    }
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: const Color(0xFF10B981),
+      child: Text(
+        firstChar,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
       ),
     );
   }
@@ -2007,12 +2498,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               setState(() {
                 _selectedLeaderId = idInt;
                 _selectedLeaderName = fullName;
+                _selectedLeaderData = Map<String, dynamic>.from(user);
                 // Xóa leader mới khỏi danh sách thành viên nếu đang có
                 _selectedMembers.removeWhere((m) {
                   final mid = int.tryParse(m['id']?.toString() ?? '') ?? 0;
                   return mid == idInt;
                 });
               });
+              if (ctx.mounted) Navigator.pop(ctx);
             },
           ),
     );
@@ -2074,6 +2567,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               setState(() {
                 _selectedMentorId = idInt;
                 _selectedMentorName = fullName;
+                _selectedMentorData = Map<String, dynamic>.from(user);
               });
             },
           ),
@@ -2113,12 +2607,17 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               final firstName = user['firstName'] ?? '';
               final lastName = user['lastName'] ?? '';
               final fullName = '$firstName $lastName'.trim();
-              final email = user['email'] ?? '';
               setState(
                 () => _selectedMembers.add({
                   'id': id,
                   'name': fullName,
-                  'email': email,
+                  'firstName': firstName,
+                  'lastName': lastName,
+                  'email': user['email'] ?? '',
+                  'phone': user['phone'] ?? '',
+                  'department': user['departmentName'] ?? user['department'] ?? '',
+                  'role': user['role'] ?? 'USER',
+                  'avatarUrl': user['avatarUrl'],
                 }),
               );
             },
@@ -2356,9 +2855,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           // Prev button
           _buildPageButton(
             icon: Icons.chevron_left,
-            onPressed: _currentPage > 0
-                ? () => setCurrentPage(_currentPage - 1)
-                : null,
+            onPressed:
+                _currentPage > 0
+                    ? () => setCurrentPage(_currentPage - 1)
+                    : null,
           ),
           const SizedBox(width: 8),
           // Page numbers
@@ -2367,9 +2867,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           // Next button
           _buildPageButton(
             icon: Icons.chevron_right,
-            onPressed: _currentPage < _totalPages - 1
-                ? () => setCurrentPage(_currentPage + 1)
-                : null,
+            onPressed:
+                _currentPage < _totalPages - 1
+                    ? () => setCurrentPage(_currentPage + 1)
+                    : null,
           ),
         ],
       ),
@@ -2399,7 +2900,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
               color: isActive ? const Color(0xFF6366F1) : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isActive ? const Color(0xFF6366F1) : const Color(0xFFE5E7EB),
+                color:
+                    isActive
+                        ? const Color(0xFF6366F1)
+                        : const Color(0xFFE5E7EB),
               ),
             ),
             child: Text(
@@ -2418,10 +2922,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     return pages;
   }
 
-  Widget _buildPageButton({
-    required IconData icon,
-    VoidCallback? onPressed,
-  }) {
+  Widget _buildPageButton({required IconData icon, VoidCallback? onPressed}) {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(8),
@@ -2605,11 +3106,24 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildActionButton(
-                      icon: Icons.edit_outlined,
-                      color: const Color(0xFF6366F1),
-                      onTap: () => openEditProjectScreen(project),
-                    ),
+                    if (project.status != ProjectStatus.COMPLETED)
+                      _buildActionButton(
+                        icon: Icons.edit_outlined,
+                        color: const Color(0xFF6366F1),
+                        onTap: () => openEditProjectScreen(project),
+                      ),
+                    if (project.status == ProjectStatus.COMPLETED)
+                      Tooltip(
+                        message: 'Không thể chỉnh sửa dự án đã hoàn thành',
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.edit_outlined, color: Colors.grey[400], size: 20),
+                        ),
+                      ),
                     const SizedBox(width: 8),
                     _buildActionButton(
                       icon: Icons.delete_outline,
@@ -2763,7 +3277,7 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
           context: context,
           message: 'Lỗi tải danh sách: $e',
           type: NotificationType.error,
-        ); 
+        );
       }
     }
   }
@@ -2960,7 +3474,6 @@ class _LeaderPickerSheetContentState extends State<_LeaderPickerSheetContent> {
                                     borderRadius: BorderRadius.circular(14),
                                     onTap: () {
                                       widget.onSelectLeader(u);
-                                      Navigator.pop(context);
                                     },
                                     child: Padding(
                                       padding: const EdgeInsets.all(12),
@@ -3225,7 +3738,8 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
     super.didUpdateWidget(oldWidget);
     final newExclude = List<int>.from(widget.excludeUserIds);
     final oldExclude = List<int>.from(oldWidget.excludeUserIds);
-    final changed = newExclude.length != oldExclude.length ||
+    final changed =
+        newExclude.length != oldExclude.length ||
         Set<int>.from(newExclude).containsAll(oldExclude) == false ||
         Set<int>.from(oldExclude).containsAll(newExclude) == false;
     if (changed) {
@@ -3233,6 +3747,13 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
       _page = 0;
       _loadPage();
     }
+  }
+
+  bool _isExcluded(dynamic userId) {
+    if (userId == null) return false;
+    final idInt = userId is int ? userId : int.tryParse(userId.toString());
+    if (idInt == null) return false;
+    return _excludeIds.contains(idInt);
   }
 
   @override
@@ -3250,7 +3771,8 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
       final result = await ProjectMemberService.getUsersForProjectPaginated(
         departmentId: widget.departmentId,
         keyword: _keyword.isEmpty ? null : _keyword,
-        excludeUserIds: widget.excludeUserIds.isEmpty ? null : widget.excludeUserIds,
+        excludeUserIds:
+            widget.excludeUserIds.isEmpty ? null : widget.excludeUserIds,
         // Backend chỉ cho phép USER trong thành viên dự án
         role: 'USER',
         page: _page,
@@ -3462,6 +3984,7 @@ class _MemberPickerSheetContentState extends State<_MemberPickerSheetContent> {
                             itemCount: _users.length,
                             itemBuilder: (_, i) {
                               final member = _users[i];
+                              if (_isExcluded(member['id'])) return const SizedBox.shrink();
                               final firstName = member['firstName'] ?? '';
                               final lastName = member['lastName'] ?? '';
                               final fullName = '$firstName $lastName'.trim();

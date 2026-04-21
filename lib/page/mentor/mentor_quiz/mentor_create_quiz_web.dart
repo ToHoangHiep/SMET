@@ -6,7 +6,6 @@ import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/model/option_model.dart';
 import 'package:smet/model/question_model.dart';
 import 'package:smet/model/quiz_model.dart';
-import 'package:smet/service/mentor/option_service.dart';
 import 'package:smet/service/mentor/question_service.dart';
 import 'package:smet/service/mentor/quiz_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
@@ -14,7 +13,6 @@ import 'package:smet/service/common/global_notification_service.dart';
 class MentorCreateQuizWeb extends StatefulWidget {
   final String? moduleId;
   final String? courseId;
-  final bool isFinalQuiz;
   final String? quizId;
   final VoidCallback? onSaved;
 
@@ -22,7 +20,6 @@ class MentorCreateQuizWeb extends StatefulWidget {
     super.key,
     this.moduleId,
     this.courseId,
-    this.isFinalQuiz = false,
     this.quizId,
     this.onSaved,
   });
@@ -37,7 +34,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
 
   final MentorQuizService _quizService = MentorQuizService();
   final MentorQuestionService _questionService = MentorQuestionService();
-  final MentorOptionService _optionService = MentorOptionService();
 
   bool get _isEditMode => widget.quizId != null;
 
@@ -50,7 +46,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
   bool _isSaving = false;
   bool _isLoading = true;
   String? _loadError;
-  bool? _quizIsFinal;
 
   final List<_EditableQuestion> _questions = [];
 
@@ -86,35 +81,57 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
       _passingScoreController.text = quiz.passingScore.toString();
       _maxAttemptsController.text = (quiz.maxAttempts ?? 1).toString();
       _showAnswer = quiz.showAnswer;
-      _quizIsFinal = quiz.isFinalQuiz;
 
       if (quiz.questions != null) {
-        for (final q in quiz.questions!) {
+          for (final q in quiz.questions!) {
           final editable = _EditableQuestion();
           editable.questionController.text = q.content;
           editable.questionId = q.id;
+          editable.questionType = q.type ?? 'MULTIPLE_CHOICE';
 
-          for (final c in editable.optionControllers) {
-            c.dispose();
-          }
-          editable.optionControllers.clear();
-          editable.correctAnswers.clear();
-          editable.optionIds.clear();
-
-          if (q.options != null) {
-            for (final o in q.options!) {
-              editable.optionControllers.add(
-                TextEditingController(text: o.content),
-              );
-              editable.correctAnswers.add(o.isCorrect);
-              editable.optionIds.add(o.id);
-            }
-          }
-
-          while (editable.optionControllers.length < 2) {
-            editable.optionControllers.add(TextEditingController());
+          if (          editable.questionType == 'TRUE_FALSE') {
+            editable.optionControllers.clear();
+            editable.optionControllers.add(TextEditingController(text: 'Đúng'));
+            editable.optionControllers.add(TextEditingController(text: 'Sai'));
+            editable.correctAnswers.clear();
             editable.correctAnswers.add(false);
+            editable.correctAnswers.add(false);
+            editable.optionIds.clear();
             editable.optionIds.add(null);
+            editable.optionIds.add(null);
+
+            if (q.options != null) {
+              for (final o in q.options!) {
+                final idx = o.content?.toLowerCase() == 'đúng' ? 0 : 1;
+                if (idx < editable.correctAnswers.length) {
+                  editable.correctAnswers[idx] = o.isCorrect;
+                }
+                editable.optionIds[idx] = o.id;
+              }
+            }
+          } else {
+            for (final c in editable.optionControllers) {
+              c.dispose();
+            }
+            editable.optionControllers.clear();
+            editable.correctAnswers.clear();
+            editable.optionIds.clear();
+
+            if (q.options != null) {
+              for (final o in q.options!) {
+                editable.optionControllers.add(
+                  TextEditingController(text: o.content),
+                );
+                editable.correctAnswers.add(o.isCorrect);
+                editable.optionIds.add(o.id);
+              }
+            }
+
+            while (editable.optionControllers.length < 2) {
+              editable.optionControllers.add(TextEditingController());
+              editable.correctAnswers.add(false);
+              editable.optionIds.add(null);
+            }
           }
 
           _questions.add(editable);
@@ -195,34 +212,43 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
         return;
       }
 
-      if (q.optionControllers.length < 2) {
-        _showError('Câu hỏi ${i + 1} phải có ít nhất 2 đáp án');
-        return;
-      }
-
-      for (int j = 0; j < q.optionControllers.length; j++) {
-        if (q.optionControllers[j].text.trim().isEmpty) {
-          _showError('Câu hỏi ${i + 1} còn đáp án trống');
+      if (q.questionType != 'TRUE_FALSE') {
+        if (q.optionControllers.length < 2) {
+          _showError('Câu hỏi ${i + 1} phải có ít nhất 2 đáp án');
           return;
+        }
+
+        for (int j = 0; j < q.optionControllers.length; j++) {
+          if (q.optionControllers[j].text.trim().isEmpty) {
+            _showError('Câu hỏi ${i + 1} còn đáp án trống');
+            return;
+          }
         }
       }
 
-      final hasCorrectAnswer = q.correctAnswers.any((e) => e);
-      if (!hasCorrectAnswer) {
-        _showError('Câu hỏi ${i + 1} phải có ít nhất 1 đáp án đúng');
-        return;
+      final correctCount = q.correctAnswers.where((e) => e).length;
+      if (q.questionType == 'TRUE_FALSE' || q.questionType == 'SINGLE_CHOICE') {
+        if (correctCount != 1) {
+          _showError('Câu hỏi ${i + 1} phải có đúng 1 đáp án đúng');
+          return;
+        }
+      } else {
+        if (correctCount < 1) {
+          _showError('Câu hỏi ${i + 1} phải có ít nhất 1 đáp án đúng');
+          return;
+        }
       }
     }
 
     setState(() => _isSaving = true);
 
     try {
-      final _originalQuestionIds = <Long>{};
-      for (final eq in _questions) {
-        if (eq.questionId != null) _originalQuestionIds.add(eq.questionId!);
-      }
-
       if (_isEditMode) {
+        final _originalQuestionIds = <Long>{};
+        for (final eq in _questions) {
+          if (eq.questionId != null) _originalQuestionIds.add(eq.questionId!);
+        }
+
         final updatedQuiz = QuizModel(
           title: _titleController.text.trim(),
           timeLimitMinutes: int.tryParse(_durationController.text.trim()) ?? 0,
@@ -230,7 +256,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
           maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
           questionCount: _questions.length,
           showAnswer: _showAnswer,
-          isFinalQuiz: _quizIsFinal ?? widget.isFinalQuiz,
           moduleId: widget.moduleId != null && widget.moduleId!.isNotEmpty
               ? Long(int.parse(widget.moduleId!))
               : null,
@@ -245,57 +270,65 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
         );
 
         final _stillUsedQuestionIds = <Long>{};
+        final _newlyCreatedQuestionIds = <Long>{};
 
-        for (int i = 0; i < _questions.length; i++) {
-          final item = _questions[i];
-          item.ensureValidState();
+        try {
+          for (int i = 0; i < _questions.length; i++) {
+            final item = _questions[i];
+            item.ensureValidState();
 
-          Long questionId;
-          if (item.questionId != null) {
-            final updated = await _questionService.updateQuestion(
-              item.questionId!,
-              QuestionModel(
-                quizId: Long(int.parse(widget.quizId!)),
-                content: item.questionController.text.trim(),
-                type: 'MULTIPLE_CHOICE',
-              ),
-            );
-            questionId = updated.id!;
-          } else {
-            final created = await _questionService.createQuestion(
-              QuestionModel(
-                quizId: Long(int.parse(widget.quizId!)),
-                content: item.questionController.text.trim(),
-                type: 'MULTIPLE_CHOICE',
-              ),
-            );
-            questionId = created.id!;
-          }
-          _stillUsedQuestionIds.add(questionId);
-
-          for (int j = 0; j < item.optionControllers.length; j++) {
-            final optionId = item.optionIds[j];
-            final isNewOption = optionId == null;
-
-            if (isNewOption) {
-              await _optionService.createOption(
-                OptionModel(
-                  questionId: questionId,
-                  content: item.optionControllers[j].text.trim(),
-                  isCorrect: item.correctAnswers[j],
+            Long questionId;
+            if (item.questionId != null) {
+              final updated = await _questionService.updateQuestion(
+                item.questionId!,
+                QuestionModel(
+                  quizId: Long(int.parse(widget.quizId!)),
+                  content: item.questionController.text.trim(),
+                  type: item.questionType,
+                  options: List.generate(
+                    item.optionControllers.length,
+                    (j) => OptionModel(
+                      id: item.optionIds[j],
+                      content: item.optionControllers[j].text.trim(),
+                      isCorrect: item.correctAnswers[j],
+                    ),
+                  ),
                 ),
               );
+              questionId = updated.id!;
             } else {
-              await _optionService.updateOption(
-                optionId,
-                OptionModel(
-                  questionId: questionId,
-                  content: item.optionControllers[j].text.trim(),
-                  isCorrect: item.correctAnswers[j],
+              final created = await _questionService.createQuestion(
+                QuestionModel(
+                  quizId: Long(int.parse(widget.quizId!)),
+                  content: item.questionController.text.trim(),
+                  type: item.questionType,
+                  options: List.generate(
+                    item.optionControllers.length,
+                    (j) => OptionModel(
+                      content: item.optionControllers[j].text.trim(),
+                      isCorrect: item.correctAnswers[j],
+                    ),
+                  ),
                 ),
               );
+              if (created.id == null) {
+                throw Exception('Tạo câu hỏi ${i + 1} không trả về ID');
+              }
+              questionId = created.id!;
+              _newlyCreatedQuestionIds.add(created.id!);
             }
+            _stillUsedQuestionIds.add(questionId);
           }
+        } catch (e) {
+          // Cleanup: xóa các question mới tạo trong batch này
+          for (final qid in _newlyCreatedQuestionIds) {
+            try {
+              await _questionService.deleteQuestion(qid);
+            } catch (_) {}
+          }
+          if (mounted) setState(() => _isSaving = false);
+          _showError('Cập nhật quiz thất bại: $e');
+          return;
         }
 
         for (final qid in _originalQuestionIds) {
@@ -321,7 +354,6 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
           maxAttempts: int.tryParse(_maxAttemptsController.text.trim()),
           questionCount: _questions.length,
           showAnswer: _showAnswer,
-          isFinalQuiz: _quizIsFinal ?? widget.isFinalQuiz,
           moduleId: widget.moduleId != null && widget.moduleId!.isNotEmpty
               ? Long(int.parse(widget.moduleId!))
               : null,
@@ -330,83 +362,56 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
               : null,
         );
 
-        dev.log(
-          '[MentorCreateQuizWeb._saveQuiz] CREATE payload: '
-          'courseId=${widget.courseId} isFinalQuiz=${widget.isFinalQuiz} '
-          'quiz.courseId=${quiz.courseId?.value}',
-          name: 'QuizDebug',
-        );
+        // Tạo quiz trước
         final createdQuiz = await _quizService.createQuiz(quiz);
-        dev.log(
-          '[MentorCreateQuizWeb._saveQuiz] created quiz id=${createdQuiz.id?.value} '
-          '(sau khi quay lại trang khóa, GET modules/course phải trả quizId khớp module)',
-          name: 'QuizDebug',
-        );
         if (createdQuiz.id == null) {
-          dev.log('[MentorCreateQuizWeb._saveQuiz] WARNING: createdQuiz.id is NULL!', name: 'QuizDebug');
+          throw Exception('Tạo quiz thất bại');
         }
 
-        for (int i = 0; i < _questions.length; i++) {
-          final item = _questions[i];
-          item.ensureValidState();
+        // Track các question đã tạo để cleanup nếu có lỗi
+        final createdQuestionIds = <Long>[];
 
-          dev.log(
-            '[MentorCreateQuizWeb._saveQuiz] Creating question $i for quiz id=${createdQuiz.id?.value}',
-            name: 'QuizDebug',
-          );
-          final createdQuestion = await _questionService.createQuestion(
-            QuestionModel(
-              quizId: createdQuiz.id,
-              content: item.questionController.text.trim(),
-              type: 'MULTIPLE_CHOICE',
-            ),
-          );
-          dev.log(
-            '[MentorCreateQuizWeb._saveQuiz]   question $i created, id=${createdQuestion.id?.value}',
-            name: 'QuizDebug',
-          );
+        try {
+          // Lưu câu hỏi và đáp án
+          for (int i = 0; i < _questions.length; i++) {
+            final item = _questions[i];
+            item.ensureValidState();
 
-          for (int j = 0; j < item.optionControllers.length; j++) {
-            dev.log(
-              '[MentorCreateQuizWeb._saveQuiz]     Creating option $j for question $i',
-              name: 'QuizDebug',
-            );
-            await _optionService.createOption(
-              OptionModel(
-                questionId: createdQuestion.id,
-                content: item.optionControllers[j].text.trim(),
-                isCorrect: item.correctAnswers[j],
+            final createdQuestion = await _questionService.createQuestion(
+              QuestionModel(
+                quizId: createdQuiz.id,
+                content: item.questionController.text.trim(),
+                type: item.questionType,
+                options: List.generate(
+                  item.optionControllers.length,
+                  (j) => OptionModel(
+                    content: item.optionControllers[j].text.trim(),
+                    isCorrect: item.correctAnswers[j],
+                  ),
+                ),
               ),
             );
-            dev.log(
-              '[MentorCreateQuizWeb._saveQuiz]     option $j created',
-              name: 'QuizDebug',
-            );
-          }
-        }
 
-        if (createdQuiz.id != null) {
-          dev.log(
-            '[MentorCreateQuizWeb._saveQuiz] Calling validateQuiz(id=${createdQuiz.id?.value})',
-            name: 'QuizDebug',
-          );
-          try {
-            await _quizService.validateQuiz(createdQuiz.id!);
-            dev.log(
-              '[MentorCreateQuizWeb._saveQuiz] validateQuiz OK',
-              name: 'QuizDebug',
-            );
-          } catch (e) {
-            dev.log(
-              '[MentorCreateQuizWeb._saveQuiz] validateQuiz FAILED: $e',
-              name: 'QuizDebug',
-            );
-            if (mounted) {
-              setState(() => _isSaving = false);
+            if (createdQuestion.id == null) {
+              throw Exception('Tạo câu hỏi ${i + 1} không trả về ID');
             }
-            _showError('Quiz không hợp lệ: $e');
-            return;
+            createdQuestionIds.add(createdQuestion.id!);
           }
+        } catch (e) {
+          // Lỗi khi tạo question/option → cleanup quiz cùng các question đã lưu
+          try {
+            await _quizService.deleteQuiz(createdQuiz.id!);
+          } catch (_) {
+            // Nếu xóa quiz cascade thất bại, thử xóa từng question
+            for (final qid in createdQuestionIds) {
+              try {
+                await _questionService.deleteQuestion(qid);
+              } catch (_) {}
+            }
+          }
+          if (mounted) setState(() => _isSaving = false);
+          _showError('Lưu quiz thất bại: $e');
+          return;
         }
 
         dev.log('[MentorCreateQuizWeb._saveQuiz] before mounted check: mounted=$mounted', name: 'QuizDebug');
@@ -574,9 +579,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
     return Container(
       margin: const EdgeInsets.fromLTRB(30, 30, 30, 0),
       child: BreadcrumbPageHeader(
-        pageTitle: _isEditMode
-            ? (_quizIsFinal == true ? 'Sửa Final Quiz' : 'Sửa Quiz')
-            : (widget.isFinalQuiz ? 'Tạo Final Quiz' : 'Tạo Quiz'),
+        pageTitle: _isEditMode ? 'Sửa Quiz' : 'Tạo Quiz',
         pageIcon: Icons.quiz_rounded,
         breadcrumbs: [
           const BreadcrumbItem(
@@ -589,9 +592,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
               route: '/mentor/courses/${widget.courseId}',
             ),
           BreadcrumbItem(
-            label: _isEditMode
-                ? (_quizIsFinal == true ? 'Final Quiz' : 'Quiz module')
-                : (widget.isFinalQuiz ? 'Final Quiz' : 'Quiz module'),
+            label: _isEditMode ? 'Quiz' : 'Quiz module',
           ),
         ],
         primaryColor: _primaryColor,
@@ -921,6 +922,8 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
                   prefixIcon: Icons.help_outline_rounded,
                   maxLines: 3,
                 ),
+                const SizedBox(height: 16),
+                _buildQuestionTypeSelector(question),
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -949,7 +952,11 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
                           ),
                           const Spacer(),
                           Text(
-                            'Chọn đáp án đúng',
+                            question.questionType == 'TRUE_FALSE'
+                                ? 'Chọn đáp án đúng'
+                                : question.questionType == 'SINGLE_CHOICE'
+                                    ? 'Chọn 1 đáp án đúng'
+                                    : 'Chọn đáp án đúng',
                             style: TextStyle(
                               fontSize: 12,
                               color: _textSecondary.withOpacity(0.7),
@@ -977,14 +984,17 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
                           );
                         },
                       ),
-                      const SizedBox(height: 8),
-                      _buildAddOptionButton(
-                        onPressed: () {
-                          setState(() {
-                            question.addOption();
-                          });
-                        },
-                      ),
+                      if (question.questionType != 'TRUE_FALSE')
+                        ...[
+                          const SizedBox(height: 8),
+                          _buildAddOptionButton(
+                            onPressed: () {
+                              setState(() {
+                                question.addOption();
+                              });
+                            },
+                          ),
+                        ],
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -1007,7 +1017,11 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Có thể chọn nhiều đáp án đúng',
+                              question.questionType == 'TRUE_FALSE'
+                                  ? 'Đáp án đúng: Đúng hoặc Sai'
+                                  : question.questionType == 'SINGLE_CHOICE'
+                                      ? 'Chỉ chọn 1 đáp án đúng'
+                                      : 'Có thể chọn nhiều đáp án đúng',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: _successColor,
@@ -1028,6 +1042,81 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
     );
   }
 
+  Widget _buildQuestionTypeSelector(_EditableQuestion question) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Loại câu hỏi',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: _bgColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: question.questionType,
+              isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: _primaryColor),
+              style: TextStyle(
+                fontSize: 14,
+                color: _textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'SINGLE_CHOICE',
+                  child: Row(
+                    children: [
+                      Icon(Icons.circle_outlined, size: 18, color: _accentColor),
+                      SizedBox(width: 10),
+                      Text('Một đáp án đúng'),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'MULTIPLE_CHOICE',
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_box_outlined, size: 18, color: _primaryColor),
+                      SizedBox(width: 10),
+                      Text('Nhiều đáp án đúng'),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'TRUE_FALSE',
+                  child: Row(
+                    children: [
+                      Icon(Icons.swap_horiz_rounded, size: 18, color: _secondaryColor),
+                      SizedBox(width: 10),
+                      Text('Đúng / Sai'),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  question.setQuestionType(value);
+                });
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOptionRow({
     required _EditableQuestion question,
     required int optionIndex,
@@ -1039,11 +1128,22 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
       children: [
         _buildOptionRadio(
           isCorrect: isCorrect,
+          isMultiple: question.questionType == 'MULTIPLE_CHOICE',
           onChanged: (value) {
             question.ensureValidState();
             setState(() {
-              if (optionIndex < question.correctAnswers.length) {
-                question.correctAnswers[optionIndex] = value ?? false;
+              if (question.questionType == 'SINGLE_CHOICE') {
+                for (int i = 0; i < question.correctAnswers.length; i++) {
+                  question.correctAnswers[i] = (i == optionIndex);
+                }
+              } else if (question.questionType == 'MULTIPLE_CHOICE') {
+                if (optionIndex < question.correctAnswers.length) {
+                  question.correctAnswers[optionIndex] = value ?? false;
+                }
+              } else {
+                if (optionIndex < question.correctAnswers.length) {
+                  question.correctAnswers[optionIndex] = value ?? false;
+                }
               }
             });
           },
@@ -1072,16 +1172,35 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: _buildStyledTextField(
-            controller: question.optionControllers[optionIndex],
-            label: 'Đáp án $optionLabel',
-            hint: 'Nhập đáp án...',
-            noBorder: true,
+        if (question.questionType == 'TRUE_FALSE')
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200, width: 1.5),
+            ),
+            child: Text(
+              optionIndex == 0 ? 'Đúng' : 'Sai',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
+            ),
+          )
+        else
+          Expanded(
+            child: _buildStyledTextField(
+              controller: question.optionControllers[optionIndex],
+              label: 'Đáp án $optionLabel',
+              hint: 'Nhập đáp án...',
+              noBorder: true,
+            ),
           ),
-        ),
         const SizedBox(width: 8),
-        if (question.optionControllers.length > 2)
+        if (question.optionControllers.length > 2 &&
+            question.questionType != 'TRUE_FALSE')
           _buildRemoveOptionButton(
             onPressed: () {
               question.removeOption(optionIndex);
@@ -1094,6 +1213,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
 
   Widget _buildOptionRadio({
     required bool isCorrect,
+    required bool isMultiple,
     required ValueChanged<bool?> onChanged,
   }) {
     return GestureDetector(
@@ -1109,7 +1229,8 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
                 )
               : null,
           color: isCorrect ? null : Colors.white,
-          shape: BoxShape.circle,
+          shape: isMultiple ? BoxShape.rectangle : BoxShape.circle,
+          borderRadius: isMultiple ? BorderRadius.circular(6) : null,
           border: Border.all(
             color: isCorrect ? Colors.transparent : Colors.grey.shade300,
             width: 2,
@@ -1125,9 +1246,9 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
               : null,
         ),
         child: isCorrect
-            ? const Icon(
-                Icons.check_rounded,
-                size: 16,
+            ? Icon(
+                isMultiple ? Icons.check_rounded : Icons.check_rounded,
+                size: isMultiple ? 16 : 16,
                 color: Colors.white,
               )
             : null,
@@ -1733,6 +1854,24 @@ class _EditableQuestion {
   );
 
   final List<bool> correctAnswers = List.generate(4, (_) => false);
+
+  String questionType = 'MULTIPLE_CHOICE';
+
+  void setQuestionType(String type) {
+    questionType = type;
+    if (type == 'TRUE_FALSE') {
+      for (final c in optionControllers) {
+        c.dispose();
+      }
+      optionControllers.clear();
+      correctAnswers.clear();
+      optionIds.clear();
+      optionControllers.add(TextEditingController(text: 'Đúng'));
+      optionControllers.add(TextEditingController(text: 'Sai'));
+      correctAnswers.addAll([true, false]);
+      optionIds.addAll([null, null]);
+    }
+  }
 
   void addOption() {
     ensureValidState();

@@ -267,6 +267,7 @@ class _MentorCreateCourseMobileState extends State<MentorCreateCourseMobile>
                 _fieldLabelRow("Mô tả khóa học", Icons.description_outlined),
                 const SizedBox(height: 8),
                 RichTextEditorWidget(
+                  controller: _quillController,
                   hintText: "Nhập mô tả về khóa học...",
                   primaryColor: _primary,
                   maxHeight: 140,

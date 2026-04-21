@@ -20,6 +20,7 @@ import 'package:smet/page/employee/quiz/screen/quiz_detail_page.dart';
 import 'package:smet/page/employee/learning_path/screen/learning_path_page.dart';
 import 'package:smet/page/employee/my_courses/screen/my_courses_base.dart';
 import 'package:smet/page/employee/certificate/screen/certificate_page.dart';
+import 'package:smet/page/employee/certificate/screen/certificate_verify_page.dart';
 import 'package:smet/page/employee/live_session/screen/employee_live_session.dart';
 import 'package:smet/page/employee/search/screen/search_page.dart';
 import 'package:smet/page/employee/widgets/shell/employee_shell.dart';
@@ -46,8 +47,8 @@ import 'package:smet/page/profile/screen/profile.dart';
 import 'package:smet/page/project_manager/dashboard/screen/pm_dashboard_base.dart';
 import 'package:smet/page/project_manager/project/screen/project_management_base.dart';
 import 'package:smet/page/project_manager/project_review/screen/pm_project_reviews_page.dart';
+import 'package:smet/page/project_manager/project_review/screen/pm_project_review_detail_page.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_shell.dart';
-import 'package:smet/page/project_manager/dashboard/screen/team_performance_screen.dart';
 import 'package:smet/page/project_manager/dashboard/screen/risk_screen.dart';
 import 'package:smet/page/project_manager/dashboard/screen/insight_list_screen.dart';
 import 'package:smet/page/project_manager/dashboard/screen/insight_detail_screen.dart';
@@ -176,7 +177,8 @@ class AppPages {
           path == '/home' ||
           path == '/forgot-password' ||
           path == '/reset-password' ||
-          path == '/verify-email') {
+          path == '/verify-email' ||
+          path.startsWith('/verify/')) {
         return null;
       }
 
@@ -381,21 +383,19 @@ class AppPages {
             },
           ),
 
-          // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module / final)
+          // Mentor Create / Edit Quiz (mở từ chi tiết khóa học — module)
           GoRoute(
             path: '/mentor/quizzes/create',
             builder: (context, state) {
               final quizId = state.uri.queryParameters['quizId'];
               final moduleId = state.uri.queryParameters['moduleId'];
               final courseId = state.uri.queryParameters['courseId'];
-              final isFinalQuiz = state.uri.queryParameters['final'] == 'true';
 
               // quizId != null → edit mode, quizId == null → create mode
               return MentorCreateQuizWeb(
                 quizId: quizId,
                 moduleId: moduleId,
                 courseId: courseId,
-                isFinalQuiz: isFinalQuiz,
               );
             },
           ),
@@ -437,6 +437,13 @@ class AppPages {
         builder: (context, state) => const FirstLoginPasswordPage(),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
+      GoRoute(
+        path: '/verify/:code',
+        builder: (context, state) {
+          final code = state.pathParameters['code'] ?? '';
+          return CertificateVerifyPage(code: code);
+        },
+      ),
       // Admin routes — wrapped in ShellRoute with AdminShell (auth guard + sidebar)
       ShellRoute(
         builder: (context, state, child) => AdminShell(child: child),
@@ -568,11 +575,6 @@ class AppPages {
                 const NoTransitionPage(child: PmDashboardScreen()),
           ),
           GoRoute(
-            path: '/pm/team',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: TeamPerformanceScreen()),
-          ),
-          GoRoute(
             path: '/pm/risks',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: RiskScreen()),
@@ -600,6 +602,18 @@ class AppPages {
             path: '/pm/project-reviews',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: PmProjectReviewsPage()),
+          ),
+          GoRoute(
+            path: '/pm/project-reviews/:projectId',
+            pageBuilder: (context, state) {
+              final projectId = int.tryParse(state.pathParameters['projectId'] ?? '0') ?? 0;
+              return NoTransitionPage(
+                child: PmProjectReviewDetailPage(
+                  projectId: projectId,
+                  onRefresh: () {},
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -860,7 +874,13 @@ class AppPages {
                   final quizId = state.pathParameters['quizId'] ?? '';
                   final courseId = state.uri.queryParameters['courseId'];
                   return NoTransitionPage(
-                    child: QuizDetailPage(quizId: quizId, courseId: courseId),
+                    child: QuizDetailPage(
+                      quizId: quizId,
+                      courseId: courseId,
+                      onResetSuccess: () {
+                        context.go('/employee/quiz/$quizId?courseId=${courseId ?? ''}');
+                      },
+                    ),
                   );
                 },
           ),

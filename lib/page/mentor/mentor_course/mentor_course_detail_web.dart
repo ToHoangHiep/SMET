@@ -67,7 +67,6 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   DateTime? _initialFixedDeadline;
 
   List<ModuleResponse> _modules = [];
-  Long? _finalQuizId;
 
   bool get _canEdit =>
       _course != null &&
@@ -129,7 +128,6 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
 
       setState(() => _course = course);
       await _loadModules();
-      await _loadFinalQuizId();
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
@@ -155,16 +153,8 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     } catch (e) { log("  [WARN] Failed to load modules: $e"); }
   }
 
-  Future<void> _loadFinalQuizId() async {
-    if (_course == null) return;
-    try {
-      final q = await _quizService.getFinalQuizByCourse(lp_model.Long(_course!.id.value));
-      if (mounted) setState(() => _finalQuizId = q.id != null ? Long(q.id!.value) : null);
-    } catch (_) { if (mounted) setState(() => _finalQuizId = null); }
-  }
-
-  DeadlineType? _parseDeadlineType(String? value) {
-    if (value == null) return null;
+  DeadlineType _parseDeadlineType(String? value) {
+    if (value == null) return DeadlineType.RELATIVE;
     return value.toUpperCase() == 'FIXED' ? DeadlineType.FIXED : DeadlineType.RELATIVE;
   }
 
@@ -201,7 +191,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
       }
     } catch (e) {
-      if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+      if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -244,7 +234,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       GlobalNotificationService.show(context: context, message: 'Lưu trữ thành công', type: NotificationType.success);
       context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
     } catch (e) {
-      if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+      if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
     }
   }
 
@@ -287,13 +277,34 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   }
 
   Future<void> _publishCourse() async {
+    // === VALIDATION FRONTEND ===
+    if (_modules.isEmpty) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể xuất bản: Khóa học phải có ít nhất 1 module.',
+        type: NotificationType.error,
+      );
+      return;
+    }
+    final emptyModule = _modules.where((m) => m.lessons.isEmpty).toList();
+    if (emptyModule.isNotEmpty) {
+      final names = emptyModule.map((m) => '"${m.title}"').join(', ');
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể xuất bản: Module $names chưa có bài học nào.',
+        type: NotificationType.error,
+      );
+      return;
+    }
+    // === END VALIDATION ===
+
     try {
       await _courseService.publishCourse(_course!.id);
       if (!mounted) return;
       GlobalNotificationService.show(context: context, message: 'Xuất bản thành công', type: NotificationType.success);
       context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
     } catch (e) {
-      if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+      if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
     }
   }
 
@@ -485,7 +496,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Thêm chương thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -614,7 +625,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Cập nhật chương thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -794,7 +805,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Thêm bài học thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -900,7 +911,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Cập nhật bài học thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -941,7 +952,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Xóa chương thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -982,7 +993,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Xóa bài học thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -1024,49 +1035,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         await _loadCourse();
         if (mounted) GlobalNotificationService.show(context: context, message: 'Xóa quiz thành công', type: NotificationType.success);
       } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
-      }
-    }
-  }
-
-  Future<void> _deleteFinalQuiz() async {
-    if (_finalQuizId == null) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: _danger.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.delete_outline, color: _danger, size: 20),
-            ),
-            const SizedBox(width: 12),
-            const Text("Xóa Final Quiz"),
-          ],
-        ),
-        content: const Text("Bạn có chắc muốn xóa Final Quiz của khóa học này?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy bỏ", style: TextStyle(color: _textMedium))),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _danger, foregroundColor: Colors.white,
-              elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text("Xóa"),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      try {
-        await _quizService.deleteQuiz(_finalQuizId!);
-        await _loadCourse();
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Xóa Final Quiz thành công', type: NotificationType.success);
-      } catch (e) {
-        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: $e', type: NotificationType.error);
+        if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
       }
     }
   }
@@ -1221,21 +1190,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             primaryColor: _primary,
             actions: [
               if (_isEditMode && _course != null) ...[
-                if (_canEdit) ...[
-                  OutlinedButton.icon(
-                    onPressed: () => _openFinalQuiz(context),
-                    icon: const Icon(Icons.quiz_outlined, size: 18),
-                    label: Text(_finalQuizId != null ? 'Sửa Final Quiz' : 'Tạo Final Quiz'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _textMedium,
-                      side: const BorderSide(color: _cardBorder),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                if (_course!.courseStatus != CourseStatus.ARCHIVED) ...[
+                if (_course!.courseStatus == CourseStatus.PUBLISHED) ...[
                   OutlinedButton.icon(
                     onPressed: _archiveCourse,
                     icon: const Icon(Icons.archive_outlined, size: 18),
@@ -1622,8 +1577,6 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   _buildModuleSection(_modules[index], index, ValueKey(_modules[index].id)),
             ),
           ],
-          const SizedBox(height: 16),
-          _buildFinalQuizCard(),
         ],
       ),
     );
@@ -1676,116 +1629,6 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     );
   }
 
-  Widget _buildFinalQuizCard() {
-    final hasFinalQuiz = _finalQuizId != null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: hasFinalQuiz
-              ? [_primary.withValues(alpha: 0.06), _primaryLight.withValues(alpha: 0.03)]
-              : [Colors.white, const Color(0xFFFAFAFA)],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: hasFinalQuiz ? _primary.withValues(alpha: 0.2) : _cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: hasFinalQuiz ? _primary.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: _canEdit ? () => _openFinalQuiz(context) : null,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(
-                    color: hasFinalQuiz ? _primary.withValues(alpha: 0.12) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.workspace_premium_rounded,
-                    color: hasFinalQuiz ? _primary : _textLight,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Final Quiz',
-                            style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700,
-                              color: _textDark, letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          _buildPillBadge(
-                            hasFinalQuiz ? 'Đã tạo' : 'Chưa tạo',
-                            hasFinalQuiz ? _primary : _textLight,
-                            hasFinalQuiz ? _primary.withValues(alpha: 0.1) : const Color(0xFFE5E7EB),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Bài kiểm tra cuối khóa học — đánh giá tổng kết kiến thức',
-                        style: TextStyle(fontSize: 13, color: _textMedium),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_canEdit && hasFinalQuiz)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    tooltip: "Xóa Final Quiz",
-                    onPressed: _deleteFinalQuiz,
-                    style: IconButton.styleFrom(foregroundColor: _danger),
-                  ),
-                if (_canEdit)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          hasFinalQuiz ? Icons.edit_outlined : Icons.add,
-                          size: 16, color: _primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          hasFinalQuiz ? 'Sửa' : 'Tạo mới',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _primary),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildPillBadge(String text, Color textColor, Color bgColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1795,15 +1638,6 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textColor),
       ),
     );
-  }
-
-  void _openFinalQuiz(BuildContext context) {
-    final cid = _course!.id.value;
-    if (_finalQuizId != null) {
-      context.go('/mentor/quizzes/create?quizId=${_finalQuizId!.value}&courseId=$cid&final=true');
-    } else {
-      context.go('/mentor/quizzes/create?courseId=$cid&final=true');
-    }
   }
 
   Widget _buildEmptyStructureState() {

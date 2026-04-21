@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/page/admin/department_management/widgets/dialog/change_member_department_dialog.dart';
 import 'dart:developer';
 
 class DepartmentMembersTab extends StatefulWidget {
   final int departmentId;
   final Color primaryColor;
+  final List<DepartmentModel>? allDepartments;
+  final VoidCallback? onRefresh;
 
   const DepartmentMembersTab({
     super.key,
     required this.departmentId,
     required this.primaryColor,
+    this.allDepartments,
+    this.onRefresh,
   });
 
   @override
@@ -19,23 +25,35 @@ class DepartmentMembersTab extends StatefulWidget {
 class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
   final DepartmentService _service = DepartmentService();
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<Map<String, dynamic>> _members = [];
   bool _isLoading = false;
-  bool _isLoadingMore = false;
   String? _error;
-  
+
   String _searchQuery = '';
   String? _selectedRole;
-  int _currentPage = 0;
-  int _totalPages = 1;
   int _totalElements = 0;
-  static const int _pageSize = 10;
+
+  List<DepartmentModel> _allDepartments = [];
 
   @override
   void initState() {
     super.initState();
     _loadMembers();
+    _loadAllDepartments();
+  }
+
+  Future<void> _loadAllDepartments() async {
+    try {
+      final result = await _service.searchDepartments(page: 0, size: 100);
+      if (mounted) {
+        setState(() {
+          _allDepartments = result['departments'] as List<DepartmentModel>? ?? [];
+        });
+      }
+    } catch (e) {
+      log("LOAD ALL DEPARTMENTS ERROR: $e");
+    }
   }
 
   @override
@@ -44,44 +62,26 @@ class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
     super.dispose();
   }
 
-  Future<void> _loadMembers({bool loadMore = false}) async {
-    if (loadMore) {
-      if (_isLoadingMore || _currentPage >= _totalPages - 1) return;
-      setState(() => _isLoadingMore = true);
-    } else {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-        _currentPage = 0;
-      });
-    }
+  Future<void> _loadMembers() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
     try {
       final result = await _service.getDepartmentMembers(
         departmentId: widget.departmentId,
-        keyword: _searchQuery.isEmpty ? null : _searchQuery,
-        role: _selectedRole,
-        page: loadMore ? _currentPage + 1 : 0,
-        size: _pageSize,
       );
-      
+
       final members = result['members'] as List<dynamic>? ?? [];
-      final totalPages = result['totalPages'] as int? ?? 1;
       final totalElements = result['totalElements'] as int? ?? 0;
-      
+
       log("Loaded ${members.length} members for department ${widget.departmentId}, total: $totalElements");
 
       if (mounted) {
         setState(() {
-          if (loadMore) {
-            _members.addAll(members.cast<Map<String, dynamic>>());
-            _isLoadingMore = false;
-          } else {
-            _members = members.cast<Map<String, dynamic>>();
-            _isLoading = false;
-          }
-          _currentPage = loadMore ? _currentPage + 1 : 0;
-          _totalPages = totalPages;
+          _members = members.cast<Map<String, dynamic>>();
+          _isLoading = false;
           _totalElements = totalElements;
         });
       }
@@ -91,7 +91,6 @@ class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
         setState(() {
           _error = 'Không thể tải danh sách nhân viên';
           _isLoading = false;
-          _isLoadingMore = false;
         });
       }
     }
@@ -153,7 +152,23 @@ class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
     );
   }
 
+  List<Map<String, dynamic>> get _filteredMembers {
+    return _members.where((m) {
+      final query = _searchQuery.toLowerCase();
+      if (query.isNotEmpty) {
+        final name = '${m['firstName'] ?? ''} ${m['lastName'] ?? ''} ${m['userName'] ?? ''} ${m['email'] ?? ''}'.toLowerCase();
+        if (!name.contains(query)) return false;
+      }
+      if (_selectedRole != null) {
+        final role = (m['role'] ?? m['roleName'] ?? '').toString().toUpperCase();
+        if (role != _selectedRole) return false;
+      }
+      return true;
+    }).toList();
+  }
+
   Widget _buildMembersLayout() {
+    final filtered = _filteredMembers;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -161,20 +176,39 @@ class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
         const SizedBox(height: 16),
         _buildSearchAndFilter(),
         const SizedBox(height: 16),
-        if (_members.isEmpty)
+        if (filtered.isEmpty)
           _buildEmpty()
         else
           Expanded(
-            child: _buildMembersList(),
+            child: _buildMembersListWith(filtered),
           ),
-        if (_members.isNotEmpty) _buildPagination(),
       ],
+    );
+  }
+
+  Widget _buildMembersListWith(List<Map<String, dynamic>> members) {
+    return ListView.separated(
+      itemCount: members.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final member = members[index];
+        return _MemberCard(
+          member: member,
+          primaryColor: widget.primaryColor,
+          allDepartments: _allDepartments,
+          currentDepartmentId: widget.departmentId,
+          onDepartmentChanged: () {
+            _loadMembers();
+            widget.onRefresh?.call();
+          },
+        );
+      },
     );
   }
 
   Widget _buildSummaryRow() {
     final roleCounts = <String, int>{};
-    for (final member in _members) {
+    for (final member in _filteredMembers) {
       final role = _normalizeRole(member['role'] ?? member['roleName'] ?? '');
       roleCounts[role] = (roleCounts[role] ?? 0) + 1;
     }
@@ -354,56 +388,6 @@ class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
     );
   }
 
-  Widget _buildMembersList() {
-    return ListView.separated(
-      itemCount: _members.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final member = _members[index];
-        return _MemberCard(
-          member: member,
-          primaryColor: widget.primaryColor,
-        );
-      },
-    );
-  }
-
-  Widget _buildPagination() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            onPressed: _currentPage > 0 ? () => _loadMembers() : null,
-            icon: const Icon(Icons.chevron_left),
-            color: widget.primaryColor,
-            disabledColor: Colors.grey[300],
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Trang ${_currentPage + 1} / $_totalPages',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
-          const SizedBox(width: 8),
-          if (_isLoadingMore)
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            IconButton(
-              onPressed: _currentPage < _totalPages - 1 ? () => _loadMembers(loadMore: true) : null,
-              icon: const Icon(Icons.chevron_right),
-              color: widget.primaryColor,
-              disabledColor: Colors.grey[300],
-            ),
-        ],
-      ),
-    );
-  }
-
   String _normalizeRole(String role) {
     switch (role.toUpperCase()) {
       case 'ADMIN':
@@ -423,8 +407,18 @@ class _DepartmentMembersTabState extends State<DepartmentMembersTab> {
 class _MemberCard extends StatefulWidget {
   final Map<String, dynamic> member;
   final Color primaryColor;
+  final List<DepartmentModel> allDepartments;
+  final int currentDepartmentId;
+  final VoidCallback? onDepartmentChanged;
 
-  const _MemberCard({required this.member, required this.primaryColor});
+  const _MemberCard({
+    super.key,
+    required this.member,
+    required this.primaryColor,
+    required this.allDepartments,
+    required this.currentDepartmentId,
+    this.onDepartmentChanged,
+  });
 
   @override
   State<_MemberCard> createState() => _MemberCardState();
@@ -535,6 +529,8 @@ class _MemberCardState extends State<_MemberCard> {
               ),
             ),
             _buildRoleChip(),
+            const SizedBox(width: 8),
+            _buildActionButtons(),
           ],
         ),
       ),
@@ -611,6 +607,79 @@ class _MemberCardState extends State<_MemberCard> {
           ),
         ],
       ),
+    );
+  }
+
+  bool get _canChangeDepartment {
+    final r = member['role'] ?? member['roleName'] ?? '';
+    return r.toUpperCase() == 'USER' || r.toUpperCase() == 'MENTOR';
+  }
+
+  Widget _buildActionButtons() {
+    if (!_canChangeDepartment) return const SizedBox.shrink();
+
+    final isMentor = (member['role'] ?? member['roleName'] ?? '').toUpperCase() == 'MENTOR';
+    final color = isMentor ? Colors.orange : widget.primaryColor;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _showChangeDepartmentDialog,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.swap_horiz_rounded,
+                    size: 16,
+                    color: color,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Đổi pb',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showChangeDepartmentDialog() async {
+    final currentDeptId = widget.member['departmentId'] ??
+        widget.member['department']?['id'] ??
+        widget.currentDepartmentId;
+
+    final matchedDept = widget.allDepartments.cast<DepartmentModel?>().firstWhere(
+          (d) => d?.id == currentDeptId,
+          orElse: () => null,
+        );
+
+    await ChangeMemberDepartmentDialog.show(
+      context: context,
+      member: member,
+      allDepartments: widget.allDepartments,
+      primaryColor: widget.primaryColor,
+      currentDepartmentId: currentDeptId,
+      currentDepartmentName: matchedDept?.name ?? 'Phòng ban hiện tại',
+      onSuccess: widget.onDepartmentChanged,
     );
   }
 }

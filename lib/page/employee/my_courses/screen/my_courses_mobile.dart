@@ -20,6 +20,7 @@ class MyCoursesMobile extends StatelessWidget {
   final int totalElements;
   final bool isPaging;
   final ValueChanged<int> onPageChanged;
+  final Function(EnrolledCourse)? onLeaveCourse;
 
   const MyCoursesMobile({
     super.key,
@@ -38,6 +39,7 @@ class MyCoursesMobile extends StatelessWidget {
     required this.totalElements,
     required this.isPaging,
     required this.onPageChanged,
+    this.onLeaveCourse,
   });
 
   @override
@@ -125,10 +127,7 @@ class MyCoursesMobile extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 error!,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF64748B),
-                ),
+                style: const TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -178,10 +177,7 @@ class MyCoursesMobile extends StatelessWidget {
               const SizedBox(height: 8),
               const Text(
                 'Hãy đăng ký khóa học để bắt đầu học tập',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF94A3B8),
-                ),
+                style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -260,25 +256,36 @@ class MyCoursesMobile extends StatelessWidget {
                 Opacity(
                   opacity: isPaging ? 0.45 : 1,
                   child: Column(
-                    children: courses
-                        .map(
-                          (course) => Builder(
-                            builder: (ctx) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: SizedBox(
-                                height: 300,
-                                child: EnrolledCourseCard(
-                                  course: course,
-                                  onTap: () => onCourseTap(course.id),
-                                  onViewCertificate: course.certificateAvailable
-                                      ? () => ctx.go('/employee/certificates?courseId=${course.id}')
-                                      : null,
-                                ),
+                    children:
+                        courses
+                            .map(
+                              (course) => Builder(
+                                builder:
+                                    (ctx) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: SizedBox(
+                                        height: 300,
+                                        child: EnrolledCourseCard(
+                                          course: course,
+                                          onTap: () => onCourseTap(course.id),
+                                          onViewCertificate:
+                                              course.certificateAvailable
+                                                  ? () => ctx.go(
+                                                    '/employee/certificates?courseId=${course.id}',
+                                                  )
+                                                  : null,
+                                          onLeaveCourse:
+                                              onLeaveCourse != null
+                                                  ? () => onLeaveCourse!(course)
+                                                  : null,
+                                        ),
+                                      ),
+                                    ),
                               ),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                            )
+                            .toList(),
                   ),
                 ),
                 if (isPaging)
@@ -439,10 +446,7 @@ class MyCoursesMobile extends StatelessWidget {
           icon: Icon(Icons.library_books),
           label: 'Khóa học',
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.grid_view),
-          label: 'Danh mục',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Danh mục'),
         BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
       ],
     );
@@ -476,9 +480,10 @@ class _MobilePaginationBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                onPressed: !isPaging && currentPage > 0
-                    ? () => onPageChanged(currentPage - 1)
-                    : null,
+                onPressed:
+                    !isPaging && currentPage > 0
+                        ? () => onPageChanged(currentPage - 1)
+                        : null,
                 icon: const Icon(Icons.chevron_left),
                 color: const Color(0xFF64748B),
               ),
@@ -486,54 +491,58 @@ class _MobilePaginationBar extends StatelessWidget {
                 opacity: isPaging ? 0.5 : 1,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: List.generate(
-                    tp > 5 ? 5 : tp,
-                    (index) {
-                      int pageNum;
-                      if (tp > 5) {
-                        if (currentPage < 3) {
-                          pageNum = index;
-                        } else if (currentPage > tp - 3) {
-                          pageNum = tp - 5 + index;
-                        } else {
-                          pageNum = currentPage - 2 + index;
-                        }
-                      } else {
+                  children: List.generate(tp > 5 ? 5 : tp, (index) {
+                    int pageNum;
+                    if (tp > 5) {
+                      if (currentPage < 3) {
                         pageNum = index;
+                      } else if (currentPage > tp - 3) {
+                        pageNum = tp - 5 + index;
+                      } else {
+                        pageNum = currentPage - 2 + index;
                       }
-                      final isCurrent = pageNum == currentPage;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: InkWell(
-                          onTap: isPaging ? null : () => onPageChanged(pageNum),
-                          borderRadius: BorderRadius.circular(4),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isCurrent ? primary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '${pageNum + 1}',
-                              style: TextStyle(
-                                color: isCurrent ? Colors.white : const Color(0xFF64748B),
-                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 13,
-                              ),
+                    } else {
+                      pageNum = index;
+                    }
+                    final isCurrent = pageNum == currentPage;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: InkWell(
+                        onTap: isPaging ? null : () => onPageChanged(pageNum),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isCurrent ? primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${pageNum + 1}',
+                            style: TextStyle(
+                              color:
+                                  isCurrent
+                                      ? Colors.white
+                                      : const Color(0xFF64748B),
+                              fontWeight:
+                                  isCurrent
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                              fontSize: 13,
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }),
                 ),
               ),
               IconButton(
-                onPressed: !isPaging && currentPage < tp - 1
-                    ? () => onPageChanged(currentPage + 1)
-                    : null,
+                onPressed:
+                    !isPaging && currentPage < tp - 1
+                        ? () => onPageChanged(currentPage + 1)
+                        : null,
                 icon: const Icon(Icons.chevron_right),
                 color: const Color(0xFF64748B),
               ),
@@ -553,23 +562,17 @@ class _MobileStatsSection extends StatelessWidget {
   final List<EnrolledCourse> courses;
   final int? totalCountOverride;
 
-  const _MobileStatsSection({
-    required this.courses,
-    this.totalCountOverride,
-  });
+  const _MobileStatsSection({required this.courses, this.totalCountOverride});
 
   @override
   Widget build(BuildContext context) {
     final total = totalCountOverride ?? courses.length;
-    final inProgress = courses
-        .where((c) => c.status == EnrollmentStatus.inProgress)
-        .length;
-    final completed = courses
-        .where((c) => c.status == EnrollmentStatus.completed)
-        .length;
-    final overdue = courses
-        .where((c) => c.deadlineStatus == DeadlineStatus.overdue)
-        .length;
+    final inProgress =
+        courses.where((c) => c.status == EnrollmentStatus.inProgress).length;
+    final completed =
+        courses.where((c) => c.status == EnrollmentStatus.completed).length;
+    final overdue =
+        courses.where((c) => c.deadlineStatus == DeadlineStatus.overdue).length;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -643,19 +646,13 @@ class _MiniStat extends StatelessWidget {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               '$label: ',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-              ),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
               overflow: TextOverflow.ellipsis,
             ),
           ),

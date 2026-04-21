@@ -10,10 +10,7 @@ class LoginMobile extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF6366F1),
-              Color(0xFF8B5CF6),
-            ],
+            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -23,9 +20,7 @@ class LoginMobile extends StatelessWidget {
             builder: (context, constraints) {
               return SingleChildScrollView(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,
-                  ),
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 420),
@@ -105,7 +100,7 @@ class LoginMobile extends StatelessWidget {
                           const SizedBox(height: 32),
                           // Footer
                           Text(
-                            '© 2026 SMETS Platform',
+                            '© 2026 SMETS System',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.6),
                               fontSize: 12,

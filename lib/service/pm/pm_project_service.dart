@@ -14,8 +14,8 @@ export 'package:smet/service/employee/employee_project_service.dart'
 ///
 /// Backend API:
 ///
-/// GET  /api/projects?page=0&size=20&status=REVIEW_PENDING
-///      → Lấy danh sách dự án cần phê duyệt (PM tự filter status=REVIEW_PENDING)
+/// GET  /api/projects/submitted
+///      → Lấy danh sách dự án đã submit (tự động filter submitted=true, thuộc department của PM)
 ///
 /// GET  /api/projects/get/{id}
 ///      → Lấy chi tiết dự án (trả về submissionLink, feedback, timestamps)
@@ -27,7 +27,7 @@ export 'package:smet/service/employee/employee_project_service.dart'
 ///      → PM phê duyệt dự án
 ///
 /// POST /api/projects/{id}/reject/pm?reason=...
-///      → PM từ chối dự án
+///      → PM từ chối dự án (bắt buộc có lý do)
 ///
 /// GET  /api/projects/{id}/dashboard
 ///      → Lấy dashboard với review state
@@ -43,9 +43,43 @@ class PmProjectService {
   }
 
   // ============================================================
-  // GET /api/projects?page=0&size=20&status=REVIEW_PENDING
-  // Lấy danh sách dự án cần PM phê duyệt
-  // Backend trả về phân trang - PM filter tất cả dự án của phòng ban
+  // GET /api/projects/submitted
+  // Lấy danh sách dự án đã submit cho PM duyệt
+  // Backend tự động filter: submitted=true, thuộc department của PM
+  // Backend KHÔNG hỗ trợ keyword/status → xử lý filter phía frontend
+  // ============================================================
+  static Future<PmProjectListResponse> getSubmittedProjects({
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      final headers = await _headers;
+
+      final uri = Uri.parse('$_baseEndpoint/submitted').replace(
+        queryParameters: {
+          'page': page.toString(),
+          'size': size.toString(),
+        },
+      );
+
+      final response = await http.get(uri, headers: headers);
+
+      log('GET SUBMITTED PROJECTS STATUS: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return PmProjectListResponse.fromJson(json);
+      } else {
+        throw Exception('Khong the tai danh sach du an da nop');
+      }
+    } catch (e) {
+      log('PmProjectService.getSubmittedProjects failed: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // Alias: getProjectsForReview (để tương thích với code gọi cũ)
   // ============================================================
   static Future<PmProjectListResponse> getProjectsForReview({
     int page = 0,
@@ -53,38 +87,8 @@ class PmProjectService {
     String? keyword,
     String? status,
   }) async {
-    try {
-      final headers = await _headers;
-
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (status != null && status.isNotEmpty) {
-        queryParams['status'] = status;
-      }
-
-      final uri = Uri.parse('$_baseEndpoint')
-          .replace(queryParameters: queryParams);
-
-      final response = await http.get(uri, headers: headers);
-
-      log('GET PM PROJECTS FOR REVIEW STATUS: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        return PmProjectListResponse.fromJson(json);
-      } else {
-        throw Exception('Khong the tai danh sach du an cho PM');
-      }
-    } catch (e) {
-      log('PmProjectService.getProjectsForReview failed: $e');
-      rethrow;
-    }
+    // Gọi đúng endpoint backend: /api/projects/submitted
+    return getSubmittedProjects(page: page, size: size);
   }
 
   // ============================================================
@@ -228,11 +232,12 @@ class PmProjectListResponse {
   });
 
   factory PmProjectListResponse.fromJson(Map<String, dynamic> json) {
-    final contentJson = json['content'];
+    // Backend trả về "data" nhưng thêm fallback "content" để tương thích
+    final dataJson = json['data'] ?? json['content'];
     List<PmProjectListItem> items = [];
 
-    if (contentJson is List) {
-      items = contentJson.map((item) => PmProjectListItem.fromJson(item)).toList();
+    if (dataJson is List) {
+      items = dataJson.map((item) => PmProjectListItem.fromJson(item as Map<String, dynamic>)).toList();
     }
 
     return PmProjectListResponse(
@@ -262,13 +267,14 @@ class PmProjectListItem {
   final List<String>? memberNames;
 
   // Trường bổ sung cho PM review
-  final bool? submitted;
+  final bool submitted;
   final String? submissionLink;
   final DateTime? submittedAt;
-  final bool? mentorApproved;
+  final int? submittedBy;
+  final bool mentorApproved;
   final DateTime? mentorApprovedAt;
   final String? mentorFeedback;
-  final bool? pmApproved;
+  final bool pmApproved;
   final DateTime? pmApprovedAt;
   final String? pmFeedback;
 
@@ -284,13 +290,14 @@ class PmProjectListItem {
     this.mentorName,
     this.memberIds,
     this.memberNames,
-    this.submitted,
+    this.submitted = false,
     this.submissionLink,
     this.submittedAt,
-    this.mentorApproved,
+    this.submittedBy,
+    this.mentorApproved = false,
     this.mentorApprovedAt,
     this.mentorFeedback,
-    this.pmApproved,
+    this.pmApproved = false,
     this.pmApprovedAt,
     this.pmFeedback,
   });
@@ -309,17 +316,18 @@ class PmProjectListItem {
       memberIds: json['memberIds'] != null ? List<int>.from(json['memberIds']) : null,
       memberNames: json['memberNames'] != null ? List<String>.from(json['memberNames']) : null,
       // Bổ sung fields cho PM review
-      submitted: json['submitted'] as bool?,
+      submitted: json['submitted'] == true,
       submissionLink: json['submissionLink']?.toString(),
       submittedAt: json['submittedAt'] != null
           ? DateTime.tryParse(json['submittedAt'].toString())
           : null,
-      mentorApproved: json['mentorApproved'] as bool?,
+      submittedBy: json['submittedBy'] as int?,
+      mentorApproved: json['mentorApproved'] == true,
       mentorApprovedAt: json['mentorApprovedAt'] != null
           ? DateTime.tryParse(json['mentorApprovedAt'].toString())
           : null,
       mentorFeedback: json['mentorFeedback']?.toString(),
-      pmApproved: json['pmApproved'] as bool?,
+      pmApproved: json['pmApproved'] == true,
       pmApprovedAt: json['pmApprovedAt'] != null
           ? DateTime.tryParse(json['pmApprovedAt'].toString())
           : null,

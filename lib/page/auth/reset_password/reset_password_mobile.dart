@@ -375,7 +375,7 @@ class _ResetPasswordMobileState extends State<ResetPasswordMobile> {
         ),
         const SizedBox(height: 32),
         Text(
-          '© 2026 SMETS Platform',
+          '© 2026 SMETS System',
           style: TextStyle(
             color: Colors.white.withOpacity(0.6),
             fontSize: 12,
@@ -458,7 +458,7 @@ class _ResetPasswordMobileState extends State<ResetPasswordMobile> {
         ),
         const SizedBox(height: 40),
         Text(
-          '© 2026 SMETS Platform',
+          '© 2026 SMETS System',
           style: TextStyle(
             color: Colors.white.withOpacity(0.6),
             fontSize: 12,

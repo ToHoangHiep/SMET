@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:smet/service/employee/assignment_service.dart';
 import 'package:smet/service/admin/lms_assignment/lms_assignment_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/page/admin/assignment/widgets/dialog/course_lp_selection_dialog.dart';
@@ -17,24 +18,39 @@ class AssignmentManagementPage extends StatefulWidget {
 
 class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     with TickerProviderStateMixin {
-  final LmsAssignmentService _assignmentService = LmsAssignmentService();
+  final AssignmentService _assignmentService = AssignmentService();
+  final LmsAssignmentService _lmsAssignmentService = LmsAssignmentService();
   final Color _primaryColor = const Color(0xFF6366F1);
 
-  // Tab controller for switching between assign and manage
   late TabController _tabController;
 
-  // Assignment data for unassign (system-wide — loaded from my-courses for admin)
-  List<UserEnrollmentData> _enrollments = [];
-  List<UserLearningPathData> _learningPaths = [];
-  bool _isLoadingAssignments = false;
-  final Color _bgLight = const Color(0xFFF3F6FC);
-
   BuildContext? _loadingDialogContext;
+
+  // --- Tab 1: Courses ---
+  List<UserEnrollmentData> _enrollments = [];
+  bool _isLoadingEnrollments = false;
+  int _enrollmentPage = 0;
+  int _enrollmentTotalPages = 1;
+  int _enrollmentTotalElements = 0;
+  String? _enrollmentStatus;
+  int? _enrollmentMinProgress;
+  int? _enrollmentMaxProgress;
+  final TextEditingController _enrollmentSearchController = TextEditingController();
+  String? _enrollmentSearchQ;
+
+  // --- Tab 2: Learning Paths ---
+  List<UserLearningPathData> _lpAssignments = [];
+  bool _isLoadingLP = false;
+  int _lpPage = 0;
+  int _lpTotalPages = 1;
+  int _lpTotalElements = 0;
+  final TextEditingController _lpSearchController = TextEditingController();
+  String? _lpSearchQ;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
   }
 
@@ -42,35 +58,119 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _enrollmentSearchController.dispose();
+    _lpSearchController.dispose();
     super.dispose();
   }
 
   void _onTabChanged() {
-    if (_tabController.index == 1 && _enrollments.isEmpty && !_isLoadingAssignments) {
-      _loadAssignments();
+    if (_tabController.index == 1 && _enrollments.isEmpty && !_isLoadingEnrollments) {
+      _loadEnrollments();
+    } else if (_tabController.index == 2 && _lpAssignments.isEmpty && !_isLoadingLP) {
+      _loadLPAssignments();
     }
   }
 
-  Future<void> _loadAssignments() async {
-    setState(() => _isLoadingAssignments = true);
+  // ======================== ENROLLMENT (COURSES) ========================
+
+  Future<void> _loadEnrollments({int page = 0}) async {
+    setState(() {
+      _isLoadingEnrollments = true;
+      _enrollmentPage = page;
+    });
     try {
-      final results = await Future.wait([
-        _assignmentService.getAllEnrollments(),
-        _assignmentService.getAllLearningPathAssignments(),
-      ]);
+      final result = await _lmsAssignmentService.getEnrollments(
+        page: page,
+        size: 20,
+        status: _enrollmentStatus,
+        minProgress: _enrollmentMinProgress,
+        maxProgress: _enrollmentMaxProgress,
+        q: _enrollmentSearchQ,
+      );
       if (mounted) {
         setState(() {
-          _enrollments = results[0] as List<UserEnrollmentData>;
-          _learningPaths = results[1] as List<UserLearningPathData>;
-          _isLoadingAssignments = false;
+          _enrollments = result.data;
+          _enrollmentPage = result.page;
+          _enrollmentTotalPages = result.totalPages;
+          _enrollmentTotalElements = result.totalElements;
+          _isLoadingEnrollments = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingAssignments = false);
+        setState(() => _isLoadingEnrollments = false);
       }
     }
   }
+
+  void _applyEnrollmentFilters() {
+    _enrollmentSearchQ = _enrollmentSearchController.text.isNotEmpty
+        ? _enrollmentSearchController.text
+        : null;
+    _loadEnrollments();
+  }
+
+  void _clearEnrollmentFilters() {
+    setState(() {
+      _enrollmentStatus = null;
+      _enrollmentMinProgress = null;
+      _enrollmentMaxProgress = null;
+      _enrollmentSearchController.clear();
+      _enrollmentSearchQ = null;
+    });
+    _loadEnrollments();
+  }
+
+  void _onEnrollmentStatusChanged(String? value) {
+    setState(() => _enrollmentStatus = value);
+    _loadEnrollments();
+  }
+
+  // ======================== LEARNING PATH ========================
+
+  Future<void> _loadLPAssignments({int page = 0}) async {
+    setState(() {
+      _isLoadingLP = true;
+      _lpPage = page;
+    });
+    try {
+      final result = await _lmsAssignmentService.getLearningPathAssignments(
+        page: page,
+        size: 20,
+        q: _lpSearchQ,
+      );
+      if (mounted) {
+        setState(() {
+          _lpAssignments = result.data;
+          _lpPage = result.page;
+          _lpTotalPages = result.totalPages;
+          _lpTotalElements = result.totalElements;
+          _isLoadingLP = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLP = false);
+      }
+    }
+  }
+
+  void _applyLPSearch() {
+    _lpSearchQ = _lpSearchController.text.isNotEmpty
+        ? _lpSearchController.text
+        : null;
+    _loadLPAssignments();
+  }
+
+  void _clearLPSearch() {
+    setState(() {
+      _lpSearchController.clear();
+      _lpSearchQ = null;
+    });
+    _loadLPAssignments();
+  }
+
+  // ======================== UNASSIGN ========================
 
   Future<void> _handleUnassignCourse(
       int courseId, String courseName, int userId, String userName) async {
@@ -82,7 +182,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
       itemId: courseId,
       type: UnassignTargetType.course,
       primaryColor: _primaryColor,
-      onConfirm: () => _assignmentService.unassignCourse(
+      onConfirm: () => _lmsAssignmentService.unassignCourse(
         courseId: courseId,
         userId: userId,
       ),
@@ -90,10 +190,10 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     if (confirmed == true) {
       GlobalNotificationService.show(
         context: context,
-        message: 'Đã hủy gán khóa học',
+        message: 'Da huy gan khoa hoc',
         type: NotificationType.success,
       );
-      _loadAssignments();
+      _loadEnrollments(page: _enrollmentPage);
     }
   }
 
@@ -107,7 +207,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
       itemId: pathId,
       type: UnassignTargetType.learningPath,
       primaryColor: _primaryColor,
-      onConfirm: () => _assignmentService.unassignLearningPath(
+      onConfirm: () => _lmsAssignmentService.unassignLearningPath(
         learningPathId: pathId,
         userId: userId,
       ),
@@ -115,10 +215,10 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     if (confirmed == true) {
       GlobalNotificationService.show(
         context: context,
-        message: 'Đã hủy gán Learning Path',
+        message: 'Da huy gan Learning Path',
         type: NotificationType.success,
       );
-      _loadAssignments();
+      _loadLPAssignments(page: _lpPage);
     }
   }
 
@@ -143,13 +243,15 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     }
   }
 
+  // ======================== BUILD ========================
+
   @override
   Widget build(BuildContext context) {
     if (!kIsWeb) {
       return const Scaffold(
         body: Center(
           child: Text(
-            "Trang quản trị chỉ hỗ trợ trên Web",
+            "Trang quan tri chi ho tro tren Web",
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
@@ -161,354 +263,18 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
       child: Column(
         children: [
           _buildTopHeader(),
-          // Tab bar
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              labelColor: _primaryColor,
-              unselectedLabelColor: const Color(0xFF6B7280),
-              indicatorColor: _primaryColor,
-              tabs: [
-                Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.add_circle_outline, size: 18),
-                      const SizedBox(width: 8),
-                      const Text('Gán mới'),
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.list_alt, size: 18),
-                      const SizedBox(width: 8),
-                      const Text('Quản lý gán'),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _primaryColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${_enrollments.length + _learningPaths.length}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: _primaryColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildAssignManageTabBar(),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                // Tab 1: Gán mới
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildWelcomeCard(),
-                      const SizedBox(height: 24),
-                      _buildActionCards(),
-                      const SizedBox(height: 24),
-                      _buildInfoSection(),
-                    ],
-                  ),
-                ),
-                // Tab 2: Quản lý gán
-                _buildAssignmentManagementTab(),
+                _buildAssignTab(),
+                _buildCoursesTab(),
+                _buildLearningPathsTab(),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAssignmentManagementTab() {
-    if (_isLoadingAssignments) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildEnrollmentsSection(),
-          const SizedBox(height: 24),
-          _buildLearningPathsSection(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEnrollmentsSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: _primaryColor.withValues(alpha: 0.06),
-            blurRadius: 36,
-            spreadRadius: 4,
-            offset: const Offset(0, 12),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4F46E5).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.school_outlined,
-                      color: Color(0xFF4F46E5), size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'KHÓA HỌC ĐÃ GÁN',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${_enrollments.length} bản ghi',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          if (_enrollments.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(40),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.school_outlined, size: 48, color: Colors.grey[300]),
-                    const SizedBox(height: 12),
-                    Text('Chưa có khóa học nào được gán',
-                        style: TextStyle(color: Colors.grey[500])),
-                  ],
-                ),
-              ),
-            )
-          else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Người dùng')),
-                  DataColumn(label: Text('Khóa học')),
-                  DataColumn(label: Text('Trạng thái')),
-                  DataColumn(label: Text('Tiến độ')),
-                  DataColumn(label: Text('Thao tác')),
-                ],
-                rows: _enrollments.map((e) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(e.userName,
-                          style: const TextStyle(fontWeight: FontWeight.w500))),
-                      DataCell(Expanded(
-                        child: Text(
-                          e.courseTitle,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      )),
-                      DataCell(_buildAdminStatusBadge(e.status)),
-                      DataCell(Text('${e.progressPercent}%')),
-                      DataCell(
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline,
-                              size: 20, color: Colors.red),
-                          tooltip: 'Hủy gán',
-                          onPressed: () => _handleUnassignCourse(
-                            e.courseId,
-                            e.courseTitle,
-                            e.userId,
-                            e.userName,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLearningPathsSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: _primaryColor.withValues(alpha: 0.06),
-            blurRadius: 36,
-            spreadRadius: 4,
-            offset: const Offset(0, 12),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF059669).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.route_outlined,
-                      color: Color(0xFF059669), size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'LEARNING PATH ĐÃ GÁN',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${_learningPaths.length} bản ghi',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          if (_learningPaths.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(40),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.route_outlined, size: 48, color: Colors.grey[300]),
-                    const SizedBox(height: 12),
-                    Text('Chưa có Learning Path nào được gán',
-                        style: TextStyle(color: Colors.grey[500])),
-                  ],
-                ),
-              ),
-            )
-          else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Người dùng')),
-                  DataColumn(label: Text('Learning Path')),
-                  DataColumn(label: Text('Số khóa')),
-                  DataColumn(label: Text('Thao tác')),
-                ],
-                rows: _learningPaths.map((lp) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(lp.userName,
-                          style: const TextStyle(fontWeight: FontWeight.w500))),
-                      DataCell(Expanded(
-                        child: Text(
-                          lp.pathTitle,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      )),
-                      DataCell(Text('${lp.courseCount} khóa')),
-                      DataCell(
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline,
-                              size: 20, color: Colors.red),
-                          tooltip: 'Hủy gán',
-                          onPressed: () => _handleUnassignLearningPath(
-                            lp.pathId,
-                            lp.pathTitle,
-                            lp.userId,
-                            lp.userName,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdminStatusBadge(String status) {
-    Color color;
-    String label;
-    switch (status.toUpperCase()) {
-      case 'COMPLETED':
-        color = Colors.green;
-        label = 'Hoàn thành';
-        break;
-      case 'IN_PROGRESS':
-      case 'INPROGRESS':
-        color = Colors.orange;
-        label = 'Đang học';
-        break;
-      default:
-        color = Colors.grey;
-        label = 'Chưa học';
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -542,14 +308,14 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
               style: const TextStyle(fontSize: 14),
               children: [
                 TextSpan(
-                  text: 'Quản trị',
+                  text: 'Quan tri',
                   style: TextStyle(
                     color: _primaryColor,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const TextSpan(
-                  text: ' / Gán khóa học & Learning Path',
+                  text: ' / Gan khoa hoc & Learning Path',
                   style: TextStyle(color: Color(0xFF64748B)),
                 ),
               ],
@@ -558,6 +324,623 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
         ],
       ),
     );
+  }
+
+  Widget _buildAssignManageTabBar() {
+    return Container(
+      color: Colors.white,
+      child: TabBar(
+        controller: _tabController,
+        labelColor: _primaryColor,
+        unselectedLabelColor: const Color(0xFF6B7280),
+        indicatorColor: _primaryColor,
+        tabs: const [
+          Tab(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.add_circle_outline, size: 18),
+                SizedBox(width: 8),
+                Text('Gan moi'),
+              ],
+            ),
+          ),
+          Tab(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.school_outlined, size: 18),
+                SizedBox(width: 8),
+                Text('Khoa hoc'),
+              ],
+            ),
+          ),
+          Tab(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.route_outlined, size: 18),
+                SizedBox(width: 8),
+                Text('Learning Path'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssignTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          _buildActionCards(),
+          const SizedBox(height: 24),
+          _buildInfoSection(),
+        ],
+      ),
+    );
+  }
+
+  // ======================== COURSES TAB ========================
+
+  Widget _buildCoursesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildEnrollmentFilters(),
+          const SizedBox(height: 16),
+          _buildEnrollmentsTable(),
+          const SizedBox(height: 16),
+          _buildEnrollmentPagination(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnrollmentFilters() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: _enrollmentSearchController,
+                  decoration: InputDecoration(
+                    hintText: 'Tim kiem nguoi dung hoac khoa hoc...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  onSubmitted: (_) => _applyEnrollmentFilters(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _enrollmentStatus,
+                  decoration: InputDecoration(
+                    hintText: 'Trang thai',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('Tat ca')),
+                    DropdownMenuItem(value: 'NOT_STARTED', child: Text('Chua hoc')),
+                    DropdownMenuItem(value: 'IN_PROGRESS', child: Text('Dang hoc')),
+                    DropdownMenuItem(value: 'COMPLETED', child: Text('Hoan thanh')),
+                  ],
+                  onChanged: _onEnrollmentStatusChanged,
+                ),
+              ),
+              const SizedBox(width: 12),
+              _buildProgressRangeFilter(),
+              const SizedBox(width: 12),
+              IconButton(
+                onPressed: _applyEnrollmentFilters,
+                icon: const Icon(Icons.search),
+                style: IconButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                tooltip: 'Tim kiem',
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _clearEnrollmentFilters,
+                icon: const Icon(Icons.clear_all),
+                tooltip: 'Xoa loc',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressRangeFilter() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 70,
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Min %',
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
+            keyboardType: TextInputType.number,
+            onChanged: (v) {
+              setState(() {
+                _enrollmentMinProgress = int.tryParse(v);
+              });
+            },
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('-', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        SizedBox(
+          width: 70,
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Max %',
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
+            keyboardType: TextInputType.number,
+            onChanged: (v) {
+              setState(() {
+                _enrollmentMaxProgress = int.tryParse(v);
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEnrollmentsTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4F46E5).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.school_outlined,
+                      color: Color(0xFF4F46E5), size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'KHOA HOC DA GAN',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$_enrollmentTotalElements ban ghi',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (_isLoadingEnrollments)
+            const Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(),
+            )
+          else if (_enrollments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(40),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.school_outlined, size: 48, color: Colors.grey[300]),
+                    const SizedBox(height: 12),
+                    Text('Chua co khoa hoc nao duoc gan',
+                        style: TextStyle(color: Colors.grey[500])),
+                  ],
+                ),
+              ),
+            )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 24,
+                columns: const [
+                  DataColumn(label: Text('Nguoi dung')),
+                  DataColumn(label: Text('Khoa hoc')),
+                  DataColumn(label: Text('Trang thai')),
+                  DataColumn(label: Text('Tien do')),
+                  DataColumn(label: Text('Ngay dang ky')),
+                  DataColumn(label: Text('Han')),
+                  DataColumn(label: Text('Thao tac')),
+                ],
+                rows: _enrollments.map((e) {
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(e.userName,
+                          style: const TextStyle(fontWeight: FontWeight.w500))),
+                      DataCell(ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 200),
+                        child: Text(
+                          e.courseTitle,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      )),
+                      DataCell(_buildAdminStatusBadge(e.status)),
+                      DataCell(Text('${e.progressPercent}%')),
+                      DataCell(Text(_formatDate(e.enrolledAt))),
+                      DataCell(Text(_formatDate(e.deadline))),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline,
+                              size: 20, color: Colors.red),
+                          tooltip: 'Huy gan',
+                          onPressed: () => _handleUnassignCourse(
+                            e.courseId,
+                            e.courseTitle,
+                            e.userId,
+                            e.userName,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnrollmentPagination() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          onPressed: _enrollmentPage > 0
+              ? () => _loadEnrollments(page: _enrollmentPage - 1)
+              : null,
+          icon: const Icon(Icons.chevron_left),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade100,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Trang ${_enrollmentPage + 1} / $_enrollmentTotalPages',
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: _enrollmentPage < _enrollmentTotalPages - 1
+              ? () => _loadEnrollments(page: _enrollmentPage + 1)
+              : null,
+          icon: const Icon(Icons.chevron_right),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade100,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ======================== LEARNING PATHS TAB ========================
+
+  Widget _buildLearningPathsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLPFilters(),
+          const SizedBox(height: 16),
+          _buildLPAssignmentsTable(),
+          const SizedBox(height: 16),
+          _buildLPPagination(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLPFilters() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _lpSearchController,
+              decoration: InputDecoration(
+                hintText: 'Tim kiem Learning Path...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              onSubmitted: (_) => _applyLPSearch(),
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            onPressed: _applyLPSearch,
+            icon: const Icon(Icons.search),
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            tooltip: 'Tim kiem',
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: _clearLPSearch,
+            icon: const Icon(Icons.clear_all),
+            tooltip: 'Xoa tim kiem',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLPAssignmentsTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF059669).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.route_outlined,
+                      color: Color(0xFF059669), size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'LEARNING PATH DA GAN',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$_lpTotalElements ban ghi',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (_isLoadingLP)
+            const Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(),
+            )
+          else if (_lpAssignments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(40),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.route_outlined, size: 48, color: Colors.grey[300]),
+                    const SizedBox(height: 12),
+                    Text('Chua co Learning Path nao duoc gan',
+                        style: TextStyle(color: Colors.grey[500])),
+                  ],
+                ),
+              ),
+            )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 24,
+                columns: const [
+                  DataColumn(label: Text('Nguoi dung')),
+                  DataColumn(label: Text('Learning Path')),
+                  DataColumn(label: Text('Ngay gan')),
+                  DataColumn(label: Text('Han')),
+                  DataColumn(label: Text('Thao tac')),
+                ],
+                rows: _lpAssignments.map((lp) {
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(lp.userName,
+                          style: const TextStyle(fontWeight: FontWeight.w500))),
+                      DataCell(ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 250),
+                        child: Text(
+                          lp.learningPathTitle,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      )),
+                      DataCell(Text(_formatDate(lp.assignedAt))),
+                      DataCell(Text(_formatDate(lp.dueDate))),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline,
+                              size: 20, color: Colors.red),
+                          tooltip: 'Huy gan',
+                          onPressed: () => _handleUnassignLearningPath(
+                            lp.learningPathId,
+                            lp.learningPathTitle,
+                            lp.userId,
+                            lp.userName,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLPPagination() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          onPressed: _lpPage > 0
+              ? () => _loadLPAssignments(page: _lpPage - 1)
+              : null,
+          icon: const Icon(Icons.chevron_left),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade100,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Trang ${_lpPage + 1} / $_lpTotalPages',
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: _lpPage < _lpTotalPages - 1
+              ? () => _loadLPAssignments(page: _lpPage + 1)
+              : null,
+          icon: const Icon(Icons.chevron_right),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade100,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ======================== SHARED WIDGETS ========================
+
+  Widget _buildAdminStatusBadge(String status) {
+    Color color;
+    String label;
+    switch (status.toUpperCase()) {
+      case 'COMPLETED':
+        color = Colors.green;
+        label = 'Hoan thanh';
+        break;
+      case 'IN_PROGRESS':
+      case 'INPROGRESS':
+        color = Colors.orange;
+        label = 'Dang hoc';
+        break;
+      default:
+        color = Colors.grey;
+        label = 'Chua hoc';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return '-';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   Widget _buildWelcomeCard() {
@@ -599,7 +982,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Gán khóa học & Learning Path',
+                      'Gan khoa hoc & Learning Path',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -609,7 +992,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Gán hàng loạt khóa học hoặc Learning Path cho nhiều người dùng cùng lúc.',
+                      'Gan hang loat khoa hoc hoac Learning Path cho nhieu nguoi dung cung luc.',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -633,9 +1016,9 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
             icon: Icons.school_outlined,
             iconBgColor: const Color(0xFFEEF2FF),
             iconColor: const Color(0xFF4F46E5),
-            title: 'Gán khóa học',
-            description: 'Chọn một hoặc nhiều khóa học và gán cho người dùng.',
-            buttonLabel: 'Bắt đầu gán',
+            title: 'Gan khoa hoc',
+            description: 'Chon mot hoac nhieu khoa hoc va gan cho nguoi dung.',
+            buttonLabel: 'Bat dau gan',
             onTap: () => _handleAssignCourse(context),
             primaryColor: _primaryColor,
           ),
@@ -646,9 +1029,9 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
             icon: Icons.route_outlined,
             iconBgColor: const Color(0xFFECFDF5),
             iconColor: const Color(0xFF059669),
-            title: 'Gán Learning Path',
-            description: 'Chọn một hoặc nhiều Learning Path và gán cho người dùng.',
-            buttonLabel: 'Bắt đầu gán',
+            title: 'Gan Learning Path',
+            description: 'Chon mot hoac nhieu Learning Path va gan cho nguoi dung.',
+            buttonLabel: 'Bat dau gan',
             onTap: () => _handleAssignLearningPath(context),
             primaryColor: const Color(0xFF059669),
           ),
@@ -673,7 +1056,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
               Icon(Icons.info_outline, size: 18, color: Colors.grey[500]),
               const SizedBox(width: 8),
               Text(
-                'Thông tin',
+                'Thong tin',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -685,25 +1068,25 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
           const SizedBox(height: 12),
           _buildInfoRow(
             Icons.check_circle_outline,
-            'Người đã đăng ký khóa học sẽ bị bỏ qua.',
+            'Nguoi da dang ky khoa hoc se bi bo qua.',
             const Color(0xFF059669),
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
             Icons.skip_next_outlined,
-            'Người đã hoàn thành khóa học sẽ bị bỏ qua.',
+            'Nguoi da hoan thanh khoa hoc se bi bo qua.',
             const Color(0xFFD97706),
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
             Icons.route_outlined,
-            'Gán Learning Path sẽ tự động gán khóa học đầu tiên trong lộ trình.',
+            'Gan Learning Path se tu dong gan khoa hoc dau tien trong lo trinh.',
             const Color(0xFF4F46E5),
           ),
           const SizedBox(height: 8),
           _buildInfoRow(
             Icons.group_outlined,
-            'Chỉ người dùng đang hoạt động mới được gán.',
+            'Chi nguoi dang hoat dong moi duoc gan.',
             const Color(0xFF6366F1),
           ),
         ],
@@ -734,17 +1117,31 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     );
     if (courses == null || courses.isEmpty) return;
 
+    // Admin: lay danh sach user co the gan bang GET /assignments/assignable
     final users = await AssignableUserDialog.show(
       context: context,
       primaryColor: _primaryColor,
-      title: 'Chọn người được gán khóa học',
-      roleFilter: 'USER',
+      title: 'Chon nguoi duoc gan khoa hoc',
+      customUserFetcher: ({
+        String? keyword,
+        String? role,
+        int? departmentId,
+        int? page,
+        int? size,
+      }) =>
+          _assignmentService.getAssignableUsers(
+        keyword: keyword,
+        departmentId: departmentId,
+        page: page ?? 0,
+        size: size ?? 20,
+      ),
     );
     if (users == null || users.isEmpty) return;
 
     _showLoadingDialog(context);
 
     try {
+      // Admin: POST /assignments voi projectId = null
       final result = await _assignmentService.assignCourses(
         userIds: users.map((u) => u.userId).toList(),
         courseIds: courses.map((c) => c.id).toList(),
@@ -756,7 +1153,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
       await AssignmentResultDialog.show(
         context: context,
         result: result,
-        assignmentType: 'khóa học',
+        assignmentType: 'khoa hoc',
       );
     } catch (e) {
       _dismissLoadingDialog();
@@ -764,7 +1161,7 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
       if (!context.mounted) return;
       GlobalNotificationService.show(
         context: context,
-        message: 'Lỗi: $e',
+        message: 'Loi: $e',
         type: NotificationType.error,
       );
     }
@@ -777,17 +1174,31 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
     );
     if (paths == null || paths.isEmpty) return;
 
+    // Admin: lay danh sach user co the gan bang GET /assignments/assignable
     final users = await AssignableUserDialog.show(
       context: context,
       primaryColor: const Color(0xFF059669),
-      title: 'Chọn người được gán Learning Path',
-      roleFilter: 'USER',
+      title: 'Chon nguoi duoc gan Learning Path',
+      customUserFetcher: ({
+        String? keyword,
+        String? role,
+        int? departmentId,
+        int? page,
+        int? size,
+      }) =>
+          _assignmentService.getAssignableUsers(
+        keyword: keyword,
+        departmentId: departmentId,
+        page: page ?? 0,
+        size: size ?? 20,
+      ),
     );
     if (users == null || users.isEmpty) return;
 
     _showLoadingDialog(context);
 
     try {
+      // Admin: POST /assignments voi projectId = null
       final result = await _assignmentService.assignLearningPaths(
         userIds: users.map((u) => u.userId).toList(),
         learningPathIds: paths.map((p) => p.id).toList(),
@@ -807,11 +1218,13 @@ class _AssignmentManagementPageState extends State<AssignmentManagementPage>
       if (!context.mounted) return;
       GlobalNotificationService.show(
         context: context,
-        message: 'Lỗi: $e',
+        message: 'Loi: $e',
         type: NotificationType.error,
       );
     }
   }
+
+  Color get _bgLight => const Color(0xFFF3F6FC);
 }
 
 class _ActionCard extends StatefulWidget {

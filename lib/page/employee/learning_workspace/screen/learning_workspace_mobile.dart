@@ -19,6 +19,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
   final void Function(String quizId) onQuizTap;
   final Function(String) onNavigate;
   final VoidCallback onLogout;
+  final VoidCallback onQuizResetSuccess;
 
   const LearningWorkspaceMobile({
     super.key,
@@ -33,6 +34,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
     required this.onQuizTap,
     required this.onNavigate,
     required this.onLogout,
+    required this.onQuizResetSuccess,
   });
 
   bool get _isQuizMode => quizId != null && quizId!.isNotEmpty;
@@ -54,6 +56,9 @@ class LearningWorkspaceMobile extends StatelessWidget {
                 child: QuizLessonView(
                   quizId: quizId!,
                   courseId: courseId,
+                  onResetSuccess: () {
+                    onQuizResetSuccess();
+                  },
                 ),
               )
             else ...[
@@ -189,6 +194,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
       case LessonTab.discussion:
         return DiscussionTab(
           lessonId: lessonContent!.id,
+          courseId: courseId ?? '',
           initialDiscussions: const [],
           mentorId: course.mentorId,
           mentorName: course.mentorName,
@@ -209,17 +215,11 @@ class LearningWorkspaceMobile extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
-                for (var i = 0; i < course.modules.length; i++) ...[
-                  _buildModuleItem(course.modules[i]),
-                  if (i < course.modules.length - 1)
-                    const SizedBox(height: 8),
-                ],
-                if (course.finalQuizId != null) ...[
+              for (var i = 0; i < course.modules.length; i++) ...[
+                _buildModuleItem(course.modules[i]),
+                if (i < course.modules.length - 1)
                   const SizedBox(height: 8),
-                  Builder(
-                    builder: (drawerContext) => _buildFinalQuizItem(drawerContext, course),
-                  ),
-                ],
+              ],
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
@@ -364,84 +364,6 @@ class LearningWorkspaceMobile extends StatelessWidget {
       module: module,
       onLessonTap: onLessonTap,
       onQuizTap: onQuizTap,
-    );
-  }
-
-  Widget _buildFinalQuizItem(BuildContext context, LearningCourse course) {
-    final isLocked = course.progressPercent < 80;
-    final isPassed = course.finalQuizPassed;
-
-    IconData finalIcon() {
-      if (isLocked) return Icons.lock_outline;
-      if (isPassed) return Icons.check_circle;
-      return Icons.cancel_outlined;
-    }
-
-    Color finalIconColor() {
-      if (isLocked) return const Color(0xFF94A3B8);
-      if (isPassed) return const Color(0xFF22C55E);
-      return const Color(0xFFBA1A1A);
-    }
-
-    String finalSubtitle() {
-      if (isLocked) return 'Hoàn thành 80% khóa học để mở';
-      if (isPassed) return 'Đã đạt';
-      return 'Chưa đạt – Làm lại';
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: !isLocked
-            ? LinearGradient(
-                colors: [
-                  (isPassed
-                          ? const Color(0xFF22C55E)
-                          : const Color(0xFF137FEC))
-                      .withValues(alpha: 0.08),
-                  Colors.transparent,
-                ],
-              )
-            : null,
-        color: !isLocked ? null : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: !isLocked
-              ? (isPassed
-                      ? const Color(0xFF22C55E)
-                      : const Color(0xFF137FEC))
-                  .withValues(alpha: 0.2)
-              : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: finalIconColor().withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(finalIcon(), size: 22, color: finalIconColor()),
-        ),
-        title: const Text(
-          'Bài kiểm tra cuối khóa',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        subtitle: Text(
-          finalSubtitle(),
-          style: TextStyle(fontSize: 11, color: finalIconColor()),
-        ),
-        trailing: isLocked
-            ? null
-            : Icon(Icons.chevron_right, size: 22, color: finalIconColor()),
-        onTap: isLocked ? null : () {
-          Navigator.pop(context);
-          onQuizTap(course.finalQuizId!);
-        },
-      ),
     );
   }
 

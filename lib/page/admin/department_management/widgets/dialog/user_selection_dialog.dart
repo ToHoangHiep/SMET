@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 enum UserSelectionType {
-  manager,      // Chỉ Project Manager
-  members,      // Mentor và User
-  projectLead,  // Chỉ User (cho project)
+  manager, // Chỉ Project Manager
+  members, // Mentor và User
+  projectLead, // Chỉ User (cho project)
   projectMentor, // Chỉ Mentor (cho project)
-  all,          // Tất cả
+  all, // Tất cả
 }
 
 class UserSelectionDialog extends StatefulWidget {
@@ -17,7 +19,14 @@ class UserSelectionDialog extends StatefulWidget {
   final bool isMultiSelect;
   final List<UserModel> preSelectedUsers;
   final int? excludeDepartmentId;
-  final bool allowAssigned; // Cho phép filter assigned
+  /// ID of the department whose PM is being managed.
+  /// PMs of this department should NOT be shown as "assigned"
+  /// (workaround for backend not clearing departmentId on PM unassign).
+  final int? currentDepartmentId;
+  final bool allowAssigned;
+  final Future<List<UserModel>> Function(String keyword)?
+  onSearch; // Cho phép filter assigned
+  final void Function(UserModel assignedUser)? onAssignedUserSelected;
 
   const UserSelectionDialog({
     super.key,
@@ -28,7 +37,10 @@ class UserSelectionDialog extends StatefulWidget {
     this.isMultiSelect = false,
     this.preSelectedUsers = const [],
     this.excludeDepartmentId,
+    this.currentDepartmentId,
     this.allowAssigned = false,
+    this.onSearch,
+    this.onAssignedUserSelected,
   });
 
   static Future<UserModel?> selectManager({
@@ -37,18 +49,27 @@ class UserSelectionDialog extends StatefulWidget {
     required List<UserModel> managers,
     UserModel? currentManager,
     int? excludeDepartmentId,
+    /// ID of the department whose PM is being managed.
+    /// PMs of this department should NOT be shown as "assigned".
+    int? currentDepartmentId,
+    Future<List<UserModel>> Function(String keyword)? onSearch,
+    void Function(UserModel assignedUser)? onAssignedUserSelected,
   }) async {
     return showDialog<UserModel>(
       context: context,
-      builder: (context) => UserSelectionDialog(
-        primaryColor: primaryColor,
-        title: 'Chọn người quản lý',
-        selectionType: UserSelectionType.manager,
-        users: managers,
-        preSelectedUsers: currentManager != null ? [currentManager] : [],
-        excludeDepartmentId: excludeDepartmentId,
-        allowAssigned: true,
-      ),
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Chọn người quản lý',
+            selectionType: UserSelectionType.manager,
+            users: managers,
+            preSelectedUsers: currentManager != null ? [currentManager] : [],
+            excludeDepartmentId: excludeDepartmentId,
+            currentDepartmentId: currentDepartmentId,
+            allowAssigned: true,
+            onSearch: onSearch,
+            onAssignedUserSelected: onAssignedUserSelected,
+          ),
     );
   }
 
@@ -58,19 +79,22 @@ class UserSelectionDialog extends StatefulWidget {
     required List<UserModel> members,
     List<UserModel>? preSelectedMembers,
     int? excludeDepartmentId,
+    Future<List<UserModel>> Function(String keyword)? onSearch,
   }) async {
     return showDialog<List<UserModel>>(
       context: context,
-      builder: (context) => UserSelectionDialog(
-        primaryColor: primaryColor,
-        title: 'Thêm thành viên',
-        selectionType: UserSelectionType.members,
-        users: members,
-        isMultiSelect: true,
-        preSelectedUsers: preSelectedMembers ?? [],
-        excludeDepartmentId: excludeDepartmentId,
-        allowAssigned: true,
-      ),
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Thêm thành viên',
+            selectionType: UserSelectionType.members,
+            users: members,
+            isMultiSelect: true,
+            preSelectedUsers: preSelectedMembers ?? [],
+            excludeDepartmentId: excludeDepartmentId,
+            allowAssigned: true,
+            onSearch: onSearch,
+          ),
     );
   }
 
@@ -82,13 +106,14 @@ class UserSelectionDialog extends StatefulWidget {
   }) async {
     return showDialog<UserModel>(
       context: context,
-      builder: (context) => UserSelectionDialog(
-        primaryColor: primaryColor,
-        title: 'Chọn trưởng nhóm',
-        selectionType: UserSelectionType.projectLead,
-        users: leads,
-        preSelectedUsers: currentLead != null ? [currentLead] : [],
-      ),
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Chọn trưởng nhóm',
+            selectionType: UserSelectionType.projectLead,
+            users: leads,
+            preSelectedUsers: currentLead != null ? [currentLead] : [],
+          ),
     );
   }
 
@@ -100,13 +125,14 @@ class UserSelectionDialog extends StatefulWidget {
   }) async {
     return showDialog<UserModel>(
       context: context,
-      builder: (context) => UserSelectionDialog(
-        primaryColor: primaryColor,
-        title: 'Chọn người hướng dẫn',
-        selectionType: UserSelectionType.projectMentor,
-        users: mentors,
-        preSelectedUsers: currentMentor != null ? [currentMentor] : [],
-      ),
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Chọn người hướng dẫn',
+            selectionType: UserSelectionType.projectMentor,
+            users: mentors,
+            preSelectedUsers: currentMentor != null ? [currentMentor] : [],
+          ),
     );
   }
 
@@ -118,23 +144,43 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late String _roleFilter;
-  String _assignedFilter = 'all'; // 'all' | 'assigned' | 'unassigned'
+  String _assignedFilter = 'unassigned'; // 'all' | 'assigned' | 'unassigned'
   List<UserModel> _selectedUsers = [];
+  List<UserModel> _users = [];
+  Timer? _searchDebounce;
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _selectedUsers = List.from(widget.preSelectedUsers);
+    _users = List.from(widget.users);
     _initRoleFilter();
+  }
+
+  @override
+  void didUpdateWidget(covariant UserSelectionDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.users != widget.users) {
+      _users = List.from(widget.users);
+    }
+    if (oldWidget.selectionType != widget.selectionType) {
+      _initRoleFilter();
+      _assignedFilter = 'unassigned';
+      _searchQuery = '';
+      _searchController.clear();
+    }
   }
 
   void _initRoleFilter() {
     switch (widget.selectionType) {
       case UserSelectionType.manager:
         _roleFilter = 'PROJECT_MANAGER';
+        _assignedFilter = 'all'; // PM: hien thi tat ca, ke ca PM dang co phong ban
         break;
       case UserSelectionType.members:
         _roleFilter = 'MENTOR';
+        _assignedFilter = 'unassigned'; // Mac dinh chi hien nguoi chua co phong ban
         break;
       case UserSelectionType.projectLead:
         _roleFilter = 'USER';
@@ -149,34 +195,16 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   }
 
   @override
-  void didUpdateWidget(covariant UserSelectionDialog oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Reset assigned filter khi role thay đổi để tránh confusion
-    if (oldWidget.selectionType != widget.selectionType) {
-      _initRoleFilter();
-      _assignedFilter = 'all';
-      _searchQuery = '';
-      _searchController.clear();
-    }
-  }
-
-  @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   List<UserModel> get _filteredUsers {
-    return widget.users.where((user) {
+    return _users.where((user) {
       // Ẩn user inactive
       if (!user.isActive) return false;
-
-      // Search filter
-      final searchLower = _searchQuery.toLowerCase();
-      final matchesSearch = searchLower.isEmpty ||
-          user.fullName.toLowerCase().contains(searchLower) ||
-          user.email.toLowerCase().contains(searchLower) ||
-          (user.userName?.toLowerCase().contains(searchLower) ?? false);
 
       // Role filter
       final matchesRole = _roleFilter == 'ALL' || user.role.name == _roleFilter;
@@ -184,28 +212,60 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       // Department filter: khi cho phép assigned (chọn user từ phòng ban khác),
       // hiện tất cả user, không lọc theo department
       bool matchesDepartment = true;
-      if (!widget.allowAssigned && widget.selectionType != UserSelectionType.manager) {
-        final isPreSelected = widget.preSelectedUsers.any((u) => u.id == user.id);
-        matchesDepartment = widget.excludeDepartmentId == null ||
+      if (!widget.allowAssigned &&
+          widget.selectionType != UserSelectionType.manager) {
+        final isPreSelected = widget.preSelectedUsers.any(
+          (u) => u.id == user.id,
+        );
+        matchesDepartment =
+            widget.excludeDepartmentId == null ||
             user.departmentId == null ||
             user.departmentId == widget.excludeDepartmentId ||
             isPreSelected;
       }
 
       // Assigned filter: chỉ áp dụng khi cho phép lọc theo assigned
+      // PM của department hiện tại KHÔNG bị coi là "đã gán"
+      // (workaround: backend không clear departmentId khi gỡ PM)
       bool matchesAssigned = true;
       if (widget.allowAssigned) {
-        final isAssigned = user.departmentId != null;
+        final isAssigned = user.departmentId != null &&
+            user.departmentId != widget.currentDepartmentId;
         if (_assignedFilter == 'assigned') {
           matchesAssigned = isAssigned;
         } else if (_assignedFilter == 'unassigned') {
           matchesAssigned = !isAssigned;
         }
-        // 'all' thì không lọc
       }
 
-      return matchesSearch && matchesRole && matchesDepartment && matchesAssigned;
+      return matchesRole && matchesDepartment && matchesAssigned;
     }).toList();
+  }
+
+  Future<void> _performSearch(String keyword) async {
+    if (widget.onSearch == null) return;
+    // Khi keyword rong -> reload all users
+    if (keyword.isEmpty) {
+      setState(() {
+        _users = List.from(widget.users);
+        _isSearching = false;
+      });
+      return;
+    }
+    setState(() => _isSearching = true);
+    try {
+      final results = await widget.onSearch!(keyword);
+      if (mounted) {
+        setState(() {
+          _users = results;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSearching = false);
+      }
+    }
   }
 
   List<Map<String, String>> get _roleOptions {
@@ -239,14 +299,31 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   }
 
   void _toggleUser(UserModel user) {
+    final isCurrentlySelected = _selectedUsers.any((u) => u.id == user.id);
+
+    if (isCurrentlySelected) {
+      setState(() {
+        _selectedUsers.removeWhere((u) => u.id == user.id);
+      });
+      return;
+    }
+
+    // Neu la PM da co phong ban khac -> khong cho chon, hien warning
+    // (PM của department hiện tại không bị chặn vì backend không clear departmentId)
+    if (widget.selectionType == UserSelectionType.manager &&
+        user.departmentId != null &&
+        user.departmentId != widget.currentDepartmentId) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'PM "${user.fullName}" đã có phòng ban "${user.department}"',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
     setState(() {
       if (widget.isMultiSelect) {
-        final exists = _selectedUsers.any((u) => u.id == user.id);
-        if (exists) {
-          _selectedUsers.removeWhere((u) => u.id == user.id);
-        } else {
-          _selectedUsers.add(user);
-        }
+        _selectedUsers.add(user);
       } else {
         _selectedUsers = [user];
       }
@@ -300,7 +377,9 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              widget.isMultiSelect ? Icons.group_add_outlined : Icons.person_add_outlined,
+              widget.isMultiSelect
+                  ? Icons.group_add_outlined
+                  : Icons.person_add_outlined,
               color: widget.primaryColor,
               size: 22,
             ),
@@ -323,10 +402,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                   widget.isMultiSelect
                       ? 'Chọn nhiều thành viên'
                       : 'Chọn một người',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[500],
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                 ),
               ],
             ),
@@ -357,22 +433,56 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                   ),
                   child: TextField(
                     controller: _searchController,
-                    onChanged: (value) => setState(() => _searchQuery = value),
+                    onChanged: (value) {
+                      setState(() => _searchQuery = value);
+                      _searchDebounce?.cancel();
+                      _searchDebounce = Timer(
+                        const Duration(milliseconds: 400),
+                        () => _performSearch(value),
+                      );
+                    },
                     decoration: InputDecoration(
                       hintText: 'Tìm kiếm theo tên, email...',
-                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                      prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(Icons.clear, size: 18, color: Colors.grey[400]),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                      prefixIcon:
+                          _isSearching
+                              ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                              : Icon(
+                                Icons.search,
+                                color: Colors.grey[400],
+                                size: 20,
+                              ),
+                      suffixIcon:
+                          _searchQuery.isNotEmpty
+                              ? IconButton(
+                                icon: Icon(
+                                  Icons.clear,
+                                  size: 18,
+                                  color: Colors.grey[400],
+                                ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                              : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -390,32 +500,40 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                     child: DropdownButton<String>(
                       value: _roleFilter,
                       isExpanded: true,
-                      icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[400]),
+                      icon: Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.grey[400],
+                      ),
                       style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                      items: _roleOptions
-                          .map((item) => DropdownMenuItem(
-                                value: item['value'],
-                                child: Text(
-                                  item['label']!,
-                                  overflow: TextOverflow.ellipsis,
+                      items:
+                          _roleOptions
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item['value'],
+                                  child: Text(
+                                    item['label']!,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ))
-                          .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _roleFilter = value;
-                        _assignedFilter = 'all'; // Reset assigned filter khi đổi role
-                      });
-                    }
-                  },
+                              )
+                              .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _roleFilter = value;
+                            _assignedFilter =
+                                'all'; // Reset assigned filter khi đổi role
+                          });
+                        }
+                      },
                     ),
                   ),
                 ),
               ),
             ],
           ),
-          if (widget.allowAssigned) ...[
+          if (widget.allowAssigned &&
+              widget.selectionType == UserSelectionType.manager) ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -430,9 +548,9 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                 const SizedBox(width: 12),
                 _buildAssignedChip('Tất cả', 'all'),
                 const SizedBox(width: 8),
-                _buildAssignedChip('Đã có phòng ban', 'assigned'),
+                _buildAssignedChip('Đã gán', 'assigned'),
                 const SizedBox(width: 8),
-                _buildAssignedChip('Chưa có phòng ban', 'unassigned'),
+                _buildAssignedChip('Chưa gán', 'unassigned'),
               ],
             ),
           ],
@@ -450,14 +568,16 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? widget.primaryColor.withValues(alpha: 0.12)
-              : const Color(0xFFFAFBFC),
+          color:
+              isSelected
+                  ? widget.primaryColor.withValues(alpha: 0.12)
+                  : const Color(0xFFFAFBFC),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected
-                ? widget.primaryColor.withValues(alpha: 0.4)
-                : const Color(0xFFE5E7EB),
+            color:
+                isSelected
+                    ? widget.primaryColor.withValues(alpha: 0.4)
+                    : const Color(0xFFE5E7EB),
           ),
         ),
         child: Text(
@@ -502,7 +622,8 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: filteredUsers.length,
-        separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade100),
+        separatorBuilder:
+            (_, __) => Divider(height: 1, color: Colors.grey.shade100),
         itemBuilder: (context, index) {
           final user = filteredUsers[index];
           final isSelected = _isSelected(user);
@@ -513,6 +634,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
             isMultiSelect: widget.isMultiSelect,
             primaryColor: widget.primaryColor,
             onTap: () => _toggleUser(user),
+            currentDepartmentId: widget.currentDepartmentId,
           );
         },
       ),
@@ -536,10 +658,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
             widget.isMultiSelect
                 ? 'Đã chọn: ${_selectedUsers.length} người'
                 : (totalFiltered > 0 ? 'Có $totalFiltered người' : ''),
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
           Row(
             children: [
@@ -548,7 +667,10 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF6B7280),
                   side: const BorderSide(color: Color(0xFFE5E7EB)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -557,22 +679,33 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: _selectedUsers.isEmpty
-                    ? null
-                    : () => Navigator.pop(
+                onPressed:
+                    widget.isMultiSelect
+                        ? (_selectedUsers.isNotEmpty
+                            ? () => Navigator.pop(context, _selectedUsers)
+                            : null)
+                        : () => Navigator.pop(
                           context,
-                          widget.isMultiSelect ? _selectedUsers : _selectedUsers.firstOrNull,
+                          _selectedUsers.isNotEmpty
+                              ? _selectedUsers.first
+                              : null,
                         ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: widget.primaryColor,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey[200],
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(widget.isMultiSelect ? 'Xác nhận (${_selectedUsers.length})' : 'Xác nhận'),
+                child: Text(
+                  widget.isMultiSelect
+                      ? 'Xác nhận (${_selectedUsers.length})'
+                      : 'Xác nhận',
+                ),
               ),
             ],
           ),
@@ -588,6 +721,9 @@ class _UserListTile extends StatefulWidget {
   final bool isMultiSelect;
   final Color primaryColor;
   final VoidCallback onTap;
+  /// ID of the department whose PM is being managed.
+  /// Badge "Đã gán" is hidden for PMs of this department.
+  final int? currentDepartmentId;
 
   const _UserListTile({
     required this.user,
@@ -595,6 +731,7 @@ class _UserListTile extends StatefulWidget {
     required this.isMultiSelect,
     required this.primaryColor,
     required this.onTap,
+    this.currentDepartmentId,
   });
 
   @override
@@ -615,18 +752,20 @@ class _UserListTileState extends State<_UserListTile> {
         duration: const Duration(milliseconds: 120),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: isSelected
-              ? widget.primaryColor.withValues(alpha: 0.06)
-              : _isHovered
+          color:
+              isSelected
+                  ? widget.primaryColor.withValues(alpha: 0.06)
+                  : _isHovered
                   ? const Color(0xFFF8F9FB)
                   : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(
-                  color: widget.primaryColor.withValues(alpha: 0.2),
-                  width: 1,
-                )
-              : null,
+          border:
+              isSelected
+                  ? Border.all(
+                    color: widget.primaryColor.withValues(alpha: 0.2),
+                    width: 1,
+                  )
+                  : null,
         ),
         child: InkWell(
           onTap: widget.onTap,
@@ -637,7 +776,10 @@ class _UserListTileState extends State<_UserListTile> {
               children: [
                 _buildSelectionIndicator(),
                 const SizedBox(width: 12),
-                _UserAvatar(user: widget.user, primaryColor: widget.primaryColor),
+                _UserAvatar(
+                  user: widget.user,
+                  primaryColor: widget.primaryColor,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -675,17 +817,23 @@ class _UserListTileState extends State<_UserListTile> {
                         children: [
                           _buildInfoChip(
                             icon: Icons.apartment_outlined,
-                            text: widget.user.department?.isNotEmpty == true
-                                ? widget.user.department!
-                                : 'Chưa phân phòng',
-                            color: widget.user.department?.isNotEmpty == true
-                                ? const Color(0xFF374151)
-                                : const Color(0xFF9CA3AF),
+                            text:
+                                widget.user.department?.isNotEmpty == true
+                                    ? widget.user.department!
+                                    : 'Chưa phân phòng',
+                            color:
+                                widget.user.department?.isNotEmpty == true
+                                    ? const Color(0xFF374151)
+                                    : const Color(0xFF9CA3AF),
                           ),
                           const SizedBox(width: 6),
-                          if (widget.user.departmentId != null)
+                          if (widget.user.departmentId != null &&
+                              widget.user.departmentId != widget.currentDepartmentId)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFECFDF5),
                                 borderRadius: BorderRadius.circular(6),
@@ -751,9 +899,10 @@ class _UserListTileState extends State<_UserListTile> {
           border: Border.all(color: color, width: 1.5),
           borderRadius: BorderRadius.circular(6),
         ),
-        child: isSelected
-            ? const Icon(Icons.check, size: 15, color: Colors.white)
-            : null,
+        child:
+            isSelected
+                ? const Icon(Icons.check, size: 15, color: Colors.white)
+                : null,
       );
     }
 
@@ -766,9 +915,10 @@ class _UserListTileState extends State<_UserListTile> {
         border: Border.all(color: color, width: 1.5),
         shape: BoxShape.circle,
       ),
-      child: isSelected
-          ? const Icon(Icons.check, size: 13, color: Colors.white)
-          : null,
+      child:
+          isSelected
+              ? const Icon(Icons.check, size: 13, color: Colors.white)
+              : null,
     );
   }
 
@@ -820,7 +970,8 @@ class _UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _avatarColor;
-    final initials = '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
+    final initials =
+        '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
         '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}';
 
     return Container(
@@ -829,10 +980,7 @@ class _UserAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: color.withValues(alpha: 0.25),
-          width: 1.5,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
       ),
       child: Center(
         child: Text(

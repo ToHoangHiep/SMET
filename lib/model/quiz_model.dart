@@ -9,7 +9,6 @@ class QuizModel {
   final int? maxAttempts;
   final int? questionCount;
   final bool showAnswer;
-  final bool isFinalQuiz;
   final Long? courseId;
   final Long? moduleId;
   final List<QuestionModel>? questions;
@@ -23,7 +22,6 @@ class QuizModel {
     this.maxAttempts,
     this.questionCount,
     required this.showAnswer,
-    required this.isFinalQuiz,
     this.courseId,
     this.moduleId,
     this.questions,
@@ -40,7 +38,6 @@ class QuizModel {
       maxAttempts: json['max_attempts'] ?? json['maxAttempts'],
       questionCount: json['question_count'] ?? json['questionCount'],
       showAnswer: json['show_answer'] ?? json['showAnswer'] ?? false,
-      isFinalQuiz: json['is_final_quiz'] ?? json['isFinalQuiz'] ?? false,
       courseId:
           json['course_id'] != null
               ? Long(json['course_id'])
@@ -68,7 +65,6 @@ class QuizModel {
       'maxAttempts': maxAttempts,
       'questionCount': questionCount,
       'showAnswer': showAnswer,
-      'isFinalQuiz': isFinalQuiz,
       if (moduleId != null) 'moduleId': moduleId!.value,
       if (courseId != null) 'courseId': courseId!.value,
     };

@@ -11,9 +11,8 @@ import '../widgets/shell/department_management_top_header.dart';
 import '../widgets/table/department_management_table_section.dart';
 import '../widgets/dialog/user_selection_dialog.dart';
 import 'package:flutter/foundation.dart';
-import 'package:smet/service/admin/user_management/user_management_service.dart';
-import 'package:smet/service/common/auth_service.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
+import 'package:smet/service/common/global_notification_service.dart';
+import 'dart:async';
 import 'dart:developer';
 
 // --- ĐỊNH NGHĨA MÀU SẮC CHUNG ---
@@ -33,13 +32,12 @@ class DepartmentManagementPage extends StatefulWidget {
       _DepartmentManagementPageState();
 }
 
-class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
+class _DepartmentManagementPageState extends State<DepartmentManagementPage>
+    with WidgetsBindingObserver {
   String username = "";
 
   final DepartmentService _departmentService = DepartmentService();
-  final UserManagementApi _apiService = UserManagementApi();
   List<DepartmentModel> _departments = [];
-  List<user_model.UserModel> _users = [];
   bool _isLoading = true;
 
   String _codeQuery = '';
@@ -48,6 +46,8 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
   int _currentPage = 1;
   final int _rowsPerPage = 5;
+  int _totalDepartments = 0;
+  Timer? _searchDebounce;
 
   final Map<int, bool> _departmentActiveMap = {};
   bool _isCreateMode = false;
@@ -67,19 +67,28 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchDepartments();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _searchDebounce?.cancel();
     _createNameController.dispose();
     _createCodeController.dispose();
     _createManagerController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchDepartments();
+    }
+  }
+
   Future<void> _pickManager() async {
-    // Gọi API mới: lấy danh sách Project Manager
     List<user_model.UserModel> managers;
     try {
       managers = await fetchSelectableUsers(
@@ -87,7 +96,11 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      context.showAppToast('Lỗi lấy danh sách: $e', variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi lấy danh sách người quản lý: $e',
+        type: NotificationType.error,
+      );
       return;
     }
 
@@ -99,9 +112,13 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       managers: managers,
       currentManager: _selectedManager,
       excludeDepartmentId: null,
+      onSearch: (keyword) async {
+        return await fetchSelectableUsers(
+          UserSelectionContext.departmentProjectManager,
+          keyword: keyword.isNotEmpty ? keyword : null,
+        );
+      },
     );
-
-    if (selected == null) return;
 
     setState(() {
       _selectedManager = selected;
@@ -109,15 +126,19 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   }
 
   Future<void> _pickEmployees() async {
-    // Gọi API mới: lấy danh sách User + Mentor cho Department
     List<user_model.UserModel> availableUsers;
     try {
       availableUsers = await fetchSelectableUsers(
         UserSelectionContext.departmentMembers,
+        assigned: false,
       );
     } catch (e) {
       if (!mounted) return;
-      context.showAppToast('Lỗi lấy danh sách: $e', variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi lấy danh sách thành viên: $e',
+        type: NotificationType.error,
+      );
       return;
     }
 
@@ -129,6 +150,13 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       members: availableUsers,
       preSelectedMembers: _selectedEmployees,
       excludeDepartmentId: null,
+      onSearch: (keyword) async {
+        return await fetchSelectableUsers(
+          UserSelectionContext.departmentMembers,
+          keyword: keyword.isNotEmpty ? keyword : null,
+          assigned: false,
+        );
+      },
     );
 
     if (result == null) return;
@@ -140,29 +168,37 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
     });
   }
 
-  Future<void> _fetchDepartments() async {
+  Future<void> _fetchDepartments({String? keywordOverride}) async {
+    _searchDebounce?.cancel();
     try {
-      // Gọi API lấy departments và users
-      final departmentResult = await _departmentService.getDepartments();
-      final usersResult = await _apiService.getUsers();
+      final keyword = keywordOverride ?? _codeQuery;
+      final page = _currentPage - 1;
+
+      final departmentResult = await _departmentService.searchDepartments(
+        keyword: keyword.isNotEmpty ? keyword : null,
+        active: _statusFilter == 'Đang hoạt động'
+            ? true
+            : _statusFilter == 'Tạm dừng'
+                ? false
+                : null,
+        page: page,
+        size: _rowsPerPage,
+      );
 
       final departments =
           departmentResult['departments'] as List<DepartmentModel>;
-      final users = usersResult['users'] as List<user_model.UserModel>;
       final totalElements = departmentResult['totalElements'] as int;
-
-      log("TOTAL DEPARTMENTS FROM API: $totalElements");
 
       setState(() {
         _departments = departments;
-        _users = users;
+        _totalDepartments = totalElements;
         _departmentActiveMap
           ..clear()
           ..addEntries(departments.map((e) => MapEntry(e.id, e.isActive)));
         _isLoading = false;
       });
 
-      log("DEPARTMENTS LOADED: ${_departments.length}");
+      log("DEPARTMENTS LOADED: ${_departments.length} / TOTAL: $_totalDepartments");
     } catch (e) {
       log("FETCH DEPARTMENTS ERROR: $e");
       setState(() => _isLoading = false);
@@ -218,7 +254,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                   ),
                                   const SizedBox(height: 20),
                                   _isCreateMode
-                                      ? DepartmentManagementFormCard(
+                                      ?                                       DepartmentManagementFormCard(
                                         primaryColor: _primaryColor,
                                         formKey: _createFormKey,
                                         isUpdateMode: false,
@@ -230,6 +266,11 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                         isActive: _createIsActive,
                                         selectedEmployees: _selectedEmployees,
                                         onPickManager: _pickManager,
+                                        onRemoveManager: () {
+                                          setState(() {
+                                            _selectedManager = null;
+                                          });
+                                        },
                                         onPickEmployees: _pickEmployees,
                                         onActiveChanged: (value) {
                                           setState(
@@ -262,6 +303,11 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                             _codeQuery = value;
                                             _currentPage = 1;
                                           });
+                                          _searchDebounce?.cancel();
+                                          _searchDebounce = Timer(
+                                            const Duration(milliseconds: 400),
+                                            () => _fetchDepartments(),
+                                          );
                                         },
                                         onManagerChanged: (value) {
                                           setState(() {
@@ -274,6 +320,7 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                             _statusFilter = value;
                                             _currentPage = 1;
                                           });
+                                          _fetchDepartments();
                                         },
                                         onToggleActive: (dept, value) async {
                                           try {
@@ -287,11 +334,11 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                             }
                                           } catch (e) {
                                             if (mounted) {
-                                              AppToast.show(
-                                                  context,
-                                                  'Không thể thay đổi trạng thái: $e',
-                                                  variant:
-                                                      AppToastVariant.error);
+                                              GlobalNotificationService.show(
+                                                context: context,
+                                                message: 'Không thể thay đổi trạng thái: $e',
+                                                type: NotificationType.error,
+                                              );
                                               // Revert toggle
                                               setState(() {
                                                 _departmentActiveMap[dept.id] =
@@ -302,24 +349,29 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
                                         },
                                         onDelete: _handleDeleteDepartment,
                                         onShowDetail:
-                                            (dept) => context.push(
-                                              '/department_management/${dept.id}',
-                                            ),
+                                            (dept) async {
+                                          await context.push(
+                                            '/department_management/${dept.id}',
+                                          );
+                                          _fetchDepartments();
+                                        },
                                         onPrevPage:
                                             _currentPage > 1
                                                 ? () {
                                                   setState(() {
                                                     _currentPage--;
                                                   });
+                                                  _fetchDepartments();
                                                 }
                                                 : null,
                                         onNextPage:
                                             _currentPage * _rowsPerPage <
-                                                    _filteredDepartments.length
+                                                    _totalDepartments
                                                 ? () {
                                                   setState(() {
                                                     _currentPage++;
                                                   });
+                                                  _fetchDepartments();
                                                 }
                                                 : null,
                                       ),
@@ -333,12 +385,6 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
   }
 
   // ===================== WIDGETS THÀNH PHẦN =====================
-
-  void _handleLogout() async {
-    await AuthService.logout();
-    if (!mounted) return;
-    context.go('/login');
-  }
 
   void _openCreateDepartmentScreen() {
     setState(() {
@@ -363,18 +409,17 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       return;
     }
 
-    if (_selectedManager == null) {
-      context.showAppToast('Vui lòng chọn người quản lý', variant: AppToastVariant.info);
-      return;
-    }
-
     // Kiểm tra trùng mã phòng ban
     final code = _createCodeController.text.trim();
     final isCodeDuplicate = _departments.any(
       (d) => d.code.toLowerCase() == code.toLowerCase(),
     );
     if (isCodeDuplicate) {
-      context.showAppToast('Mã phòng ban đã tồn tại', variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Mã phòng ban đã tồn tại',
+        type: NotificationType.error,
+      );
       return;
     }
 
@@ -384,12 +429,16 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
       (d) => d.name.toLowerCase() == name.toLowerCase(),
     );
     if (isNameDuplicate) {
-      context.showAppToast('Tên phòng ban đã tồn tại', variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Tên phòng ban đã tồn tại',
+        type: NotificationType.error,
+      );
       return;
     }
 
-    // Lưu projectManagerId trước khi gọi API
-    final pmId = _selectedManager!.id;
+    // Lưu projectManagerId - cho phép null (không bắt buộc chọn PM)
+    final pmId = _selectedManager?.id;
 
     // Tách riêng USER và MENTOR từ danh sách đã chọn
     final mentorList =
@@ -422,23 +471,70 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
       if (!mounted) return;
 
-      context.showAppToast('Đã tạo bộ phận thành công');
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đã tạo bộ phận thành công',
+        type: NotificationType.success,
+      );
     } catch (e) {
       final msg = e.toString();
 
       if (msg.contains('User inactive')) {
-        context.showAppToast('Một số thành viên đã bị vô hiệu hóa và không thể thêm', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Một số thành viên đã bị vô hiệu hóa và không thể thêm',
+          type: NotificationType.error,
+        );
       } else if (msg.contains('User must be mentor')) {
-        context.showAppToast('Một số thành viên không có vai trò Mentor', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Một số thành viên không có vai trò Mentor',
+          type: NotificationType.error,
+        );
+      } else if (msg.contains('is in active project')) {
+        final regex = RegExp(r"User '([^']+)' \(([^)]+)\) is in active project: (.+)");
+        final match = regex.firstMatch(msg);
+        if (match != null) {
+          final userName = match.group(1);
+          final role = match.group(2);
+          final projectTitle = match.group(3);
+          GlobalNotificationService.show(
+            context: context,
+            message: '"$userName" ($role) đã ở trong project "$projectTitle"',
+            type: NotificationType.warning,
+          );
+        } else {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Thành viên đã ở trong project đang hoạt động',
+            type: NotificationType.warning,
+          );
+        }
       } else if (msg.contains('User must be USER')) {
-        context.showAppToast('Một số thành viên không có vai trò User', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Một số thành viên không có vai trò User',
+          type: NotificationType.error,
+        );
       } else if (msg.contains('Some users not found')) {
-        context.showAppToast('Một số thành viên không tồn tại trong hệ thống', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Một số thành viên không tồn tại trong hệ thống',
+          type: NotificationType.error,
+        );
       } else if (msg.contains('Department already has a manager')) {
-        context.showAppToast('Người quản lý này đã thuộc một phòng ban khác', variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Người quản lý này đã thuộc một phòng ban khác',
+          type: NotificationType.error,
+        );
       } else {
         final cleanMsg = msg.replaceAll('Exception: ', '');
-        context.showAppToast(cleanMsg.length > 100 ? '${cleanMsg.substring(0, 100)}...' : cleanMsg, variant: AppToastVariant.error);
+        GlobalNotificationService.show(
+          context: context,
+          message: cleanMsg.length > 100 ? '${cleanMsg.substring(0, 100)}...' : cleanMsg,
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -601,45 +697,38 @@ class _DepartmentManagementPageState extends State<DepartmentManagementPage> {
 
       // Hiển thị thông báo thành công từ backend
       final message = result['message'] ?? 'Đã xóa phòng ban thành công';
-      context.showAppToast(message, variant: AppToastVariant.success);
+      GlobalNotificationService.show(
+        context: context,
+        message: message,
+        type: NotificationType.success,
+      );
 
       setState(() {
         _departments.removeWhere((dept) => dept.id == department.id);
       });
     } catch (e) {
       if (!mounted) return;
-      // Truncate error message nếu quá dài
       final errorMsg = e.toString().replaceAll('Exception: ', '');
       final displayMsg = errorMsg.length > 100
           ? '${errorMsg.substring(0, 100)}...'
           : errorMsg;
-      context.showAppToast(displayMsg, variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: displayMsg,
+        type: NotificationType.error,
+      );
     }
   }
 
   List<DepartmentModel> get _filteredDepartments {
+    if (_managerQuery.trim().isEmpty) return _departments;
     return _departments.where((dept) {
-      final idLike = dept.code.toLowerCase().contains(_codeQuery.toLowerCase());
-      // Khi không tìm theo quản lý: cho qua. Khi có: so sánh (phòng ban không có quản lý = null thì không match)
-      final managerMatch =
-          _managerQuery.trim().isEmpty
-              ? true
-              : (dept.projectManagerName?.toLowerCase().contains(
-                    _managerQuery.toLowerCase().trim(),
-                  ) ??
-                  false);
-      final isActive = _departmentActiveMap[dept.id] ?? dept.isActive;
-      final statusMatch =
-          _statusFilter == 'Tất cả' ||
-          (_statusFilter == 'Đang hoạt động' ? isActive : !isActive);
-      return idLike && managerMatch && statusMatch;
+      return dept.projectManagerName?.toLowerCase().contains(
+            _managerQuery.toLowerCase().trim(),
+          ) ??
+          false;
     }).toList();
   }
 
-  List<DepartmentModel> get _paginatedDepartments {
-    final start = (_currentPage - 1) * _rowsPerPage;
-    if (start >= _filteredDepartments.length) return [];
-    final end = (start + _rowsPerPage).clamp(0, _filteredDepartments.length);
-    return _filteredDepartments.sublist(start, end);
-  }
+  List<DepartmentModel> get _paginatedDepartments => _filteredDepartments;
 }

@@ -14,11 +14,13 @@ import 'package:smet/service/employee/quiz_service.dart';
 class QuizDetailPage extends StatefulWidget {
   final String quizId;
   final String? courseId;
+  final VoidCallback? onResetSuccess;
 
   const QuizDetailPage({
     super.key,
     required this.quizId,
     this.courseId,
+    this.onResetSuccess,
   });
 
   @override
@@ -79,6 +81,36 @@ class _QuizDetailPageState extends State<QuizDetailPage> {
     }
   }
 
+  Future<void> _onResetAttempt() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận reset'),
+        content: const Text(
+          'Bạn sẽ mất toàn bộ tiến trình học tập và phải học lại từ đầu. Bạn có chắc chắn muốn reset không?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Đồng ý reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final success = await QuizService.resetMyAttempt(widget.quizId);
+    if (success) {
+      await _loadQuizData();
+      widget.onResetSuccess?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWebOrDesktop = kIsWeb ||
@@ -95,6 +127,7 @@ class _QuizDetailPageState extends State<QuizDetailPage> {
         onRetry: _loadQuizData,
         onStartQuiz: _onStartQuiz,
         onResumeQuiz: _onResumeQuiz,
+        onResetAttempt: _onResetAttempt,
       );
     }
 
@@ -107,6 +140,7 @@ class _QuizDetailPageState extends State<QuizDetailPage> {
       onRetry: _loadQuizData,
       onStartQuiz: _onStartQuiz,
       onResumeQuiz: _onResumeQuiz,
+      onResetAttempt: _onResetAttempt,
     );
   }
 }
@@ -124,6 +158,7 @@ class _QuizDetailWebView extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onStartQuiz;
   final VoidCallback onResumeQuiz;
+  final VoidCallback onResetAttempt;
 
   const _QuizDetailWebView({
     required this.quizInfo,
@@ -134,6 +169,7 @@ class _QuizDetailWebView extends StatelessWidget {
     required this.onRetry,
     required this.onStartQuiz,
     required this.onResumeQuiz,
+    required this.onResetAttempt,
   });
 
   @override
@@ -193,35 +229,6 @@ class _QuizDetailWebView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (quizInfo?.isFinalQuiz == true)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: QuizExamTheme.tertiaryFixed,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.star_rounded,
-                  size: 14,
-                  color: QuizExamTheme.tertiary,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'BÀI KIỂM TRA CUỐI KHÓA',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: QuizExamTheme.tertiary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (quizInfo?.isFinalQuiz == true) const SizedBox(height: 12),
         Text(
           quizInfo?.title ?? 'Bài kiểm tra',
           style: const TextStyle(
@@ -399,8 +406,54 @@ class _QuizDetailWebView extends StatelessWidget {
       );
     }
 
-    // Nếu không thể start (hết lượt hoặc lỗi)
-    if (eligibility?.canStart == false) {
+    // Nếu lesson progress chưa đủ → hiển thị message học lại bài
+    if (eligibility?.progressReady == false) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: QuizExamTheme.tertiaryFixed,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuizExamTheme.tertiary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.replay_rounded, color: QuizExamTheme.tertiary, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tiến trình đã được reset',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: QuizExamTheme.tertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Bạn đã hết lượt thi và cần học lại các bài học trước khi làm bài kiểm tra.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: QuizExamTheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Nếu không thể start (hết lượt) và chưa pass → hiển thị nút Reset
+    if (eligibility?.canStart == false && !(eligibility?.passed ?? false)) {
       return Column(
         children: [
           Container(
@@ -443,7 +496,59 @@ class _QuizDetailWebView extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: onResetAttempt,
+              icon: Icon(Icons.refresh_rounded, size: 18, color: QuizExamTheme.error),
+              label: Text(
+                'Reset tiến độ & làm lại',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: QuizExamTheme.error,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: QuizExamTheme.error,
+                side: BorderSide(color: QuizExamTheme.error.withValues(alpha: 0.5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
         ],
+      );
+    }
+
+    // Đã pass nhưng hết lượt → hiển thị trạng thái đã đạt thay vì nút Reset
+    if (eligibility?.passed == true) {
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: ElevatedButton.icon(
+          onPressed: null,
+          icon: Icon(Icons.check_circle_rounded, size: 22, color: Colors.white.withValues(alpha: 0.7)),
+          label: Text(
+            'Đã đạt',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: QuizExamTheme.primary.withValues(alpha: 0.6),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
       );
     }
 
@@ -562,6 +667,7 @@ class _QuizDetailMobileView extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onStartQuiz;
   final VoidCallback onResumeQuiz;
+  final VoidCallback onResetAttempt;
 
   const _QuizDetailMobileView({
     required this.quizInfo,
@@ -572,6 +678,7 @@ class _QuizDetailMobileView extends StatelessWidget {
     required this.onRetry,
     required this.onStartQuiz,
     required this.onResumeQuiz,
+    required this.onResetAttempt,
   });
 
   @override
@@ -641,35 +748,6 @@ class _QuizDetailMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (quizInfo?.isFinalQuiz == true)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: QuizExamTheme.tertiaryFixed,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.star_rounded,
-                  size: 12,
-                  color: QuizExamTheme.tertiary,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  'BÀI KIỂM TRA CUỐI KHÓA',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: QuizExamTheme.tertiary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (quizInfo?.isFinalQuiz == true) const SizedBox(height: 10),
         Text(
           quizInfo?.title ?? 'Bài kiểm tra',
           style: const TextStyle(
@@ -819,8 +897,41 @@ class _QuizDetailMobileView extends StatelessWidget {
       );
     }
 
-    // Nếu không thể start → hiển thị thông báo
-    if (eligibility?.canStart == false) {
+    // Nếu lesson progress chưa đủ → hiển thị message học lại bài
+    if (eligibility?.progressReady == false) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: QuizExamTheme.tertiaryFixed,
+          border: Border(
+            top: BorderSide(color: QuizExamTheme.tertiary.withValues(alpha: 0.3)),
+          ),
+        ),
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.replay_rounded, color: QuizExamTheme.tertiary, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Tiến trình đã được reset. Cần học lại bài.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: QuizExamTheme.tertiary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Nếu không thể start → hiển thị thông báo + nút Reset (chỉ khi chưa pass)
+    if (eligibility?.canStart == false && !(eligibility?.passed ?? false)) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -830,22 +941,94 @@ class _QuizDetailMobileView extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.block_rounded, color: QuizExamTheme.error, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                eligibility?.maxAttempts != null
-                    ? 'Đã hết lượt thi (${eligibility!.submittedAttempts ?? 0}/${eligibility!.maxAttempts})'
-                    : 'Không thể làm bài',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: QuizExamTheme.error,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.block_rounded, color: QuizExamTheme.error, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    eligibility?.maxAttempts != null
+                        ? 'Đã hết lượt thi (${eligibility!.submittedAttempts ?? 0}/${eligibility!.maxAttempts})'
+                        : 'Không thể làm bài',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: QuizExamTheme.error,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: onResetAttempt,
+                  icon: Icon(Icons.refresh_rounded, size: 16, color: QuizExamTheme.error),
+                  label: Text(
+                    'Reset tiến độ & làm lại',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: QuizExamTheme.error,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: QuizExamTheme.error,
+                    side: BorderSide(color: QuizExamTheme.error.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
               ),
             ],
+          ),
+        ),
+      );
+    }
+
+    // Đã pass nhưng hết lượt → hiển thị trạng thái đã đạt thay vì nút Reset
+    if (eligibility?.passed == true) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: QuizExamTheme.surfaceContainerLowest,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: null,
+              icon: Icon(Icons.check_circle_rounded, size: 20, color: Colors.white.withValues(alpha: 0.7)),
+              label: Text(
+                'Đã đạt',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: QuizExamTheme.primary.withValues(alpha: 0.6),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
         ),
       );

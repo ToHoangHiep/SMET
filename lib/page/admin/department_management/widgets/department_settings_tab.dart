@@ -6,22 +6,24 @@ import 'package:smet/model/department_model.dart';
 import 'package:smet/page/admin/department_management/widgets/dialog/user_selection_dialog.dart';
 import 'package:smet/page/admin/department_management/widgets/dialog/transfer_course_dialog.dart';
 import 'package:smet/page/admin/user_management/widgets/dialog/reassignment_dialog.dart';
-import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
 import 'package:smet/service/common/user_selection_service.dart';
+import 'package:smet/service/project/project_member_service.dart';
 
 /// Tab cài đặt phòng ban: chỉnh tên, mã, PM, thành viên — dùng cùng API PATCH như form cập nhật cũ.
 class DepartmentSettingsTab extends StatefulWidget {
   final int departmentId;
   final Color primaryColor;
   final VoidCallback onSaved;
+  final bool? departmentIsActive;
 
   const DepartmentSettingsTab({
     super.key,
     required this.departmentId,
     required this.primaryColor,
     required this.onSaved,
+    this.departmentIsActive,
   });
 
   @override
@@ -40,6 +42,7 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
   bool _hasChanges = false;
   String? _error;
   bool _isActive = true;
+  bool _originalIsActive = true;
   user_model.UserModel? _selectedManager;
   final List<user_model.UserModel> _selectedEmployees = [];
   List<DepartmentModel> _departments = [];
@@ -48,6 +51,15 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
   void initState() {
     super.initState();
     _loadFormData();
+  }
+
+  @override
+  void didUpdateWidget(DepartmentSettingsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.departmentIsActive != null &&
+        widget.departmentIsActive != oldWidget.departmentIsActive) {
+      setState(() => _isActive = widget.departmentIsActive!);
+    }
   }
 
   @override
@@ -92,17 +104,19 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
         log('DepartmentSettingsTab: load managers: $e');
       }
 
-      final match = managers
+      // Ưu tiên hiển thị projectManagerName trực tiếp từ department.
+      // Nếu getDepartmentById trả về projectManagerName thì dùng trực tiếp.
+      // Nếu không, mới fallback vào danh sách managers từ API.
+      final displayName = department.projectManagerName;
+      final matchedManagers = managers
           .where((u) => u.id == department.projectManagerId)
           .toList();
-      final manager = match.isEmpty ? null : match.first;
+      final manager = matchedManagers.isNotEmpty ? matchedManagers.first : null;
 
       List<Map<String, dynamic>> departmentMembers = [];
       try {
         final result = await _departmentService.getDepartmentMembers(
           departmentId: department.id,
-          page: 0,
-          size: 1000,
         );
         departmentMembers = (result['members'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
       } catch (e) {
@@ -136,10 +150,11 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
         _nameController.text = department.name;
         _codeController.text = department.code;
         _isActive = department.isActive;
+        _originalIsActive = department.isActive;
         _selectedManager = manager;
-        if (manager == null) {
-          _managerFallbackController.text =
-              department.projectManagerName ?? '';
+        // Luôn hiển thị projectManagerName từ department, không phụ thuộc manager object
+        if (displayName != null && displayName.isNotEmpty) {
+          _managerFallbackController.text = displayName;
         } else {
           _managerFallbackController.clear();
         }
@@ -180,7 +195,11 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
       );
     } catch (e) {
       if (!mounted) return;
-      context.showAppToast('Lỗi lấy danh sách: $e', variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi lấy danh sách người quản lý: $e',
+        type: NotificationType.error,
+      );
       return;
     }
 
@@ -192,13 +211,33 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
       managers: managers,
       currentManager: _selectedManager,
       excludeDepartmentId: widget.departmentId,
+      currentDepartmentId: widget.departmentId,
+      onSearch: (keyword) async {
+        return await fetchSelectableUsers(
+          UserSelectionContext.departmentProjectManager,
+          keyword: keyword.isNotEmpty ? keyword : null,
+        );
+      },
+      onAssignedUserSelected: (assignedUser) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Quản lý "${assignedUser.fullName}" đã thuộc phòng ban "${assignedUser.department}"',
+          type: NotificationType.warning,
+        );
+      },
     );
 
-    if (selected == null) return;
+    if (!mounted) return;
 
     setState(() {
+      final oldManager = _selectedManager;
       _selectedManager = selected;
-      _managerFallbackController.clear();
+      if (selected == null && oldManager != null) {
+        _managerFallbackController.clear();
+        _selectedEmployees.removeWhere((e) => e.id == oldManager.id);
+      } else if (selected != null) {
+        _managerFallbackController.clear();
+      }
     });
     _markChanged();
   }
@@ -208,10 +247,15 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
     try {
       availableUsers = await fetchSelectableUsers(
         UserSelectionContext.departmentMembers,
+        assigned: false,
       );
     } catch (e) {
       if (!mounted) return;
-      context.showAppToast('Lỗi lấy danh sách: $e', variant: AppToastVariant.error);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi lấy danh sách thành viên: $e',
+        type: NotificationType.error,
+      );
       return;
     }
 
@@ -223,6 +267,13 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
       members: availableUsers,
       preSelectedMembers: _selectedEmployees,
       excludeDepartmentId: widget.departmentId,
+      onSearch: (keyword) async {
+        return await fetchSelectableUsers(
+          UserSelectionContext.departmentMembers,
+          keyword: keyword.isNotEmpty ? keyword : null,
+          assigned: false,
+        );
+      },
     );
 
     if (result == null) return;
@@ -238,18 +289,9 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedManager == null) {
-      if (!mounted) return;
-      context.showAppToast(
-        'Vui lòng chọn người quản lý',
-        variant: AppToastVariant.info,
-      );
-      return;
-    }
-
     setState(() => _isSaving = true);
 
-    final pmId = _selectedManager!.id;
+    final pmId = _selectedManager?.id;
     final mentorList = _selectedEmployees
         .where((e) => e.role.name == 'MENTOR')
         .map((e) => e.id)
@@ -259,33 +301,100 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
         .map((e) => e.id)
         .toList();
 
-    final updated = await _departmentService.updateDepartment(
-      id: widget.departmentId,
-      name: _nameController.text.trim(),
-      code: _codeController.text.trim(),
-      isActive: _isActive,
-      projectManagerId: pmId,
-      mentorIds: mentorList.isNotEmpty ? mentorList : null,
-      userIds: userList.isNotEmpty ? userList : null,
-    );
+    try {
+      bool statusChanged = _originalIsActive != _isActive;
 
-    if (!mounted) return;
-    setState(() => _isSaving = false);
+      if (statusChanged) {
+        try {
+          await _departmentService.toggleDepartmentActive(widget.departmentId);
+        } catch (e) {
+          if (!mounted) return;
+          setState(() => _isSaving = false);
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Cập nhật trạng thái thất bại: $e',
+            type: NotificationType.error,
+          );
+          return;
+        }
+      }
 
-    if (updated == null) {
-      context.showAppToast(
-        'Cập nhật thất bại',
-        variant: AppToastVariant.error,
+      bool pmCleared = _selectedManager == null && hasManager;
+
+      if (pmId != null || mentorList.isNotEmpty || userList.isNotEmpty) {
+        final updated = await _departmentService.updateDepartment(
+          id: widget.departmentId,
+          name: _nameController.text.trim(),
+          code: _codeController.text.trim(),
+          isActive: _isActive,
+          projectManagerId: pmId,
+          mentorIds: mentorList.isNotEmpty ? mentorList : null,
+          userIds: userList.isNotEmpty ? userList : null,
+        );
+
+        if (!mounted) return;
+
+        if (updated == null) {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Cập nhật thông tin thất bại',
+            type: NotificationType.warning,
+          );
+          setState(() => _isSaving = false);
+          return;
+        }
+      } else if (pmCleared) {
+        // Khi bo chon PM nhung khong co thay doi nao khac,
+        // goi removeProjectManager de dam bao PM bi go khoi phong ban
+        final updated = await _departmentService.removeProjectManager(
+          widget.departmentId,
+        );
+        if (!mounted) return;
+        if (updated == null) {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Không thể gỡ người quản lý',
+            type: NotificationType.warning,
+          );
+          setState(() => _isSaving = false);
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đã cập nhật phòng ban thành công',
+        type: NotificationType.success,
       );
-      return;
-    }
+      widget.onSaved();
+      await _loadFormData();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
 
-    context.showAppToast(
-      'Đã cập nhật phòng ban thành công',
-      variant: AppToastVariant.success,
-    );
-    widget.onSaved();
-    await _loadFormData();
+      String message = 'Cập nhật thất bại';
+      if (e.toString().contains('is in active project')) {
+        final regex = RegExp(r"User '([^']+)' \(([^)]+)\) is in active project: (.+)");
+        final match = regex.firstMatch(e.toString());
+        if (match != null) {
+          final userName = match.group(1);
+          final role = match.group(2);
+          final projectTitle = match.group(3);
+          message = '"$userName" ($role) đã ở trong project "$projectTitle"';
+        }
+      } else {
+        message = e.toString().replaceAll('Exception: ', '');
+      }
+
+      GlobalNotificationService.show(
+        context: context,
+        message: message,
+        type: NotificationType.warning,
+      );
+    }
   }
 
   void _resetChanges() {
@@ -707,19 +816,20 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
   }
 
   Widget _buildManagerInfo(String? displayText) {
+    final hasSelected = _selectedManager != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          displayText ?? 'Chọn người quản lý',
+          hasSelected ? displayText ?? '' : 'Chọn người quản lý',
           style: TextStyle(
             fontSize: 14,
-            fontWeight: hasManager ? FontWeight.w600 : FontWeight.w400,
-            color: hasManager ? const Color(0xFF0F172A) : Colors.grey[400],
+            fontWeight: hasSelected ? FontWeight.w600 : FontWeight.w400,
+            color: hasSelected ? const Color(0xFF0F172A) : Colors.grey[400],
           ),
         ),
-        if (displayText != null && _selectedManager != null) ...[
+        if (hasSelected) ...[
           const SizedBox(height: 3),
           Row(
             children: [
@@ -739,7 +849,7 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
         ] else ...[
           const SizedBox(height: 2),
           Text(
-            'Nhấn để chọn PM quản lý phòng ban',
+            'Có thể chọn PM quản lý phòng ban',
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[400],
@@ -774,7 +884,7 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
           ),
           const SizedBox(width: 4),
           Text(
-            hasManager ? 'Đổi' : 'Chọn',
+            hasManager ? 'Sửa' : 'Chọn',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1049,18 +1159,98 @@ class _DepartmentSettingsTabState extends State<DepartmentSettingsTab> {
                 message: 'Xóa khỏi phòng ban',
                 child: InkWell(
                   onTap: () async {
-                    await TransferCourseDialog.show(
-                      context: context,
-                      mentor: member,
+                    // USER + MENTOR: block nếu có project chưa COMPLETED
+                    // Backend DepartmentService.validateUserProjectState check cả USER và MENTOR
+                    log("[DepartmentSettings] check active project for ${isMentor ? 'MENTOR' : 'USER'}: id=${member.id}, name=${member.fullName}");
+                    final activeProjects = await ProjectMemberService.checkUserProjects(
                       departmentId: widget.departmentId,
-                      primaryColor: widget.primaryColor,
-                      onComplete: () {
+                      userId: member.id,
+                    );
+                    log("[DepartmentSettings] active projects for ${member.id}: ${activeProjects.length}");
+
+                    if (activeProjects.isNotEmpty) {
+                      if (!mounted) return;
+                      GlobalNotificationService.show(
+                        context: context,
+                        message: 'Không thể xóa "${member.fullName}" khỏi phòng ban: đang tham gia dự án chưa hoàn thành: "${activeProjects.first.title}". Vui lòng chuyển ra khỏi dự án trước.',
+                        type: NotificationType.warning,
+                      );
+                      return;
+                    }
+
+                    if (isMentor) {
+                      // Mentor: cần chuyển khóa học trước
+                      await TransferCourseDialog.show(
+                        context: context,
+                        mentor: member,
+                        departmentId: widget.departmentId,
+                        primaryColor: widget.primaryColor,
+                        onComplete: () {
+                          setState(() {
+                            _selectedEmployees.removeWhere((e) => e.id == member.id);
+                          });
+                          _markChanged();
+                        },
+                      );
+                    } else {
+                      // User: xác nhận rồi xóa khỏi danh sách local
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          content: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.person_remove_outlined,
+                                  color: Colors.red.shade400,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  'Xóa "${member.fullName}" khỏi phòng ban?',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Hủy'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Xác nhận xóa'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true) {
                         setState(() {
                           _selectedEmployees.removeWhere((e) => e.id == member.id);
                         });
                         _markChanged();
-                      },
-                    );
+                      }
+                    }
                   },
                   borderRadius: BorderRadius.circular(20),
                   child: const Padding(

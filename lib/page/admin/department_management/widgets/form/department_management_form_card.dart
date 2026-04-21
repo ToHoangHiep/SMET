@@ -12,6 +12,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
   final bool isActive;
   final List<UserModel> selectedEmployees;
   final VoidCallback onPickManager;
+  final VoidCallback? onRemoveManager;
   final VoidCallback onPickEmployees;
   final ValueChanged<bool> onActiveChanged;
   final ValueChanged<UserModel> onRemoveEmployee;
@@ -30,6 +31,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
     required this.isActive,
     required this.selectedEmployees,
     required this.onPickManager,
+    this.onRemoveManager,
     required this.onPickEmployees,
     required this.onActiveChanged,
     required this.onRemoveEmployee,
@@ -53,7 +55,10 @@ class _DepartmentManagementFormCardState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
+        border: Border.all(
+          color: Colors.grey.shade200.withValues(alpha: 0.8),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: widget.primaryColor.withValues(alpha: 0.06),
@@ -257,6 +262,9 @@ class _DepartmentManagementFormCardState
   }
 
   Widget _buildManagerField() {
+    final hasManager =
+        widget.selectedManager != null || widget.managerFallbackText.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -298,7 +306,7 @@ class _DepartmentManagementFormCardState
                           widget.selectedManager != null
                               ? '${widget.selectedManager!.fullName} (${widget.selectedManager!.role.displayName})${widget.selectedManager!.department != null ? ' - ${widget.selectedManager!.department}' : ' - Chưa có'}'
                               : widget.managerFallbackText.isEmpty
-                              ? 'Chọn người quản lý'
+                              ? 'Có thể chọn PM quản lý'
                               : widget.managerFallbackText,
                           style: TextStyle(
                             fontSize: 14,
@@ -315,22 +323,23 @@ class _DepartmentManagementFormCardState
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: widget.onPickManager,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+            if (hasManager && widget.onRemoveManager != null) ...[
+              ElevatedButton(
+                onPressed: widget.onPickManager,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                child: Text(hasManager ? 'ĐỔI' : 'CHỌN'),
               ),
-              child: const Text('CHỌN'),
-            ),
+            ],
           ],
         ),
       ],

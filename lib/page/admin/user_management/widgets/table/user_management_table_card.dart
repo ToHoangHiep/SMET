@@ -27,7 +27,6 @@ class UserManagementTableCard extends StatefulWidget {
   final ValueChanged<UserModel> onEditUser;
   final ValueChanged<UserModel> onViewUser;
   final ValueChanged<UserModel> onToggleActive;
-  final ValueChanged<UserModel>? onReassignDepartment;
 
   const UserManagementTableCard({
     super.key,
@@ -52,7 +51,6 @@ class UserManagementTableCard extends StatefulWidget {
     required this.onEditUser,
     required this.onViewUser,
     required this.onToggleActive,
-    this.onReassignDepartment,
   });
 
   @override
@@ -92,6 +90,30 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
     _animationController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Returns the display info for a user's department.
+  /// For PMs: uses department.projectManagerId to determine if they're truly managing a department.
+  /// For non-PMs: uses user.departmentId.
+  /// Workaround for backend not clearing user.departmentId when PM is unassigned.
+  ({String? name, bool isManaging}) _getUserDepartmentDisplay(UserModel user) {
+    // PM: check if user is truly managing any department via departments list
+    if (user.role.name == 'PROJECT_MANAGER') {
+      for (final dept in widget.departments) {
+        if (dept.projectManagerId == user.id) {
+          return (name: dept.name, isManaging: true);
+        }
+      }
+      // PM is not managing any department (removed but departmentId not cleared by backend)
+      return (name: null, isManaging: false);
+    }
+
+    // Non-PM: use departmentId as normal
+    if (user.departmentId != null) {
+      final dept = widget.departments.where((d) => d.id == user.departmentId).firstOrNull;
+      return (name: dept?.name ?? user.department, isManaging: false);
+    }
+    return (name: null, isManaging: false);
   }
 
   @override
@@ -401,13 +423,46 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
             children: [
               Icon(Icons.business_outlined, size: 16, color: Colors.grey[400]),
               const SizedBox(width: 8),
-              Text(
-                user.department ?? 'Chưa có',
-                style: GoogleFonts.notoSans(
-                  color: Colors.grey[600],
-                  fontSize: 13,
-                ),
-              ),
+              Builder(builder: (context) {
+                final info = _getUserDepartmentDisplay(user);
+                if (user.role.name == 'PROJECT_MANAGER' && info.name != null) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        info.name!,
+                        style: GoogleFonts.notoSans(
+                          color: Colors.grey[600],
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Quản lý',
+                          style: GoogleFonts.notoSans(
+                            fontSize: 10,
+                            color: const Color(0xFF1D4ED8),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return Text(
+                  info.name ?? 'Chưa có',
+                  style: GoogleFonts.notoSans(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                  ),
+                );
+              }),
             ],
           ),
         ),
@@ -449,18 +504,6 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
                 onPressed: () => widget.onEditUser(user),
                 tooltip: 'Chỉnh sửa',
               ),
-              if (user.role != UserRole.ADMIN) ...[
-                const SizedBox(width: 4),
-                _ActionButton(
-                  icon: Icons.swap_horiz_rounded,
-                  onPressed:
-                      widget.onReassignDepartment != null
-                          ? () => widget.onReassignDepartment!(user)
-                          : null,
-                  tooltip: 'Đổi phòng ban',
-                  color: Colors.orange,
-                ),
-              ],
             ],
           ),
         ),
@@ -717,9 +760,17 @@ class _IsActiveFilterState extends State<_IsActiveFilter> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () async {
+        final RenderBox renderBox = context.findRenderObject() as RenderBox;
+        final Offset offset = renderBox.localToGlobal(Offset.zero);
+        final RelativeRect position = RelativeRect.fromLTRB(
+          offset.dx,
+          offset.dy + renderBox.size.height,
+          offset.dx + renderBox.size.width,
+          offset.dy,
+        );
         final result = await showMenu<_StatusOption>(
           context: context,
-          position: const RelativeRect.fromLTRB(0, 45, 0, 0),
+          position: position,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           items: [
             PopupMenuItem<_StatusOption>(

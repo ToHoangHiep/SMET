@@ -342,16 +342,24 @@ class _DepartmentManagementTableSectionState
           Text(
             dept.createdAt != null
                 ? '${dept.createdAt!.day.toString().padLeft(2, '0')}/${dept.createdAt!.month.toString().padLeft(2, '0')}/${dept.createdAt!.year}'
-                : 'N/A',
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                : 'Chưa có',
+            style: TextStyle(
+              color: dept.createdAt != null ? Colors.grey[600] : Colors.grey[400],
+              fontSize: 13,
+              fontStyle: dept.createdAt == null ? FontStyle.italic : FontStyle.normal,
+            ),
           ),
         ),
         DataCell(
           Text(
             dept.updatedAt != null
                 ? '${dept.updatedAt!.day.toString().padLeft(2, '0')}/${dept.updatedAt!.month.toString().padLeft(2, '0')}/${dept.updatedAt!.year}'
-                : 'N/A',
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                : 'Chưa có',
+            style: TextStyle(
+              color: dept.updatedAt != null ? Colors.grey[600] : Colors.grey[400],
+              fontSize: 13,
+              fontStyle: dept.updatedAt == null ? FontStyle.italic : FontStyle.normal,
+            ),
           ),
         ),
         DataCell(

@@ -5,7 +5,7 @@
 //   GET /api/pm/dashboard/trends       → PmTrendResponse
 //   GET /api/pm/dashboard/team         → PageResponse<UserCourseReviewResponse>
 //   GET /api/pm/dashboard/risks        → PageResponse<PmRiskResponse>
-//   GET /api/pm/dashboard/insights    → List<DashboardInsightModel>
+//   GET /api/pm/insights             → List<DashboardInsight>
 // ============================================
 
 // ============================================
@@ -221,35 +221,51 @@ class PmRiskItem {
   }
 }
 
-// ============================================
-// BACKEND: GET /api/pm/dashboard/insights
+// BACKEND: GET /api/pm/insights
 // List<DashboardInsightModel>
+//   Long id, String type, String message,
+//   String? recommendation, String? severity,
+//   String status, String? actionTaken,
+//   Long? handledBy, LocalDateTime handledAt,
+//   String uniqueKey, LocalDateTime createdAt
 // ============================================
 class DashboardInsight {
   final int id;
-  final String insightKey;
-  final String content;
-  final String? actionLabel;
-  final String? actionUrl;
+  final String insightKey;   // ← backend field: uniqueKey
+  final String content;      // ← backend field: message
+  final String? type;       // ← backend field: type
+  final String? recommendation;
+  final String? severity;
+  final String? status;
+  final String? actionTaken;
   final DateTime createdAt;
+  final DateTime? handledAt;
 
   DashboardInsight({
     required this.id,
     required this.insightKey,
     required this.content,
-    this.actionLabel,
-    this.actionUrl,
+    this.type,
+    this.recommendation,
+    this.severity,
+    this.status,
+    this.actionTaken,
     required this.createdAt,
+    this.handledAt,
   });
 
   factory DashboardInsight.fromJson(Map<String, dynamic> json) {
     return DashboardInsight(
       id: _parseInt(json['id']),
-      insightKey: json['insightKey'] ?? '',
-      content: json['content'] ?? '',
-      actionLabel: json['actionLabel'],
-      actionUrl: json['actionUrl'],
+      insightKey: json['uniqueKey'] ?? json['insightKey'] ?? json['type'] ?? '',
+      content: json['message'] ?? json['content'] ?? '',
+      type: json['type'],
+      recommendation: json['recommendation'],
+      severity: json['severity'],
+      status: json['status'],
+      actionTaken: json['actionTaken'],
       createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
+      handledAt: _parseDateTime(json['handledAt']),
     );
   }
 }

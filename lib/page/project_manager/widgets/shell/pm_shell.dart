@@ -26,12 +26,6 @@ class PmShell extends StatefulWidget {
       tooltip: 'Bảng điều khiển',
     ),
     SidebarMenuItem(
-      icon: Icons.people_rounded,
-      title: 'Tiến độ nhóm',
-      route: '/pm/team',
-      tooltip: 'Tiến độ nhóm',
-    ),
-    SidebarMenuItem(
       icon: Icons.warning_amber_rounded,
       title: 'Học viên rủi ro',
       route: '/pm/risks',
@@ -45,9 +39,9 @@ class PmShell extends StatefulWidget {
     ),
     SidebarMenuItem(
       icon: Icons.lightbulb_outline_rounded,
-      title: 'Insights',
+      title: 'Nhận định',
       route: '/pm/insights',
-      tooltip: 'Insights',
+      tooltip: 'Nhận định',
     ),
     SidebarMenuItem(
       icon: Icons.folder_rounded,

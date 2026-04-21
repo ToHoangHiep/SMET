@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/page/shared/widgets/notification_bell_button.dart';
 import 'package:smet/page/sidebar/shared_sidebar.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
@@ -128,6 +129,14 @@ class _ReportShellState extends State<ReportShell> {
               ),
               Expanded(child: widget.child),
             ],
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: NotificationBellButton(
+              primaryColor: _primaryColor,
+              onOpenPanel: () => context.go('/notifications'),
+            ),
           ),
         ],
       ),

@@ -93,16 +93,32 @@ class _EditReportScreenState extends State<EditReportScreen> {
       } else {
         // Start with a template derived from snapshot data
         final snapshot = report.snapshotData;
-        if (snapshot != null && snapshot.mentor != null) {
+        if (snapshot != null && snapshot.isMentor) {
           _editableJsonController.text = _prettyPrintJson(jsonEncode({
-            'summary': {
-              'totalStudents': snapshot.mentor!.totalStudents,
-              'completedStudents': snapshot.mentor!.completedStudents,
-              'completionRate': snapshot.mentor!.completionRate,
-              'avgScore': snapshot.mentor!.avgScore,
-            },
+            'assignedProjects': snapshot.assignedProjects,
+            'completedCourses': snapshot.completedCourses,
+            'inProgressCourses': snapshot.inProgressCourses,
+            'notStartedCourses': snapshot.notStartedCourses,
+            'totalCourses': snapshot.totalCourses,
             'notes': '',
-            'actionItems': [],
+          }));
+        } else if (snapshot != null && snapshot.isPm) {
+          _editableJsonController.text = _prettyPrintJson(jsonEncode({
+            'totalProjects': snapshot.totalProjects,
+            'completedProjects': snapshot.completedProjects,
+            'completedCourses': snapshot.completedCourses,
+            'inProgressCourses': snapshot.inProgressCourses,
+            'notStartedCourses': snapshot.notStartedCourses,
+            'notes': '',
+          }));
+        } else if (snapshot != null && snapshot.isAdmin) {
+          _editableJsonController.text = _prettyPrintJson(jsonEncode({
+            'totalUsers': snapshot.totalUsers,
+            'totalProjects': snapshot.totalProjects,
+            'completedCourses': snapshot.completedCourses,
+            'inProgressCourses': snapshot.inProgressCourses,
+            'notStartedCourses': snapshot.notStartedCourses,
+            'notes': '',
           }));
         }
       }
@@ -627,7 +643,6 @@ class _EditorSection extends StatelessWidget {
   }
 
   Widget _buildFormEditor() {
-    // Parse editable JSON into a simple key-value form
     final snapshot = report.snapshotData;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -639,28 +654,84 @@ class _EditorSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (snapshot != null && snapshot.mentor != null) ...[
+          if (snapshot != null && snapshot.isMentor) ...[
             _FormField(
-              label: 'Tổng học viên',
-              value: '${snapshot.mentor!.totalStudents}',
+              label: 'Dự án được giao',
+              value: '${snapshot.assignedProjects ?? 0}',
               enabled: false,
               primaryColor: primaryColor,
             ),
             _FormField(
               label: 'Hoàn thành',
-              value: '${snapshot.mentor!.completedStudents}',
+              value: '${snapshot.completedCourses ?? 0}',
               enabled: false,
               primaryColor: primaryColor,
             ),
             _FormField(
-              label: 'Tỷ lệ hoàn thành',
-              value: '${snapshot.mentor!.completionRate.toStringAsFixed(1)}%',
+              label: 'Đang học',
+              value: '${snapshot.inProgressCourses ?? 0}',
               enabled: false,
               primaryColor: primaryColor,
             ),
             _FormField(
-              label: 'Điểm trung bình',
-              value: snapshot.mentor!.avgScore.toStringAsFixed(1),
+              label: 'Chưa bắt đầu',
+              value: '${snapshot.notStartedCourses ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+          ] else if (snapshot != null && snapshot.isPm) ...[
+            _FormField(
+              label: 'Tổng dự án',
+              value: '${snapshot.totalProjects ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Hoàn thành',
+              value: '${snapshot.completedProjects ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Đang học',
+              value: '${snapshot.inProgressCourses ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Chưa bắt đầu',
+              value: '${snapshot.notStartedCourses ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+          ] else if (snapshot != null && snapshot.isAdmin) ...[
+            _FormField(
+              label: 'Tổng người dùng',
+              value: '${snapshot.totalUsers ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Tổng dự án',
+              value: '${snapshot.totalProjects ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Hoàn thành',
+              value: '${snapshot.completedCourses ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Đang học',
+              value: '${snapshot.inProgressCourses ?? 0}',
+              enabled: false,
+              primaryColor: primaryColor,
+            ),
+            _FormField(
+              label: 'Chưa bắt đầu',
+              value: '${snapshot.notStartedCourses ?? 0}',
               enabled: false,
               primaryColor: primaryColor,
             ),
@@ -689,11 +760,11 @@ class _EditorSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFFDE68A)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.warning_rounded, size: 14, color: Color(0xFFB45309)),
-                const SizedBox(width: 8),
-                const Expanded(
+                Icon(Icons.warning_rounded, size: 14, color: Color(0xFFB45309)),
+                SizedBox(width: 8),
+                Expanded(
                   child: Text(
                     'Chuyển sang chế độ JSON để chỉnh sửa chi tiết hơn.',
                     style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
@@ -855,12 +926,12 @@ class _SnapshotReference extends StatelessWidget {
           const SizedBox(height: 20),
           if (snapshot == null)
             _buildRawData()
-          else if (snapshot.mentor != null)
-            _buildMentorSnapshotData(snapshot.mentor!)
-          else if (snapshot.pm != null)
-            _buildPmSnapshotData(snapshot.pm!)
-          else if (snapshot.admin != null)
-            _buildAdminSnapshotData(snapshot.admin!),
+          else if (snapshot.isMentor)
+            _buildMentorSnapshotData(snapshot)
+          else if (snapshot.isPm)
+            _buildPmSnapshotData(snapshot)
+          else if (snapshot.isAdmin)
+            _buildAdminSnapshotData(snapshot),
         ],
       ),
     );
@@ -881,40 +952,42 @@ class _SnapshotReference extends StatelessWidget {
     );
   }
 
-  Widget _buildMentorSnapshotData(MentorSnapshot m) {
+  Widget _buildMentorSnapshotData(ReportSnapshotData s) {
     return Column(
       children: [
-        _ReadOnlyField(label: 'Tổng học viên', value: '${m.totalStudents}'),
-        _ReadOnlyField(label: 'Hoàn thành', value: '${m.completedStudents}'),
-        _ReadOnlyField(label: 'Tỷ lệ hoàn thành', value: '${m.completionRate.toStringAsFixed(1)}%'),
-        _ReadOnlyField(label: 'Điểm trung bình', value: m.avgScore.toStringAsFixed(1)),
-        if (m.atRiskUsers.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _ReadOnlyField(
-            label: 'Học viên có nguy cơ',
-            value: '${m.atRiskUsers.length} người',
-          ),
-        ],
+        _ReadOnlyField(label: 'Dự án được giao', value: '${s.assignedProjects ?? 0}'),
+        _ReadOnlyField(label: 'Hoàn thành', value: '${s.completedCourses ?? 0}'),
+        _ReadOnlyField(label: 'Đang học', value: '${s.inProgressCourses ?? 0}'),
+        _ReadOnlyField(label: 'Chưa bắt đầu', value: '${s.notStartedCourses ?? 0}'),
+        _ReadOnlyField(label: 'Tổng', value: '${s.totalCourses}'),
+        _ReadOnlyField(label: 'Tỷ lệ hoàn thành', value: '${s.completionRate.toStringAsFixed(1)}%'),
       ],
     );
   }
 
-  Widget _buildPmSnapshotData(PmSnapshot m) {
+  Widget _buildPmSnapshotData(ReportSnapshotData s) {
     return Column(
       children: [
-        _ReadOnlyField(label: 'Tổng người dùng', value: '${m.totalUsers}'),
-        _ReadOnlyField(label: 'Hoàn thành', value: '${m.completed}'),
-        _ReadOnlyField(label: 'Tỷ lệ hoàn thành', value: '${m.completionRate.toStringAsFixed(1)}%'),
+        _ReadOnlyField(label: 'Tổng dự án', value: '${s.totalProjects ?? 0}'),
+        _ReadOnlyField(label: 'Hoàn thành', value: '${s.completedProjects ?? 0}'),
+        _ReadOnlyField(label: 'Hoàn thành (khóa học)', value: '${s.completedCourses ?? 0}'),
+        _ReadOnlyField(label: 'Đang học', value: '${s.inProgressCourses ?? 0}'),
+        _ReadOnlyField(label: 'Chưa bắt đầu', value: '${s.notStartedCourses ?? 0}'),
+        _ReadOnlyField(label: 'Tỷ lệ hoàn thành', value: '${s.completionRate.toStringAsFixed(1)}%'),
       ],
     );
   }
 
-  Widget _buildAdminSnapshotData(AdminSnapshot m) {
+  Widget _buildAdminSnapshotData(ReportSnapshotData s) {
     return Column(
       children: [
-        _ReadOnlyField(label: 'Tổng người dùng', value: '${m.totalUsers}'),
-        _ReadOnlyField(label: 'Tổng khóa học', value: '${m.totalCourses}'),
-        _ReadOnlyField(label: 'Hoàn thành', value: '${m.completedUsers}'),
+        _ReadOnlyField(label: 'Tổng người dùng', value: '${s.totalUsers ?? 0}'),
+        _ReadOnlyField(label: 'Tổng dự án', value: '${s.totalProjects ?? 0}'),
+        _ReadOnlyField(label: 'Hoàn thành', value: '${s.completedCourses ?? 0}'),
+        _ReadOnlyField(label: 'Đang học', value: '${s.inProgressCourses ?? 0}'),
+        _ReadOnlyField(label: 'Chưa bắt đầu', value: '${s.notStartedCourses ?? 0}'),
+        _ReadOnlyField(label: 'Tổng khóa học', value: '${s.totalCourses}'),
+        _ReadOnlyField(label: 'Tỷ lệ hoàn thành', value: '${s.completionRate.toStringAsFixed(1)}%'),
       ],
     );
   }

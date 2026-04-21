@@ -10,15 +10,8 @@ class LearningCourse {
   final String courseId;
   final double progressPercent;
   final List<LearningModule> modules;
-  final String? finalQuizId; // quiz cuối khóa
-  /// Final quiz đã pass (điểm >= passingScore)
-  final bool finalQuizPassed;
-  /// ID của mentor giảng dạy khóa học này
   final int mentorId;
-  /// Tên của mentor giảng dạy khóa học này
   final String mentorName;
-  /// Trạng thái enrollment từ backend — dùng thay vì progressPercent để xác định hoàn thành
-  /// Backend đã tính đúng: COMPLETED = lessons done + quizzes passed
   final String enrollmentStatus;
 
   const LearningCourse({
@@ -27,14 +20,11 @@ class LearningCourse {
     required this.courseId,
     required this.progressPercent,
     required this.modules,
-    this.finalQuizId,
-    this.finalQuizPassed = false,
     this.mentorId = 0,
     this.mentorName = 'Giảng viên',
     this.enrollmentStatus = 'NOT_STARTED',
   });
 
-  /// True khi backend trả COMPLETED (tất cả lessons + quizzes đều pass)
   bool get isCourseCompleted => enrollmentStatus == 'COMPLETED';
 }
 
@@ -50,6 +40,9 @@ class LearningModule {
   /// Quiz đã pass (điểm >= passingScore) → hiển thị xanh ✓
   /// Quiz chưa làm / chưa pass → hiển thị xám / đỏ
   final bool quizPassed;
+  /// User đã có ít nhất 1 lần thi (dù đạt hay không)
+  /// Dùng để phân biệt "chưa làm bao giờ" vs "đã làm nhưng chưa đạt"
+  final bool hasQuizAttempts;
   final VoidCallback? onToggle;
 
   const LearningModule({
@@ -62,8 +55,37 @@ class LearningModule {
     required this.lessons,
     this.quizId,
     this.quizPassed = false,
+    this.hasQuizAttempts = false,
     this.onToggle,
   });
+
+  LearningModule copyWith({
+    String? id,
+    String? title,
+    bool? isLocked,
+    bool? isCompleted,
+    bool? isExpanded,
+    double? progress,
+    List<Lesson>? lessons,
+    String? quizId,
+    bool? quizPassed,
+    bool? hasQuizAttempts,
+    VoidCallback? onToggle,
+  }) {
+    return LearningModule(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      isLocked: isLocked ?? this.isLocked,
+      isCompleted: isCompleted ?? this.isCompleted,
+      isExpanded: isExpanded ?? this.isExpanded,
+      progress: progress ?? this.progress,
+      lessons: lessons ?? this.lessons,
+      quizId: quizId ?? this.quizId,
+      quizPassed: quizPassed ?? this.quizPassed,
+      hasQuizAttempts: hasQuizAttempts ?? this.hasQuizAttempts,
+      onToggle: onToggle ?? this.onToggle,
+    );
+  }
 }
 
 enum LessonType { video, text, link, quiz }

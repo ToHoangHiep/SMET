@@ -34,6 +34,7 @@ class UserModel {
   final DateTime? createdAt;
   final DateTime? lastUpdated;
   final int? departmentId;
+  final String? pendingEmail; // Email đang chờ xác nhận
 
   UserModel({
     required this.id,
@@ -52,6 +53,7 @@ class UserModel {
     this.createdAt,
     this.lastUpdated,
     this.departmentId,
+    this.pendingEmail,
   });
 
   String get fullName => '$firstName ${lastName ?? ""}'.trim();
@@ -122,6 +124,7 @@ class UserModel {
           (json["department"] is Map
               ? (json["department"]["id"] as int?)
               : null),
+      pendingEmail: json['pendingEmail']?.toString(),
     );
   }
 
@@ -144,7 +147,7 @@ class UserModel {
   String get rolePath {
     switch (role) {
       case UserRole.ADMIN:
-        return '/user_management';
+        return '/admin/dashboard';
 
       case UserRole.PROJECT_MANAGER:
         return '/pm/dashboard';

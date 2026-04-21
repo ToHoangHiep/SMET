@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/page/shared/widgets/notification_bell_button.dart';
 
 export 'package:smet/page/shared/widgets/shared_breadcrumb.dart' show BreadcrumbItem;
 
@@ -40,20 +40,20 @@ class EmployeeTopHeader extends StatelessWidget {
           ],
           Row(
             children: [
-              Text(
-                currentPage,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0F172A),
+              Expanded(
+                child: Text(
+                  currentPage,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed:
-                    onNotificationTap ?? () => context.go('/notifications'),
-                tooltip: 'Thông báo',
+              NotificationBellButton(
+                primaryColor: _primary,
+                onOpenPanel: onNotificationTap,
               ),
             ],
           ),

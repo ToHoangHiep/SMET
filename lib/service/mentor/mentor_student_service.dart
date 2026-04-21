@@ -173,4 +173,132 @@ class MentorStudentService {
       rethrow;
     }
   }
+
+  // ============================================
+  // GET COURSE ENROLLMENT STATS
+  // Returns counts of enrollments grouped by status for a specific course.
+  // Used to populate correct course stats in mentor reports when backend
+  // report generation returns stale/zero data.
+  // ============================================
+  Future<CourseEnrollmentStats> getCourseEnrollmentStats(Long courseId) async {
+    log("[MentorStudentService] getCourseEnrollmentStats() — courseId=${courseId.value}");
+
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception("No auth token found. Please login again.");
+      }
+
+      final params = {'page': '0', 'size': '1'};
+      final uri = Uri.parse("$baseUrl/lms/enrollments/courses/${courseId.value}")
+          .replace(queryParameters: params);
+
+      _logRequest("GET COURSE ENROLLMENT STATS", uri.toString(), headers: _headers(token));
+      final res = await http.get(uri, headers: _headers(token));
+      _logResponse(res);
+
+      if (res.statusCode == 200) {
+        try {
+          final decoded = jsonDecode(res.body);
+          if (decoded == null) {
+            return CourseEnrollmentStats.empty();
+          }
+          final data = Map<String, dynamic>.from(decoded);
+          final total = data['totalElements'] as int? ?? 0;
+          final contentList = data['content'] as List<dynamic>? ?? [];
+
+          int completed = 0;
+          int inProgress = 0;
+          int notStarted = 0;
+
+          for (final item in contentList) {
+            final status = (item as Map<String, dynamic>)['status'] as String?;
+            switch (status?.toUpperCase()) {
+              case 'COMPLETED':
+                completed++;
+                break;
+              case 'IN_PROGRESS':
+                inProgress++;
+                break;
+              case 'NOT_STARTED':
+              default:
+                notStarted++;
+                break;
+            }
+          }
+
+          // totalElements gives us the actual total count
+          // We need to fetch all to count correctly
+          // Fall back to using totalElements and making a best-effort guess
+          // if we only got page 1 of a large dataset
+          if (total > int.parse(params['size']!)) {
+            // Total exceeds one page — need to count all pages
+            return _countAllPagesStats(courseId, total);
+          }
+
+          return CourseEnrollmentStats(
+            completedCourses: completed,
+            inProgressCourses: inProgress,
+            notStartedCourses: notStarted,
+            total: total,
+          );
+        } on FormatException catch (e) {
+          log("  [ERROR] JSON parse failed: $e");
+          throw Exception("Server returned invalid JSON.");
+        }
+      }
+
+      throw Exception("Get course enrollment stats failed: HTTP ${res.statusCode}");
+    } catch (e) {
+      log("[MentorStudentService] getCourseEnrollmentStats() FAILED: $e");
+      rethrow;
+    }
+  }
+
+  Future<CourseEnrollmentStats> _countAllPagesStats(Long courseId, int total) async {
+    final token = await _getToken();
+    if (token == null) {
+      throw Exception("No auth token found.");
+    }
+
+    final pageSize = 100;
+    final totalPages = (total / pageSize).ceil();
+    int completed = 0;
+    int inProgress = 0;
+    int notStarted = 0;
+
+    for (int page = 0; page < totalPages; page++) {
+      final params = {'page': page.toString(), 'size': pageSize.toString()};
+      final uri = Uri.parse("$baseUrl/lms/enrollments/courses/${courseId.value}")
+          .replace(queryParameters: params);
+      final res = await http.get(uri, headers: _headers(token));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        final contentList = (decoded as Map<String, dynamic>)['content'] as List<dynamic>? ?? [];
+        for (final item in contentList) {
+          final status = (item as Map<String, dynamic>)['status'] as String?;
+          switch (status?.toUpperCase()) {
+            case 'COMPLETED':
+              completed++;
+              break;
+            case 'IN_PROGRESS':
+              inProgress++;
+              break;
+            case 'NOT_STARTED':
+            default:
+              notStarted++;
+              break;
+          }
+        }
+      }
+    }
+
+    return CourseEnrollmentStats(
+      completedCourses: completed,
+      inProgressCourses: inProgress,
+      notStartedCourses: notStarted,
+      total: total,
+    );
+  }
 }

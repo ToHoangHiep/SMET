@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/Employee_learning_model.dart';
-import 'package:smet/page/employee/quiz/widgets/quiz_exam_theme.dart';
 
 /// Course Outline Sidebar — modern Coursera-style:
 /// - Progress pill per module
@@ -34,7 +33,6 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
   static const _primary = Color(0xFF137FEC);
   static const _border = Color(0xFFE2E8F0);
   static const _slate500 = Color(0xFF64748B);
-  static const _success = Color(0xFF22C55E);
 
   @override
   void dispose() {
@@ -88,7 +86,6 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
               ),
             ),
           ),
-          if (widget.course.finalQuizId != null) _buildFinalQuizSection(),
           _buildCollapseFooter(),
         ],
       ),
@@ -169,177 +166,6 @@ class _CourseOutlineSidebarState extends State<CourseOutlineSidebar> {
                   ],
                 );
               },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFinalQuizSection() {
-    final isActive = widget.currentQuizId != null;
-    // Dùng enrollmentStatus thay vì progressPercent để xác định trạng thái khóa học
-    final isLocked = widget.course.progressPercent < 80;
-    final isPassed = widget.course.finalQuizPassed;
-
-    IconData finalIcon() {
-      if (isLocked) return Icons.lock_outline;
-      if (isPassed) return Icons.check_circle;
-      return Icons.cancel_outlined;
-    }
-
-    Color finalIconColor() {
-      if (isLocked) return const Color(0xFFCBD5E1);
-      if (isPassed) return _success;
-      return QuizExamTheme.error;
-    }
-
-    Color finalTextColor() {
-      if (isLocked) return const Color(0xFF94A3B8);
-      if (isPassed) return _success;
-      return QuizExamTheme.error;
-    }
-
-    String finalSubtitle() {
-      if (isLocked) return 'Hoàn thành 80% khóa học để mở';
-      if (isPassed) return 'Đã đạt';
-      return 'Chưa đạt – Làm lại';
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        children: [
-          // Divider-like separator
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                const Expanded(child: Divider(height: 1, color: Color(0xFFE2E8F0))),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'Cuối khóa',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF94A3B8),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                const Expanded(child: Divider(height: 1, color: Color(0xFFE2E8F0))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Final Quiz Row — giống _ModuleSection header
-          MouseRegion(
-            onEnter: (_) => setState(() {}),
-            onExit: (_) => setState(() {}),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: isLocked ? null : () => widget.onQuizTap(widget.course.finalQuizId!),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? _primary.withValues(alpha: 0.08)
-                        : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border(
-                      left: BorderSide(
-                        color: isActive ? _primary : Colors.transparent,
-                        width: 3,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Module icon
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: finalIconColor().withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(finalIcon(), size: 20, color: finalIconColor()),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Bài kiểm tra cuối khóa',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: isActive
-                                          ? _primary
-                                          : const Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: widget.course.finalQuizPassed
-                                        ? _success.withValues(alpha: 0.1)
-                                        : _primary.withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '${widget.course.progressPercent.round().clamp(0, 100)}%',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: widget.course.finalQuizPassed
-                                          ? _success
-                                          : _primary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child:                                 Text(
-                                  finalSubtitle(),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: finalTextColor(),
-                                  ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 20,
-                        color: isActive ? _primary : const Color(0xFF94A3B8),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ),
           ),
         ],
@@ -646,6 +472,7 @@ class _ModuleSectionState extends State<_ModuleSection>
                     quizId: widget.module.quizId!,
                     isCompleted: widget.module.isCompleted,
                     quizPassed: widget.module.quizPassed,
+                    hasQuizAttempts: widget.module.hasQuizAttempts,
                     isActive: widget.currentQuizId == widget.module.quizId,
                     moduleProgress: widget.module.progress,
                     onTap: widget.onQuizTap,
@@ -831,6 +658,8 @@ class _ModuleQuizRow extends StatefulWidget {
   final bool isCompleted;
   /// Quiz đã pass (điểm >= passingScore)
   final bool quizPassed;
+  /// User đã có ít nhất 1 lần thi
+  final bool hasQuizAttempts;
   final bool isActive;
   final double moduleProgress; // 0.0 - 1.0
   final void Function(String) onTap;
@@ -839,6 +668,7 @@ class _ModuleQuizRow extends StatefulWidget {
     required this.quizId,
     required this.isCompleted,
     required this.quizPassed,
+    required this.hasQuizAttempts,
     required this.isActive,
     required this.moduleProgress,
     required this.onTap,
@@ -855,25 +685,27 @@ class _ModuleQuizRowState extends State<_ModuleQuizRow> {
   IconData get _icon {
     if (_isLocked) return Icons.lock_outline;
     if (widget.quizPassed) return Icons.check_circle;
-    return Icons.cancel_outlined;
+    return Icons.pending_outlined;
   }
 
   Color get _iconColor {
     if (_isLocked) return const Color(0xFFCBD5E1);
     if (widget.quizPassed) return const Color(0xFF22C55E);
-    return QuizExamTheme.error;
+    return const Color(0xFFF59E0B);
   }
 
   String get _labelText {
     if (_isLocked) return 'Hoàn thành 80% bài học để mở';
     if (widget.quizPassed) return 'Kiểm tra Module';
-    return 'Chưa đạt – Làm lại';
+    if (widget.hasQuizAttempts) return 'Chưa đạt – Làm lại';
+    return 'Bắt đầu làm bài';
   }
 
   Color get _textColor {
     if (_isLocked) return const Color(0xFF94A3B8);
     if (widget.quizPassed) return const Color(0xFF22C55E);
-    return QuizExamTheme.error;
+    if (widget.hasQuizAttempts) return const Color(0xFFF59E0B);
+    return const Color(0xFF137FEC);
   }
 
   @override

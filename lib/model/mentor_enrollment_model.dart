@@ -161,3 +161,29 @@ class MentorEnrollmentPageResponse {
     );
   }
 }
+
+// ============================================
+// COURSE ENROLLMENT STATS
+// Used to populate correct course stats in mentor reports
+// ============================================
+
+class CourseEnrollmentStats {
+  final int completedCourses;
+  final int inProgressCourses;
+  final int notStartedCourses;
+  final int total;
+
+  CourseEnrollmentStats({
+    required this.completedCourses,
+    required this.inProgressCourses,
+    required this.notStartedCourses,
+    required this.total,
+  });
+
+  factory CourseEnrollmentStats.empty() => CourseEnrollmentStats(
+        completedCourses: 0,
+        inProgressCourses: 0,
+        notStartedCourses: 0,
+        total: 0,
+      );
+}

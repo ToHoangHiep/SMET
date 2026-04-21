@@ -41,8 +41,8 @@ class DashboardTrendPoint {
 
   factory DashboardTrendPoint.fromJson(Map<String, dynamic> json) {
     return DashboardTrendPoint(
-      date: json['date'] ?? '',
-      count: json['count'] ?? 0,
+      date: (json['label'] ?? json['date'] ?? '').toString(),
+      count: (json['value'] ?? json['count'] ?? 0).toInt(),
     );
   }
 }

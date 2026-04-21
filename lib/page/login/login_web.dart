@@ -255,7 +255,7 @@ class LoginWeb extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '© 2026 SMETS Platform. All rights reserved.',
+                          '© 2026 SMETS System. All rights reserved.',
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 13,

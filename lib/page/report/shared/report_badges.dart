@@ -100,28 +100,28 @@ class ReportTypeBadge extends StatelessWidget {
 
   Color get _bgColor {
     switch (type) {
-      case ReportType.MENTOR_WEEKLY:
       case ReportType.MENTOR_MONTHLY:
+      case ReportType.MENTOR_QUARTERLY:
         return const Color(0xFF8B5CF6).withValues(alpha: 0.12);
-      case ReportType.PM_WEEKLY:
       case ReportType.PM_MONTHLY:
+      case ReportType.PM_QUARTERLY:
         return const Color(0xFFD946EF).withValues(alpha: 0.12);
-      case ReportType.ADMIN_WEEKLY:
       case ReportType.ADMIN_MONTHLY:
+      case ReportType.ADMIN_QUARTERLY:
         return const Color(0xFF0EA5E9).withValues(alpha: 0.12);
     }
   }
 
   Color get _textColor {
     switch (type) {
-      case ReportType.MENTOR_WEEKLY:
       case ReportType.MENTOR_MONTHLY:
+      case ReportType.MENTOR_QUARTERLY:
         return const Color(0xFF6D28D9);
-      case ReportType.PM_WEEKLY:
       case ReportType.PM_MONTHLY:
+      case ReportType.PM_QUARTERLY:
         return const Color(0xFFC026D3);
-      case ReportType.ADMIN_WEEKLY:
       case ReportType.ADMIN_MONTHLY:
+      case ReportType.ADMIN_QUARTERLY:
         return const Color(0xFF0284C7);
     }
   }

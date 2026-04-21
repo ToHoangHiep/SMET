@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smet/model/project_model.dart';
-import 'package:smet/service/employee/employee_project_service.dart';
+import 'package:smet/service/employee/assignment_service.dart';
 import 'package:smet/page/admin/assignment/widgets/dialog/course_lp_selection_dialog.dart';
 import 'package:smet/page/admin/assignment/widgets/dialog/assignable_user_dialog.dart';
 import 'package:smet/page/admin/assignment/widgets/dialog/assignment_result_dialog.dart';
@@ -33,7 +33,8 @@ class LeadAssignmentDialog extends StatefulWidget {
 class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<ProjectAssignmentData> _assignments = [];
+  final AssignmentService _assignmentService = AssignmentService();
+  List<ProjectMemberAssignment> _assignments = [];
   bool _isLoading = true;
   bool _isAssigning = false;
   String? _error;
@@ -51,6 +52,7 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     super.dispose();
   }
 
+  // Project Lead: GET /api/projects/{projectId}/assignments
   Future<void> _loadAssignments() async {
     setState(() {
       _isLoading = true;
@@ -58,10 +60,10 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     });
 
     try {
-      final assignments = await EmployeeProjectService.getAssignments(widget.project.id);
+      final response = await _assignmentService.getProjectAssignments(widget.project.id);
       if (mounted) {
         setState(() {
-          _assignments = assignments;
+          _assignments = response.data;
           _isLoading = false;
         });
       }
@@ -69,13 +71,14 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
       log('LeadAssignmentDialog._loadAssignments failed: $e');
       if (mounted) {
         setState(() {
-          _error = 'Khong the tai danh sach gán';
+          _error = 'Khong the tai danh sach gan';
           _isLoading = false;
         });
       }
     }
   }
 
+  // Project Lead: POST /api/assignments voi projectId = X
   Future<void> _handleAssignCourse() async {
     final courses = await CourseLPSelectionDialog.showForCourse(
       context: context,
@@ -87,13 +90,21 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
       context: context,
       primaryColor: const Color(0xFF4F46E5),
       title: 'Chon thanh vien duoc gan khoa hoc',
-      roleFilter: 'USER',
+      customUserFetcher: ({keyword, role, departmentId, page, size}) {
+        return _assignmentService.getProjectMembers(
+          projectId: widget.project.id,
+          keyword: keyword,
+          page: page ?? 0,
+          size: size ?? 20,
+        );
+      },
     );
     if (users == null || users.isEmpty) return;
 
     setState(() => _isAssigning = true);
     try {
-      final result = await EmployeeProjectService.assignCourses(
+      // Project Lead: POST /assignments voi projectId
+      final result = await _assignmentService.assignCourses(
         projectId: widget.project.id,
         userIds: users.map((u) => u.userId).toList(),
         courseIds: courses.map((c) => c.id).toList(),
@@ -115,6 +126,7 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     }
   }
 
+  // Project Lead: POST /api/assignments voi projectId = X
   Future<void> _handleAssignLearningPath() async {
     final paths = await CourseLPSelectionDialog.showForLearningPath(
       context: context,
@@ -126,13 +138,21 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
       context: context,
       primaryColor: const Color(0xFF059669),
       title: 'Chon thanh vien duoc gan Learning Path',
-      roleFilter: 'USER',
+      customUserFetcher: ({keyword, role, departmentId, page, size}) {
+        return _assignmentService.getProjectMembers(
+          projectId: widget.project.id,
+          keyword: keyword,
+          page: page ?? 0,
+          size: size ?? 20,
+        );
+      },
     );
     if (users == null || users.isEmpty) return;
 
     setState(() => _isAssigning = true);
     try {
-      final result = await EmployeeProjectService.assignLearningPaths(
+      // Project Lead: POST /assignments voi projectId
+      final result = await _assignmentService.assignLearningPaths(
         projectId: widget.project.id,
         userIds: users.map((u) => u.userId).toList(),
         learningPathIds: paths.map((p) => p.id).toList(),
@@ -154,6 +174,7 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     }
   }
 
+  // Project Lead: DELETE /api/assignments voi projectId
   Future<void> _handleUnassignCourse(
     int courseId,
     String courseName,
@@ -168,10 +189,10 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
       itemId: courseId,
       type: UnassignTargetType.course,
       primaryColor: const Color(0xFF4F46E5),
-      onConfirm: () => EmployeeProjectService.unassignCourse(
+      onConfirm: () => _assignmentService.unassignCourse(
         projectId: widget.project.id,
-        courseId: courseId,
         userId: userId,
+        courseId: courseId,
       ),
     );
 
@@ -180,6 +201,7 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     }
   }
 
+  // Project Lead: DELETE /api/assignments voi projectId
   Future<void> _handleUnassignLearningPath(
     int pathId,
     String pathName,
@@ -194,10 +216,10 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
       itemId: pathId,
       type: UnassignTargetType.learningPath,
       primaryColor: const Color(0xFF059669),
-      onConfirm: () => EmployeeProjectService.unassignLearningPath(
+      onConfirm: () => _assignmentService.unassignLearningPath(
         projectId: widget.project.id,
-        learningPathId: pathId,
         userId: userId,
+        learningPathId: pathId,
       ),
     );
 
@@ -281,23 +303,48 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              _ActionButton(
-                icon: Icons.school_outlined,
-                label: 'Gan khoa hoc',
-                color: const Color(0xFF4F46E5),
-                onPressed: _isAssigning ? null : _handleAssignCourse,
+          if (!widget.project.submitted)
+            Row(
+              children: [
+                _ActionButton(
+                  icon: Icons.school_outlined,
+                  label: 'Gan khoa hoc',
+                  color: const Color(0xFF4F46E5),
+                  onPressed: _isAssigning ? null : _handleAssignCourse,
+                ),
+                const SizedBox(width: 12),
+                _ActionButton(
+                  icon: Icons.route_outlined,
+                  label: 'Gan Learning Path',
+                  color: const Color(0xFF059669),
+                  onPressed: _isAssigning ? null : _handleAssignLearningPath,
+                ),
+              ],
+            ),
+          if (widget.project.submitted)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
               ),
-              const SizedBox(width: 12),
-              _ActionButton(
-                icon: Icons.route_outlined,
-                label: 'Gan Learning Path',
-                color: const Color(0xFF059669),
-                onPressed: _isAssigning ? null : _handleAssignLearningPath,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.hourglass_top, size: 16, color: Colors.orange.shade700),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Da nop, dang cho duyet',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.orange.shade700,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -514,7 +561,7 @@ class _LeadAssignmentDialogState extends State<LeadAssignmentDialog>
     );
   }
 
-  Widget _buildStatusChip(String status, int progress) {
+  Widget _buildStatusChip(String status, double progress) {
     Color color;
     String label;
     switch (status.toUpperCase()) {
@@ -606,7 +653,7 @@ class _CourseAssignmentRow {
   final int courseId;
   final String courseName;
   final String status;
-  final int progress;
+  final double progress;
 
   _CourseAssignmentRow({
     required this.userId,

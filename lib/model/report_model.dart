@@ -43,52 +43,52 @@ enum ReportStatus {
 }
 
 enum ReportType {
-  MENTOR_WEEKLY,
   MENTOR_MONTHLY,
-  PM_WEEKLY,
+  MENTOR_QUARTERLY,
   PM_MONTHLY,
-  ADMIN_WEEKLY,
-  ADMIN_MONTHLY;
+  PM_QUARTERLY,
+  ADMIN_MONTHLY,
+  ADMIN_QUARTERLY;
 
   String get displayName {
     switch (this) {
-      case ReportType.MENTOR_WEEKLY:
-        return 'Báo cáo tuần - Mentor';
       case ReportType.MENTOR_MONTHLY:
         return 'Báo cáo tháng - Mentor';
-      case ReportType.PM_WEEKLY:
-        return 'Báo cáo tuần - Quản lý dự án';
+      case ReportType.MENTOR_QUARTERLY:
+        return 'Báo cáo quý - Mentor';
       case ReportType.PM_MONTHLY:
         return 'Báo cáo tháng - Quản lý dự án';
-      case ReportType.ADMIN_WEEKLY:
-        return 'Báo cáo tuần - Quản trị';
+      case ReportType.PM_QUARTERLY:
+        return 'Báo cáo quý - Quản lý dự án';
       case ReportType.ADMIN_MONTHLY:
         return 'Báo cáo tháng - Quản trị';
+      case ReportType.ADMIN_QUARTERLY:
+        return 'Báo cáo quý - Quản trị';
     }
   }
 
   String get shortName {
     switch (this) {
-      case ReportType.MENTOR_WEEKLY:
-        return 'Mentor Tuần';
       case ReportType.MENTOR_MONTHLY:
         return 'Mentor Tháng';
-      case ReportType.PM_WEEKLY:
-        return 'PM Tuần';
+      case ReportType.MENTOR_QUARTERLY:
+        return 'Mentor Quý';
       case ReportType.PM_MONTHLY:
         return 'PM Tháng';
-      case ReportType.ADMIN_WEEKLY:
-        return 'Admin Tuần';
+      case ReportType.PM_QUARTERLY:
+        return 'PM Quý';
       case ReportType.ADMIN_MONTHLY:
         return 'Admin Tháng';
+      case ReportType.ADMIN_QUARTERLY:
+        return 'Admin Quý';
     }
   }
 
   static ReportType fromString(String? value) {
-    if (value == null) return ReportType.MENTOR_WEEKLY;
+    if (value == null) return ReportType.MENTOR_MONTHLY;
     return ReportType.values.firstWhere(
       (e) => e.name == value.toUpperCase(),
-      orElse: () => ReportType.MENTOR_WEEKLY,
+      orElse: () => ReportType.MENTOR_MONTHLY,
     );
   }
 }
@@ -198,7 +198,9 @@ class ReportResponse {
       ownerName: json['ownerName']?.toString() ?? '—',
       scope: ReportScope.fromString(json['scope']),
       scopeId:
-          json['scopeId'] != null ? (json['scopeId'] as num).toInt() : null,
+          json['scopeId'] != null && (json['scopeId'] as num).toInt() > 0
+              ? (json['scopeId'] as num).toInt()
+              : null,
       generatedAt: parseDate(json['generatedAt']),
       submittedAt: parseDate(json['submittedAt']),
       periodStart: parseDate(json['periodStart']),
@@ -223,10 +225,15 @@ class ReportDetailResponse {
   final String? comment;
   final String? reviewerComment;
   final int? scopeId;
+  final int? ownerId;
+  final String? ownerName;
+  final ReportScope? scope;
+  final DateTime? generatedAt;
+  final DateTime? submittedAt;
+  final DateTime? reviewedAt;
   final DateTime? periodStart;
   final DateTime? periodEnd;
   final int version;
-  final int? ownerId;
 
   ReportDetailResponse({
     required this.id,
@@ -241,6 +248,11 @@ class ReportDetailResponse {
     this.periodEnd,
     required this.version,
     this.ownerId,
+    this.ownerName,
+    this.scope,
+    this.generatedAt,
+    this.submittedAt,
+    this.reviewedAt,
   });
 
   factory ReportDetailResponse.fromJson(Map<String, dynamic> json) {
@@ -250,28 +262,38 @@ class ReportDetailResponse {
     }
 
     return ReportDetailResponse(
-      id: json['id'] ?? 0,
-      type: ReportType.fromString(json['type']),
-      status: ReportStatus.fromString(json['status']),
+      id: json['id'] != null ? (json['id'] as num).toInt() : 0,
+      type: ReportType.fromString(json['type']?.toString()),
+      status: ReportStatus.fromString(json['status']?.toString()),
       dataJson: json['dataJson']?.toString(),
       editableJson: json['editableJson']?.toString(),
       comment: json['comment']?.toString(),
       reviewerComment: json['reviewerComment']?.toString(),
       scopeId:
-          json['scopeId'] != null ? (json['scopeId'] as num).toInt() : null,
+          json['scopeId'] != null && (json['scopeId'] as num).toInt() > 0
+              ? (json['scopeId'] as num).toInt()
+              : null,
       periodStart: parseDate(json['periodStart']),
       periodEnd: parseDate(json['periodEnd']),
-      version: json['version'] ?? 1,
+      version: json['version'] != null ? (json['version'] as num).toInt() : 1,
       ownerId:
           json['ownerId'] != null ? (json['ownerId'] as num).toInt() : null,
+      ownerName: json['ownerName']?.toString(),
+      scope: ReportScope.fromString(json['scope']?.toString()),
+      generatedAt: parseDate(json['generatedAt']),
+      submittedAt: parseDate(json['submittedAt']),
+      reviewedAt: parseDate(json['reviewedAt']),
     );
   }
 
-  /// Parse snapshot data from dataJson into typed structure
   ReportSnapshotData? get snapshotData {
-    if (dataJson == null || dataJson!.isEmpty) return null;
+    // Prefer editableJson over dataJson so the UI shows the latest user edits.
+    final source = editableJson != null && editableJson!.isNotEmpty
+        ? editableJson
+        : dataJson;
+    if (source == null || source.isEmpty) return null;
     try {
-      return ReportSnapshotData.fromJsonString(dataJson!);
+      return ReportSnapshotData.fromJsonString(source);
     } catch (e) {
       log('[ReportModel] snapshotData parse error: $e');
       return null;
@@ -344,36 +366,78 @@ class ReportUpdateRequest {
 
 // ================================================================
 // REPORT SNAPSHOT DATA (parsed from dataJson)
-// Backend: built by ReportService.buildSnapshot()
+// Backend: built by ReportService.buildPmReport / buildMentorReport / buildAdminReport
+// Backend dataJson keys:
+//   MENTOR  → assignedProjects, completedCourses, inProgressCourses, notStartedCourses, reportName
+//   PM      → totalProjects, completedProjects, completedCourses, inProgressCourses, notStartedCourses, reportName
+//   ADMIN   → totalUsers, totalProjects, completedCourses, inProgressCourses, notStartedCourses, reportName
 // ================================================================
 
 class ReportSnapshotData {
-  /// MENTOR report: summary + atRiskUsers
-  final MentorSnapshot? mentor;
+  final int? assignedProjects;
+  final int? totalProjects;
+  final int? completedProjects;
+  final int? totalUsers;
+  final int? completedCourses;
+  final int? inProgressCourses;
+  final int? notStartedCourses;
+  final String? reportName;
 
-  /// PM report: totalUsers + completed + completionRate
-  final PmSnapshot? pm;
+  ReportSnapshotData._({
+    this.assignedProjects,
+    this.totalProjects,
+    this.completedProjects,
+    this.totalUsers,
+    this.completedCourses,
+    this.inProgressCourses,
+    this.notStartedCourses,
+    this.reportName,
+  });
 
-  /// ADMIN report: totalUsers + totalCourses + completedUsers
-  final AdminSnapshot? admin;
-
-  ReportSnapshotData._({this.mentor, this.pm, this.admin});
-
+  /// Detect report role from data keys and return typed snapshot.
   factory ReportSnapshotData.fromJsonString(String json) {
     final map = _parseJson(json);
+    if (map.isEmpty) return ReportSnapshotData._();
 
-    // Detect type by looking at keys
-    if (map.containsKey('summary') && map.containsKey('atRiskUsers')) {
-      return ReportSnapshotData._(mentor: MentorSnapshot.fromMap(map));
-    } else if (map.containsKey('totalUsers') &&
-        !map.containsKey('totalCourses')) {
-      return ReportSnapshotData._(pm: PmSnapshot.fromMap(map));
-    } else if (map.containsKey('totalUsers') &&
-        map.containsKey('totalCourses')) {
-      return ReportSnapshotData._(admin: AdminSnapshot.fromMap(map));
+    // ADMIN: has totalUsers
+    if (map.containsKey('totalUsers') && map['totalUsers'] != null) {
+      return ReportSnapshotData._(
+        totalUsers: _toInt(map['totalUsers']),
+        totalProjects: _toInt(map['totalProjects']),
+        completedCourses: _toInt(map['completedCourses']),
+        inProgressCourses: _toInt(map['inProgressCourses']),
+        notStartedCourses: _toInt(map['notStartedCourses']),
+        reportName: map['reportName']?.toString(),
+      );
     }
 
-    return ReportSnapshotData._();
+    // PM: has completedProjects (mentor does not)
+    if (map.containsKey('completedProjects') && map['completedProjects'] != null) {
+      return ReportSnapshotData._(
+        totalProjects: _toInt(map['totalProjects']),
+        completedProjects: _toInt(map['completedProjects']),
+        completedCourses: _toInt(map['completedCourses']),
+        inProgressCourses: _toInt(map['inProgressCourses']),
+        notStartedCourses: _toInt(map['notStartedCourses']),
+        reportName: map['reportName']?.toString(),
+      );
+    }
+
+    // MENTOR: has assignedProjects
+    return ReportSnapshotData._(
+      assignedProjects: _toInt(map['assignedProjects']),
+      completedCourses: _toInt(map['completedCourses']),
+      inProgressCourses: _toInt(map['inProgressCourses']),
+      notStartedCourses: _toInt(map['notStartedCourses']),
+      reportName: map['reportName']?.toString(),
+    );
+  }
+
+  static int _toInt(dynamic val) {
+    if (val == null) return 0;
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    return int.tryParse(val.toString()) ?? 0;
   }
 
   static Map<String, dynamic> _parseJson(String json) {
@@ -384,105 +448,17 @@ class ReportSnapshotData {
       return {};
     }
   }
-}
 
-class MentorSnapshot {
-  final int totalStudents;
-  final int completedStudents;
-  final double completionRate;
-  final double avgScore;
-  final List<AtRiskUser> atRiskUsers;
+  bool get isMentor => assignedProjects != null && completedProjects == null && totalUsers == null;
+  bool get isPm => completedProjects != null;
+  bool get isAdmin => totalUsers != null;
 
-  MentorSnapshot({
-    required this.totalStudents,
-    required this.completedStudents,
-    required this.completionRate,
-    required this.avgScore,
-    required this.atRiskUsers,
-  });
+  int get totalCourses => (completedCourses ?? 0) + (inProgressCourses ?? 0) + (notStartedCourses ?? 0);
 
-  factory MentorSnapshot.fromMap(Map<String, dynamic> map) {
-    final summary = map['summary'] as Map<String, dynamic>? ?? {};
-    final atRiskList = map['atRiskUsers'] as List<dynamic>? ?? [];
-
-    return MentorSnapshot(
-      totalStudents: (summary['totalStudents'] ?? 0).toInt(),
-      completedStudents: (summary['completedStudents'] ?? 0).toInt(),
-      completionRate: (summary['completionRate'] ?? 0).toDouble(),
-      avgScore: (summary['avgScore'] ?? 0).toDouble(),
-      atRiskUsers:
-          atRiskList
-              .map((e) => AtRiskUser.fromMap(Map<String, dynamic>.from(e)))
-              .toList(),
-    );
-  }
-}
-
-class PmSnapshot {
-  final int totalUsers;
-  final int completed;
-  final double completionRate;
-
-  PmSnapshot({
-    required this.totalUsers,
-    required this.completed,
-    required this.completionRate,
-  });
-
-  factory PmSnapshot.fromMap(Map<String, dynamic> map) {
-    return PmSnapshot(
-      totalUsers: (map['totalUsers'] ?? 0).toInt(),
-      completed: (map['completed'] ?? 0).toInt(),
-      completionRate: (map['completionRate'] ?? 0).toDouble(),
-    );
-  }
-}
-
-class AdminSnapshot {
-  final int totalUsers;
-  final int totalCourses;
-  final int completedUsers;
-
-  AdminSnapshot({
-    required this.totalUsers,
-    required this.totalCourses,
-    required this.completedUsers,
-  });
-
-  factory AdminSnapshot.fromMap(Map<String, dynamic> map) {
-    return AdminSnapshot(
-      totalUsers: (map['totalUsers'] ?? 0).toInt(),
-      totalCourses: (map['totalCourses'] ?? 0).toInt(),
-      completedUsers: (map['completedUsers'] ?? 0).toInt(),
-    );
-  }
-}
-
-class AtRiskUser {
-  final int userId;
-  final String? userName;
-  final DateTime? deadline;
-  final int? progress;
-
-  AtRiskUser({
-    required this.userId,
-    this.userName,
-    this.deadline,
-    this.progress,
-  });
-
-  factory AtRiskUser.fromMap(Map<String, dynamic> map) {
-    DateTime? parseDate(dynamic val) {
-      if (val == null) return null;
-      return DateTime.tryParse(val.toString());
-    }
-
-    return AtRiskUser(
-      userId: (map['userId'] ?? 0).toInt(),
-      userName: map['userName']?.toString(),
-      deadline: parseDate(map['deadline']),
-      progress: map['progress'] != null ? (map['progress']).toInt() : null,
-    );
+  double get completionRate {
+    final total = totalCourses;
+    if (total == 0) return 0;
+    return ((completedCourses ?? 0) / total * 100 * 100).round() / 100;
   }
 }
 
@@ -533,3 +509,149 @@ class PageResponse<T> {
     );
   }
 }
+
+// ================================================================
+// PM REPORT DETAIL RESPONSE
+// Backend: PmReportDetailResponse DTO
+// GET /api/reports/{id}/pm-detail
+// ================================================================
+
+class PmReportDetailResponse {
+  final int id;
+  final String name;
+  final String? type;
+  final String? scope;
+  final int? scopeId;
+  final String? ownerName;
+  final String? departmentName;
+  final String? status;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
+  final Map<String, dynamic>? metrics;
+  final Map<String, dynamic>? summary;
+  final dynamic data;
+  final String? comment;
+  final String? reviewerComment;
+  final List<PmReportHistoryEntry>? history;
+
+  PmReportDetailResponse({
+    required this.id,
+    required this.name,
+    this.type,
+    this.scope,
+    this.scopeId,
+    this.ownerName,
+    this.departmentName,
+    this.status,
+    this.periodStart,
+    this.periodEnd,
+    this.metrics,
+    this.summary,
+    this.data,
+    this.comment,
+    this.reviewerComment,
+    this.history,
+  });
+
+  factory PmReportDetailResponse.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic val) {
+      if (val == null) return null;
+      return DateTime.tryParse(val.toString());
+    }
+
+    List<PmReportHistoryEntry> parseHistory(dynamic raw) {
+      if (raw == null) return [];
+      if (raw is List) {
+        return raw
+            .whereType<Map<String, dynamic>>()
+            .map((e) => PmReportHistoryEntry.fromJson(e))
+            .toList();
+      }
+      return [];
+    }
+
+    return PmReportDetailResponse(
+      id: json['id'] != null ? (json['id'] as num).toInt() : 0,
+      name: json['name']?.toString() ?? '—',
+      type: json['type']?.toString(),
+      scope: json['scope']?.toString(),
+      scopeId:
+          json['scopeId'] != null && (json['scopeId'] as num).toInt() > 0
+              ? (json['scopeId'] as num).toInt()
+              : null,
+      ownerName: json['ownerName']?.toString(),
+      departmentName: json['departmentName']?.toString(),
+      status: json['status']?.toString(),
+      periodStart: parseDate(json['periodStart']),
+      periodEnd: parseDate(json['periodEnd']),
+      metrics: json['metrics'] is Map<String, dynamic>
+          ? json['metrics'] as Map<String, dynamic>
+          : null,
+      summary: json['summary'] is Map<String, dynamic>
+          ? json['summary'] as Map<String, dynamic>
+          : null,
+      data: json['data'],
+      comment: json['comment']?.toString(),
+      reviewerComment: json['reviewerComment']?.toString(),
+      history: parseHistory(json['history']),
+    );
+  }
+
+  double get completionRate {
+    if (metrics == null) return 0;
+    final val = metrics!['completionRate'];
+    if (val == null) return 0;
+    if (val is double) return val;
+    if (val is int) return val.toDouble();
+    return double.tryParse(val.toString()) ?? 0;
+  }
+
+  String get riskLevel {
+    return summary?['riskLevel']?.toString() ?? 'UNKNOWN';
+  }
+
+  String get summaryText {
+    return summary?['summaryText']?.toString() ?? '';
+  }
+
+  int get totalUsers => metrics?['totalUsers']?.toInt() ?? 0;
+  int get completedUsers => metrics?['completedUsers']?.toInt() ?? 0;
+  int get overdueUsers => metrics?['overdueUsers']?.toInt() ?? 0;
+  int get inactiveUsers => metrics?['inactiveUsers']?.toInt() ?? 0;
+  double get avgScore => (metrics?['avgScore'] ?? 0).toDouble();
+  int get riskUsers => metrics?['riskUsers']?.toInt() ?? 0;
+}
+
+// ================================================================
+// PM REPORT HISTORY ENTRY
+// Backend: ReportHistoryDto
+// ================================================================
+
+class PmReportHistoryEntry {
+  final int version;
+  final String action;
+  final DateTime? changedAt;
+  final String? changedBy;
+
+  PmReportHistoryEntry({
+    required this.version,
+    required this.action,
+    this.changedAt,
+    this.changedBy,
+  });
+
+  factory PmReportHistoryEntry.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic val) {
+      if (val == null) return null;
+      return DateTime.tryParse(val.toString());
+    }
+
+    return PmReportHistoryEntry(
+      version: json['version'] ?? 1,
+      action: json['action']?.toString() ?? '—',
+      changedAt: parseDate(json['changedAt']),
+      changedBy: json['changedBy']?.toString(),
+    );
+  }
+}
+

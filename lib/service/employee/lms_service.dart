@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' hide log;
 import 'package:http/http.dart' as http;
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
@@ -55,24 +56,6 @@ class LmsService {
         moduleIds.map((id) => id != null ? QuizService.getQuizByModule(id) : Future.value(null)),
       );
 
-      // 3. Final quiz
-      String? finalQuizId;
-      bool finalQuizPassed = false;
-      QuizInfo? finalQuiz;
-      try {
-        finalQuiz = await QuizService.getFinalQuiz(courseId);
-        if (finalQuiz != null) {
-          finalQuizId = finalQuiz.id;
-        }
-      } catch (_) {}
-
-      // Lay quiz history cho final quiz de biet da pass chua
-      if (finalQuizId != null) {
-        final history = await QuizService.getAttemptHistory(finalQuizId);
-        finalQuizPassed = history.any((h) => h.passed);
-      }
-
-      // 4. Build modules
       final List<LearningModule> modules = [];
       for (int i = 0; i < modulesJson.length; i++) {
         final m = modulesJson[i];
@@ -114,8 +97,10 @@ class LmsService {
         final quizInfo = moduleQuizzes[i];
         final quizId = quizInfo?.id;
         bool quizPassed = false;
+        bool hasQuizAttempts = false;
         if (quizId != null) {
           final history = await QuizService.getAttemptHistory(quizId);
+          hasQuizAttempts = history.isNotEmpty;
           quizPassed = history.any((h) => h.passed);
         }
 
@@ -129,6 +114,7 @@ class LmsService {
           lessons: lessons,
           quizId: quizId,
           quizPassed: quizPassed,
+          hasQuizAttempts: hasQuizAttempts,
           progress: moduleProgress,
         ));
       }
@@ -144,8 +130,6 @@ class LmsService {
         courseId: courseId,
         progressPercent: courseProgress,
         modules: modules,
-        finalQuizId: finalQuizId,
-        finalQuizPassed: finalQuizPassed,
         mentorId: courseData['mentorId'] ?? 0,
         mentorName: courseData['mentorName'] ?? 'Giảng viên',
         enrollmentStatus: enrollmentStatus,
@@ -284,39 +268,6 @@ class LmsService {
     } catch (e) {
       log("LmsService.getLessonDetail failed: $e");
       rethrow;
-    }
-  }
-
-  // ============================================================
-  // MARK LESSON COMPLETE — POST /api/lms/lessons/{lessonId}/complete
-  // ============================================================
-
-  static Future<bool> markLessonComplete(
-    String lessonId,
-    String userId,
-  ) async {
-    try {
-      final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/lessons/$lessonId/complete");
-
-      final response = await http.post(
-        url,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-      );
-
-      log("MARK LESSON COMPLETE STATUS: ${response.statusCode}");
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      }
-      log("MARK LESSON COMPLETE FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
-      return false;
-    } catch (e) {
-      log("LmsService.markLessonComplete failed: $e");
-      return false;
     }
   }
 
@@ -501,6 +452,40 @@ class LmsService {
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
+  /// Trích xuất metadata phân trang từ HTTP headers của Spring Data Pageable.
+  /// Spring trả các header: X-Total-Count, X-Total-Pages, X-Page-Number, X-Page-Size
+  static _PaginationMeta _parsePaginationFromHeaders(
+    Map<String, String> headers,
+    int requestedPage,
+    int requestedSize,
+    int listLength,
+  ) {
+    final totalElements = int.tryParse(headers['x-total-count'] ?? '')
+        ?? int.tryParse(headers['X-Total-Count'] ?? '')
+        ?? int.tryParse(headers['total-elements'] ?? '')
+        ?? int.tryParse(headers['Total-Count'] ?? '')
+        ?? (headers['content-range'] != null
+            ? int.tryParse(headers['content-range']!.split('/').last)
+            : null)
+        ?? listLength;
+
+    final totalPages = int.tryParse(headers['x-total-pages'] ?? '')
+        ?? int.tryParse(headers['X-Total-Pages'] ?? '')
+        ?? int.tryParse(headers['total-pages'] ?? '')
+        ?? int.tryParse(headers['Total-Pages'] ?? '')
+        ?? (totalElements > 0 ? (totalElements / requestedSize).ceil() : 1);
+
+    final pageNumber = int.tryParse(headers['x-page-number'] ?? '')
+        ?? int.tryParse(headers['X-Page-Number'] ?? '')
+        ?? requestedPage;
+
+    return _PaginationMeta(
+      totalElements: totalElements,
+      totalPages: totalPages,
+      pageNumber: pageNumber,
+    );
+  }
+
   // ============================================================
   // COURSE DETAIL — GET /api/lms/courses/{id}
   // ============================================================
@@ -508,6 +493,24 @@ class LmsService {
   static Future<CourseDetail> getCourseDetail(String courseId) async {
     try {
       final token = await AuthService.getToken();
+      // === DEBUG: log token và user ID từ frontend ===
+      log(">>> [DEBUG] getCourseDetail — token=${token != null ? token.substring(0, min(30, token.length)) + '...' : 'NULL'}");
+      // Decode JWT payload để lấy user ID (base64 decode phần giữa)
+      if (token != null) {
+        final parts = token.split('.');
+        if (parts.length >= 2) {
+          try {
+            String b64 = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+            while (b64.length % 4 != 0) b64 += '=';
+            final payload = utf8.decode(base64Decode(b64));
+            final decoded = jsonDecode(payload);
+            log(">>> [DEBUG] JWT payload — userId=${decoded['userId'] ?? decoded['sub'] ?? decoded['id'] ?? 'UNKNOWN'}, email=${decoded['email'] ?? 'UNKNOWN'}");
+          } catch (_) {
+            log(">>> [DEBUG] JWT decode failed");
+          }
+        }
+      }
+      // === END DEBUG ===
       final url = Uri.parse("$baseUrl/lms/courses/$courseId");
 
       final response = await http.get(
@@ -522,10 +525,14 @@ class LmsService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        // DEBUG: log raw enrolled field from backend
+        log(">>> API RESPONSE: enrolled=${data['enrolled']}, enrollmentStatus=${data['enrollmentStatus']}, progress=${data['progress']}");
         return _parseCourseDetail(data, courseId);
       } else {
         log("GET COURSE DETAIL FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
-        throw Exception("Không thể tải chi tiết khóa học");
+        // Neu 200 nhung body co enrolled: true → van lay duoc data
+        // Neu khong phai 200 → throw de fallback xu ly
+        throw Exception("[$response.statusCode] Khong the tai chi tiet khoa hoc");
       }
     } catch (e) {
       log("LmsService.getCourseDetail failed: $e");
@@ -534,13 +541,30 @@ class LmsService {
   }
 
   // ============================================================
-  // ENROLLMENT — Đăng ký / Rời khỏi khóa học
+  // ENROLLMENT — Dang ky / Roi khoa hoc
   // ============================================================
 
-  /// Đăng ký khóa học — POST /api/lms/enrollments/courses/{courseId}
+  /// Kiem tra da dang ky chua — GET /api/lms/courses/{courseId}/enrollment
   static Future<bool> enrollCourse(String courseId) async {
     try {
       final token = await AuthService.getToken();
+      // === DEBUG: log token và user ID trước khi enroll ===
+      log(">>> [DEBUG] enrollCourse — token=${token != null ? token.substring(0, min(30, token.length)) + '...' : 'NULL'}");
+      if (token != null) {
+        final parts = token.split('.');
+        if (parts.length >= 2) {
+          try {
+            String b64 = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+            while (b64.length % 4 != 0) b64 += '=';
+            final payload = utf8.decode(base64Decode(b64));
+            final decoded = jsonDecode(payload);
+            log(">>> [DEBUG] enrollCourse JWT — userId=${decoded['userId'] ?? decoded['sub'] ?? decoded['id'] ?? 'UNKNOWN'}");
+          } catch (_) {
+            log(">>> [DEBUG] enrollCourse JWT decode failed");
+          }
+        }
+      }
+      // === END DEBUG ===
       final url = Uri.parse("$baseUrl/lms/enrollments/courses/$courseId");
 
       final response = await http.post(
@@ -553,14 +577,15 @@ class LmsService {
 
       // 200/201 = enrolled successfully, 400 with "Already enrolled" = already enrolled (OK)
       if (response.statusCode == 200 || response.statusCode == 201) {
-        log("ENROLL COURSE SUCCESS: courseId=$courseId, status=${response.statusCode}, body=${response.body}");
+        log(">>> [DEBUG] enrollCourse SUCCESS — courseId=$courseId, status=${response.statusCode}, body=${response.body}");
         return true;
       }
       if (response.statusCode == 400) {
         final body = response.body;
-        log("ENROLL COURSE 400: courseId=$courseId, body=$body");
+        log(">>> [DEBUG] enrollCourse 400 — courseId=$courseId, body=$body");
         if (body.contains('Already enrolled') ||
             body.contains('already enrolled')) {
+          log(">>> [DEBUG] enrollCourse — 'Already enrolled' detected, treating as success");
           return true; // Already enrolled — treat as success
         }
       }
@@ -741,18 +766,58 @@ class LmsService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
+        // Trường hợp 1: backend trả Map với field "data" chứa list
         if (data is Map) {
           final Map<String, dynamic> typedData = Map<String, dynamic>.from(data);
+
+          // Nếu field "data" bên trong Map là List (backend trả {data: [...]})
+          if (typedData['data'] is List) {
+            final rawList = typedData['data'] as List<dynamic>;
+            final totalElements = rawList.length;
+            final totalPages = totalElements > 0 ? (totalElements / size).ceil() : 1;
+            int parseInt(dynamic v) {
+              if (v == null) return 0;
+              if (v is int) return v;
+              if (v is double) return v.toInt();
+              if (v is String) return int.tryParse(v) ?? 0;
+              return 0;
+            }
+            return PageResponse(
+              content: rawList
+                  .map((e) => _parseCatalogCourse(e as Map<String, dynamic>))
+                  .toList(),
+              totalElements: typedData.containsKey('totalElements')
+                  ? parseInt(typedData['totalElements'])
+                  : totalElements,
+              totalPages: typedData.containsKey('totalPages')
+                  ? parseInt(typedData['totalPages'])
+                  : totalPages,
+              number: parseInt(typedData['page'] ?? typedData['number']),
+              size: typedData.containsKey('size')
+                  ? parseInt(typedData['size'])
+                  : size,
+              first: typedData['first'] ?? (page == 0),
+              last: typedData['last'] ?? (page >= totalPages - 1),
+            );
+          }
+
+          // Ngược lại dùng fromJson bình thường
           return PageResponse.fromJson(typedData, _parseCatalogCourse);
+
+        // Trường hợp 2: backend trả List thuần (hoàn toàn không có metadata)
         } else if (data is List) {
+          final parsed = _parsePaginationFromHeaders(
+              response.headers, page, size, data.length);
           return PageResponse(
-            content: data.map((c) => _parseCatalogCourse(c as Map<String, dynamic>)).toList(),
-            totalElements: data.length,
-            totalPages: 1,
-            number: 0,
+            content: data
+                .map((c) => _parseCatalogCourse(c as Map<String, dynamic>))
+                .toList(),
+            totalElements: parsed.totalElements,
+            totalPages: parsed.totalPages,
+            number: page,
             size: size,
-            first: true,
-            last: true,
+            first: page == 0,
+            last: page >= parsed.totalPages - 1,
           );
         }
 
@@ -828,6 +893,35 @@ class LmsService {
     }
   }
 
+  /// Hoàn thành khóa học — POST /api/lms/enrollments/courses/{courseId}/complete
+  /// Backend sẽ set enrollmentStatus = COMPLETED nếu progress = 100%.
+  static Future<bool> completeCourse(String courseId) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/enrollments/courses/$courseId/complete");
+
+      final response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("COMPLETE COURSE url=$url status=${response.statusCode}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        log("COMPLETE COURSE SUCCESS: courseId=$courseId");
+        return true;
+      }
+      log("COMPLETE COURSE FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
+      return false;
+    } catch (e) {
+      log("LmsService.completeCourse failed: $e");
+      return false;
+    }
+  }
+
   /// Lấy nội dung bài học — GET /api/lms/lessons/{lessonId}/contents
   /// Backend trả về List<LessonContentResponse>
   static Future<LessonContent?> getLessonContent(String lessonId) async {
@@ -887,7 +981,7 @@ class LmsService {
   // ============================================================
 
   /// Lấy chứng chỉ của mình cho khóa — GET /api/lms/certificates/course/{courseId}
-  static Future<CertificateInfo?> getMyCertificate(String courseId) async {
+  static Future<({CertificateInfo? cert, String? error})> getMyCertificate(String courseId) async {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse("$baseUrl/lms/certificates/course/$courseId");
@@ -905,29 +999,86 @@ class LmsService {
         try {
           if (!bodyStr.startsWith('{') && !bodyStr.startsWith('[')) {
             log("GET MY CERTIFICATE: non-JSON response: $bodyStr");
-            return null;
+            return (cert: null, error: 'Phản hồi không hợp lệ từ server');
           }
           final data = jsonDecode(bodyStr) as Map<String, dynamic>;
           log("GET MY CERTIFICATE SUCCESS: courseId=$courseId, code=${data['verificationCode']}");
-          return _parseCertificate(data);
+          return (cert: _parseCertificate(data), error: null);
         } catch (e) {
-          // Backend có thể trả JSON bị truncate do circular reference
-          // Thử parse phần body còn lại
           if (e is FormatException || e.toString().contains('Unexpected token')) {
             final cert = _parseCertificateFallback(bodyStr);
             if (cert != null) {
               log("GET MY CERTIFICATE: recovered via fallback parse, code=${cert.code}");
-              return cert;
+              return (cert: cert, error: null);
             }
           }
           log("GET MY CERTIFICATE PARSE ERROR: $e, body=$bodyStr");
-          return null;
+          return (cert: null, error: 'Không thể đọc dữ liệu chứng chỉ');
         }
       }
+
+      // Xử lý lỗi HTTP với body chứa message từ backend
+      String errorMsg = 'Không thể tải chứng chỉ (HTTP ${response.statusCode})';
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['message'] != null) {
+          errorMsg = body['message'].toString();
+        }
+      } catch (_) {}
+
+      // Khi backend trả "Course not completed", xây dựng thông báo chi tiết
+      // bằng cách lấy dữ liệu enrollment thực tế từ API
+      if (errorMsg.toLowerCase().contains('course not completed') ||
+          errorMsg.toLowerCase().contains('not completed') ||
+          errorMsg.toLowerCase().contains('chưa hoàn thành')) {
+        final detailedError = await _buildCourseNotCompletedError(courseId);
+        if (detailedError != null) {
+          errorMsg = detailedError;
+        }
+      }
+
       log("GET MY CERTIFICATE FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
-      return null;
+      return (cert: null, error: errorMsg);
     } catch (e) {
       log("LmsService.getMyCertificate: $e");
+      return (cert: null, error: 'Lỗi kết nối: $e');
+    }
+  }
+
+  /// Gọi course detail để lấy enrollment status thực tế,
+  /// rồi xây dựng thông báo lỗi chi tiết giúp user biết còn gì chưa hoàn thành.
+  static Future<String?> _buildCourseNotCompletedError(String courseId) async {
+    try {
+      final course = await getCourseDetail(courseId);
+      final status = course.enrollmentStatus.toUpperCase();
+      final progress = course.progress.toDouble();
+
+      if (status == 'COMPLETED' || progress >= 100) {
+        return 'Khóa học đã hoàn thành trên hệ thống. '
+            'Vui lòng chờ hệ thống cấp chứng chỉ hoặc liên hệ quản trị viên.';
+      }
+
+      final remaining = (100 - progress).clamp(0, 100).toInt();
+
+      String hint = 'Vui lòng hoàn thành nốt $remaining% nội dung còn lại để nhận chứng chỉ.';
+
+      // Kiểm tra course detail có modules không — nếu có thì user cần xem đủ nội dung
+      if (course.moduleCount > 0 && course.modules.isNotEmpty) {
+        final totalLessons = course.modules.fold<int>(
+          0,
+          (sum, m) => sum + m.lessonCount,
+        );
+        if (totalLessons > 0) {
+          hint = 'Vui lòng hoàn thành nốt $remaining% nội dung còn lại '
+              '($totalLessons bài học) để nhận chứng chỉ.';
+        }
+      }
+
+      return 'Bạn chưa đủ điều kiện nhận chứng chỉ.\n'
+          'Tiến độ hiện tại: ${progress.toInt()}%.\n'
+          '$hint';
+    } catch (e) {
+      log("_buildCourseNotCompletedError failed: $e");
       return null;
     }
   }
@@ -966,11 +1117,11 @@ class LmsService {
     }
   }
 
-  /// Tải chứng chỉ PDF — GET /api/lms/certificates/{code}
+  /// Tải chứng chỉ PDF — GET /api/lms/certificates/verify/{code}/pdf
   static Future<List<int>?> downloadCertificatePdf(String code) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/certificates/$code");
+      final url = Uri.parse("$baseUrl/lms/certificates/verify/$code/pdf");
 
       final response = await http.get(
         url,
@@ -993,11 +1144,11 @@ class LmsService {
     }
   }
 
-  /// Tải chứng chỉ PDF theo courseId — GET /api/lms/courses/{courseId}/download
+  /// Tải chứng chỉ PDF theo courseId — GET /api/lms/certificates/course/{courseId}/pdf
   static Future<List<int>?> downloadCertificateByCourseId(String courseId) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/courses/$courseId/download");
+      final url = Uri.parse("$baseUrl/lms/certificates/course/$courseId/pdf");
 
       final response = await http.get(
         url,
@@ -1012,11 +1163,113 @@ class LmsService {
       if (response.statusCode == 200) {
         return response.bodyBytes;
       }
-      log("DOWNLOAD CERTIFICATE BY COURSE ID FAILED: status=${response.statusCode}");
+      log("DOWNLOAD CERTIFICATE BY COURSE ID FAILED: status=${response.statusCode}, body=${response.body}");
       return null;
     } catch (e) {
       log("LmsService.downloadCertificateByCourseId failed: $e");
       return null;
+    }
+  }
+
+  /// Mở chứng chỉ PDF trong tab mới — GET /api/lms/certificates/course/{courseId}/pdf
+  /// Trả về URL để web mở bằng window.open()
+  static String getCertificatePdfUrl(String courseId) {
+    return "$baseUrl/lms/certificates/course/$courseId/pdf";
+  }
+
+  /// Mở chứng chỉ PDF public trong tab mới — GET /api/lms/certificates/verify/{code}/pdf
+  static String getCertificateVerifyPdfUrl(String code) {
+    return "$baseUrl/lms/certificates/verify/$code/pdf";
+  }
+
+  // ============================================================
+  // GET ALL CERTIFICATES (WORKAROUND)
+  // Backend hiện không có endpoint GET /certificates.
+  // Workaround: lấy enrollment đã COMPLETED → gọi /course/{courseId} cho từng khóa.
+  // ============================================================
+  static Future<List<CertificateInfo>> getAllMyCertificates() async {
+    try {
+      // 1. Lấy tất cả enrollment của user
+      final enrollmentsResult = await getMyCourses(page: 0, size: 1000);
+
+      // 2. Lọc chỉ lấy khóa đã hoàn thành
+      final completedCourses = enrollmentsResult.content
+          .where((e) => e.status == EnrollmentStatus.completed)
+          .toList();
+
+      log("GET ALL CERTIFICATES: ${completedCourses.length} completed courses found");
+
+      if (completedCourses.isEmpty) return [];
+
+      // 3. Gọi certificate endpoint cho từng khóa song song
+      final List<CertificateInfo> certificates = [];
+      final results = await Future.wait(
+        completedCourses.map((e) => getMyCertificate(e.id)),
+      );
+
+      for (int i = 0; i < results.length; i++) {
+        final result = results[i];
+        if (result.cert != null) {
+          certificates.add(result.cert!);
+          log("GET ALL CERTIFICATES: courseId=${completedCourses[i].id} → cert found, code=${result.cert!.code}");
+        } else {
+          log("GET ALL CERTIFICATES: courseId=${completedCourses[i].id} → no cert (${result.error})");
+        }
+      }
+
+      log("GET ALL CERTIFICATES: total=${certificates.length} certificates");
+      return certificates;
+    } catch (e) {
+      log("LmsService.getAllMyCertificates failed: $e");
+      return [];
+    }
+  }
+
+  // ============================================================
+  // MY CERTIFICATES (LIST) — GET /api/lms/certificates/my
+  // ============================================================
+
+  static Future<PageResponse<CertificateInfo>> getMyCertificates({
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final token = await AuthService.getToken();
+      final url = Uri.parse("$baseUrl/lms/certificates/my?page=$page&size=$size");
+
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final bodyStr = response.body.trim();
+        if (!bodyStr.startsWith('{') && !bodyStr.startsWith('[')) {
+          log("GET MY CERTIFICATES: non-JSON response: $bodyStr");
+          return PageResponse(
+            content: [], totalElements: 0, totalPages: 0,
+            number: page, size: size, first: true, last: true,
+          );
+        }
+        final data = jsonDecode(bodyStr) as Map<String, dynamic>;
+        final result = PageResponse.fromJson(data, _parseCertificate);
+        log("GET MY CERTIFICATES SUCCESS: page=$page, total=${result.totalElements}");
+        return result;
+      }
+      log("GET MY CERTIFICATES FAILED: status=${response.statusCode}, body=${response.body}");
+      return PageResponse(
+        content: [], totalElements: 0, totalPages: 0,
+        number: page, size: size, first: true, last: true,
+      );
+    } catch (e) {
+      log("LmsService.getMyCertificates: $e");
+      return PageResponse(
+        content: [], totalElements: 0, totalPages: 0,
+        number: page, size: size, first: true, last: true,
+      );
     }
   }
 
@@ -1282,7 +1535,9 @@ class LmsService {
     Map<String, dynamic> data,
     String courseId,
   ) {
-    return CourseDetail(
+      // DEBUG
+      log(">>> _parseCourseDetail input: enrolled=${data['enrolled']}");
+      return CourseDetail(
       id: data['id']?.toString() ?? courseId,
       title: data['title'] ?? 'Khóa học',
       description: data['description'] ?? '',
@@ -1377,73 +1632,60 @@ class LmsService {
     return null;
   }
 
+  /// Backend trả CertificateResponse (DTO flat):
+  /// {
+  ///   id, verificationCode, shortCode, certificateUrl, verifyUrl,
+  ///   issuedAt, issuedAtFormatted,
+  ///   userId, userName, departmentName, courseId, courseTitle, issuer
+  /// }
   static CertificateInfo _parseCertificate(Map<String, dynamic> data) {
-    // Backend trả CertificateModel entity — không có userName/courseName ở root.
-    // user: { id, firstName, lastName, ... }
-    // course: { id, title, ... }
-    String userName = '';
-    if (data['user'] is Map) {
-      final u = data['user'] as Map<String, dynamic>;
-      final first = u['firstName']?.toString() ?? '';
-      final last = u['lastName']?.toString() ?? '';
-      userName = '$first $last'.trim();
-    }
-
-    String courseName = '';
-    if (data['course'] is Map) {
-      final c = data['course'] as Map<String, dynamic>;
-      courseName = c['title']?.toString() ?? '';
-    }
-
-    String? courseId;
-    if (data['course'] is Map) {
-      final c = data['course'] as Map<String, dynamic>;
-      courseId = c['id']?.toString();
-    }
-
     return CertificateInfo(
       id: data['id']?.toString() ?? '',
-      // Backend dùng 'verificationCode', có thể cũng trả 'code' nếu đổi sang DTO
-      code: data['verificationCode'] ?? data['code'] ?? data['certificateCode'] ?? '',
-      courseName: data['courseName'] ?? courseName,
-      userName: data['userName'] ?? userName,
+      code: data['verificationCode'] ?? '',
+      displayCode: data['shortCode'] ?? '',
+      courseName: data['courseTitle'] ?? data['courseName'] ?? '',
+      userName: data['userName'] ?? '',
+      departmentName: data['departmentName'] ?? '',
       issuedAt:
-          DateTime.tryParse(data['issuedAt'] ?? data['createdAt'] ?? '') ??
-          DateTime.now(),
-      expiresAt:
-          data['expiresAt'] != null
-              ? DateTime.tryParse(data['expiresAt'])
-              : null,
-      courseId: data['courseId']?.toString() ?? courseId,
+          DateTime.tryParse(data['issuedAt'] ?? '') ?? DateTime.now(),
+      expiresAt: null,
+      courseId: data['courseId']?.toString(),
+      certificateUrl: data['certificateUrl']?.toString(),
+      issuer: data['issuer'] ?? 'SMETS',
     );
   }
 
-  /// Parse certificate từ body có thể bị truncate do circular reference serialization
+  /// Parse certificate từ body có thể bị truncate do circular reference serialization.
+  /// Backend CertificateResponse dùng flat fields: userName, departmentName, courseTitle, verificationCode, shortCode, issuer.
   static CertificateInfo? _parseCertificateFallback(String body) {
     try {
-      // Tìm lastName trước vì firstName có thể bị truncate
-      final lastName = _extractJsonString(body, '"lastName"');
-      final firstName = _extractJsonString(body, '"firstName"');
-      final userName = '${firstName ?? ''} ${lastName ?? ''}'.trim();
-
-      final courseTitle = _extractJsonString(body, '"title"');
+      final userName = _extractJsonString(body, '"userName"');
+      final courseTitle = _extractJsonString(body, '"courseTitle"');
       final verificationCode = _extractJsonString(body, '"verificationCode"');
+      final shortCode = _extractJsonString(body, '"shortCode"');
       final id = _extractJsonString(body, '"id"');
       final issuedAtStr = _extractJsonString(body, '"issuedAt"');
       final courseId = _extractJsonString(body, '"courseId"');
+      final certificateUrl = _extractJsonString(body, '"certificateUrl"');
+      final departmentName = _extractJsonString(body, '"departmentName"');
+      final issuer = _extractJsonString(body, '"issuer"');
 
       if (verificationCode == null && id == null) return null;
 
       return CertificateInfo(
         id: id ?? '',
         code: verificationCode ?? '',
+        displayCode: shortCode ?? '',
         courseName: courseTitle ?? '',
-        userName: userName,
+        userName: userName ?? '',
+        departmentName: departmentName ?? '',
         issuedAt: issuedAtStr != null
             ? DateTime.tryParse(issuedAtStr) ?? DateTime.now()
             : DateTime.now(),
         expiresAt: null,
         courseId: courseId,
+        certificateUrl: certificateUrl,
+        issuer: issuer ?? 'SMETS',
       );
     } catch (e) {
       log("_parseCertificateFallback failed: $e");
@@ -1575,6 +1817,18 @@ class LmsService {
 // DATA CLASSES — Dùng chung cho LMS
 // ============================================================
 
+/// Metadata phân trang trích xuất từ HTTP headers
+class _PaginationMeta {
+  final int totalElements;
+  final int totalPages;
+  final int pageNumber;
+  _PaginationMeta({
+    required this.totalElements,
+    required this.totalPages,
+    required this.pageNumber,
+  });
+}
+
 enum EnrollmentStatus {
   notStarted,
   inProgress,
@@ -1652,7 +1906,7 @@ class EnrolledCourse {
   final bool certificateAvailable;
   final DateTime? deadline;
   final DeadlineStatus deadlineStatus;
-  /// Chỉ true khi tất cả quiz module VÀ final quiz đều đạt.
+  /// Chỉ true khi tất cả quiz module đều đạt.
   /// Dùng để override hiển thị badge/nút thay vì dùng enrollment status.
   final bool allQuizPassed;
 
@@ -1673,21 +1927,29 @@ class EnrolledCourse {
 
 class CertificateInfo {
   final String id;
-  final String code;
+  final String code; // verificationCode (UUID dài)
+  final String displayCode; // shortCode (CERT-XXXX)
   final String courseName;
   final String userName;
+  final String departmentName; // department của user
   final DateTime issuedAt;
   final DateTime? expiresAt;
   final String? courseId;
+  final String? certificateUrl;
+  final String issuer; // e.g. "SMETS"
 
   CertificateInfo({
     required this.id,
     required this.code,
+    required this.displayCode,
     required this.courseName,
     required this.userName,
+    required this.departmentName,
     required this.issuedAt,
     this.expiresAt,
     this.courseId,
+    this.certificateUrl,
+    required this.issuer,
   });
 }
 

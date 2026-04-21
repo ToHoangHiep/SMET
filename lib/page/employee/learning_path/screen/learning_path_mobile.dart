@@ -71,9 +71,10 @@ class _EmployeeLearningPathMobileState extends State<EmployeeLearningPathMobile>
 
   Future<void> _navigateToPath(LearningPathInfo path) async {
     try {
-      if (mounted) {
+      final detail = await LmsService.getLearningPathDetail(path.id);
+      if (detail != null && detail.courses.isNotEmpty && mounted) {
         context.go(
-          '/employee/learn/${path.id}?learningPathId=${path.id}&from=learning_path',
+          '/employee/learn/${detail.courses.first.id}?learningPathId=${path.id}&from=learning_path',
         );
       }
     } catch (e) {

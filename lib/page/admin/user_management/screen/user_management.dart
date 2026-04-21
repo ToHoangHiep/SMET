@@ -6,6 +6,7 @@ import 'package:smet/model/user_model.dart';
 import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
 import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/user_management_form_card.dart';
@@ -13,8 +14,6 @@ import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
-import '../widgets/dialog/change_department_dialog.dart';
-import '../widgets/dialog/reassignment_dialog.dart';
 import 'package:flutter/foundation.dart';
 
 int? _parsePaginationInt(dynamic value) {
@@ -62,6 +61,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   UserRole _createRole = UserRole.USER;
+
+  bool _isRoleLocked = false;
+  bool _isCheckingProject = false;
+  bool _userInDepartment = false;
 
   @override
   void initState() {
@@ -247,15 +250,29 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
   }
 
-  void _openUpdateUserScreen(UserModel user) {
-    // ADMIN không thể tự sửa chính mình — hệ thống chỉ có duy nhất 1 admin
+  void _openUpdateUserScreen(UserModel user) async {
+    // RULE 1: Không cho sửa ADMIN khác
     if (user.role == UserRole.ADMIN) {
-      GlobalNotificationService.show(
-        context: context,
-        message: 'Không thể chỉnh sửa tài khoản Quản trị viên.',
-        type: NotificationType.warning,
-      );
-      return;
+      try {
+        final currentUser = await AuthService.getCurrentUser();
+        if (!mounted) return;
+        if (user.id != currentUser.id) {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Không thể chỉnh sửa ADMIN khác.',
+            type: NotificationType.warning,
+          );
+          return;
+        }
+      } catch (e) {
+        if (!mounted) return;
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Không thể chỉnh sửa ADMIN khác.',
+          type: NotificationType.warning,
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -267,6 +284,26 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _emailController.text = user.email;
       _phoneController.text = user.phone;
       _createRole = user.role;
+      _isRoleLocked = false;
+      _isCheckingProject = true;
+      _userInDepartment = false;
+    });
+
+    // ADMIN không được đổi role (chỉ khóa role, vẫn cho sửa thông tin khác)
+    // Non-ADMIN: kiểm tra có đang thuộc phòng ban không (theo backend RULE 2)
+    bool roleLocked = user.role == UserRole.ADMIN;
+    bool inDepartment = user.departmentId != null;
+
+    // RULE 2: Không cho đổi role nếu user đã thuộc phòng ban
+    if (!roleLocked && inDepartment) {
+      roleLocked = true;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isCheckingProject = false;
+      _isRoleLocked = roleLocked;
+      _userInDepartment = inDepartment;
     });
   }
 
@@ -277,6 +314,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _isViewMode = false;
       _editingUserId = null;
       _viewingUser = null;
+      _isRoleLocked = false;
+      _isCheckingProject = false;
+      _userInDepartment = false;
     });
   }
 
@@ -287,59 +327,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _isUpdateMode = false;
       _viewingUser = user;
     });
-  }
-
-  Future<void> _showChangeDepartmentDialog(UserModel user) async {
-    if (user.role == UserRole.ADMIN) return;
-
-    if (user.role == UserRole.MENTOR) {
-      // Mentor: dùng ReassignmentDialog — chuyển khóa học trước khi đổi phòng ban
-      await ReassignmentDialog.show(
-        context: context,
-        mentor: user,
-        departments: _departments,
-        primaryColor: _primaryColor,
-        onComplete: () async {
-          await _fetchUsers();
-          if (context.mounted) {
-            GlobalNotificationService.show(
-              context: context,
-              message: 'Đổi phòng ban thành công!',
-              type: NotificationType.success,
-            );
-          }
-        },
-      );
-      return;
-    }
-
-    // Role khác: dùng ChangeDepartmentDialog đơn giản
-    await ChangeDepartmentDialog.show(
-      context: context,
-      user: user,
-      departments: _departments,
-      primaryColor: _primaryColor,
-      onConfirm: (newDepartmentId, {bool confirmSwap = false}) async {
-        try {
-          await _apiService.updateUser(
-            user,
-            departmentId: newDepartmentId,
-            confirmSwap: confirmSwap,
-          );
-          await _fetchUsers();
-          return true;
-        } catch (e) {
-          if (context.mounted) {
-            GlobalNotificationService.show(
-              context: context,
-              message: 'Đổi phòng ban thất bại: ${e.toString().replaceFirst('Exception: ', '')}',
-              type: NotificationType.error,
-            );
-          }
-          return false;
-        }
-      },
-    );
   }
 
   Future<void> _submitCreateUser() async {
@@ -385,6 +372,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     final existingUser = _users.firstWhere((u) => u.id == _editingUserId!);
 
+    // Neu role thay doi va user dang thuoc phong ban -> khong cho phep (RULE 2)
+    if (!_isRoleLocked && existingUser.role != _createRole && _userInDepartment) {
+      if (!mounted) return;
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể đổi vai trò vì nhân viên đã thuộc phòng ban.',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
     final updatedUser = UserModel(
       id: _editingUserId!,
       userName: existingUser.userName,
@@ -398,24 +396,34 @@ class _UserManagementPageState extends State<UserManagementPage> {
       createdAt: existingUser.createdAt,
       isActive: existingUser.isActive,
     );
-    await _apiService.updateUser(
-      updatedUser,
-      departmentId: updatedUser.departmentId,
-    );
-    await _fetchUsers();
 
-    if (!mounted) return;
+    try {
+      await _apiService.updateUser(
+        updatedUser,
+        departmentId: updatedUser.departmentId,
+      );
+      await _fetchUsers();
 
-    setState(() {
-      _isUpdateMode = false;
-      _editingUserId = null;
-    });
+      if (!mounted) return;
 
-    GlobalNotificationService.show(
-      context: context,
-      message: 'Cập nhật nhân viên thành công!',
-      type: NotificationType.success,
-    );
+      setState(() {
+        _isUpdateMode = false;
+        _editingUserId = null;
+      });
+
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Cập nhật nhân viên thành công!',
+        type: NotificationType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      GlobalNotificationService.show(
+        context: context,
+        message: e.toString().replaceAll('Exception: ', ''),
+        type: NotificationType.error,
+      );
+    }
   }
 
   @override
@@ -470,6 +478,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     _isUpdateMode
                                         ? _submitUpdateUser
                                         : _submitCreateUser,
+                                isRoleLocked: _isRoleLocked,
+                                isCheckingProject: _isCheckingProject,
                               )
                               : _isViewMode && _viewingUser != null
                               ? _buildViewUserCard()
@@ -534,7 +544,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   await _apiService.toggleUserActive(user.id);
                                   await _fetchUsers();
                                 },
-                                onReassignDepartment: _showChangeDepartmentDialog,
                               ),
                         ],
                       ),

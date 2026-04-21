@@ -36,6 +36,7 @@ class UserAssignmentService {
   Future<AssignableUserPageResponse> getAssignableUsers({
     String? keyword,
     String? role,
+    int? departmentId,
     int page = 0,
     int size = 20,
   }) async {
@@ -52,6 +53,9 @@ class UserAssignmentService {
       }
       if (role != null && role.isNotEmpty) {
         queryParams['role'] = role;
+      }
+      if (departmentId != null) {
+        queryParams['departmentId'] = departmentId.toString();
       }
       // Backend mac dinh active=true, khong can truyen param
 
@@ -76,10 +80,10 @@ class UserAssignmentService {
     }
   }
 
-  /// Lay tat ca assignable users (tu dong load nhieu page)
   Future<List<AssignableUser>> getAllAssignableUsers({
     String? keyword,
     String? role,
+    int? departmentId,
   }) async {
     final allUsers = <AssignableUser>[];
     int currentPage = 0;
@@ -90,6 +94,7 @@ class UserAssignmentService {
       final result = await getAssignableUsers(
         keyword: keyword,
         role: role,
+        departmentId: departmentId,
         page: currentPage,
         size: pageSize,
       );

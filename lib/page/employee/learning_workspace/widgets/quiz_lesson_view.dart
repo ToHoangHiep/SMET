@@ -9,17 +9,20 @@ class QuizLessonView extends StatefulWidget {
   final String quizId;
   final String? courseId;
   final String? moduleTitle;
-  /// Xác định đây có phải là final quiz (cuối khóa) hay không
-  /// Nếu null, sẽ dùng thông tin từ API
-  final bool? isFinalQuiz;
+  final VoidCallback? onResetSuccess;
+  final VoidCallback? onQuizPassed;
 
   const QuizLessonView({
     super.key,
     required this.quizId,
     this.courseId,
     this.moduleTitle,
-    this.isFinalQuiz,
+    this.onResetSuccess,
+    this.onQuizPassed,
   });
+
+  /// Static callback để quiz page gọi sau khi hoàn thành quiz (passed).
+  static VoidCallback? onQuizPassedFromQuizPage;
 
   @override
   State<QuizLessonView> createState() => _QuizLessonViewState();
@@ -33,11 +36,6 @@ class _QuizLessonViewState extends State<QuizLessonView>
   String? _error;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-
-  bool get _isFinalQuiz {
-    if (widget.isFinalQuiz != null) return widget.isFinalQuiz!;
-    return _quizInfo?.isFinalQuiz ?? false;
-  }
 
   @override
   void initState() {
@@ -90,12 +88,14 @@ class _QuizLessonViewState extends State<QuizLessonView>
   }
 
   void _onStartQuiz() {
+    QuizLessonView.onQuizPassedFromQuizPage = widget.onQuizPassed;
     context.go(
       '/employee/quiz/${widget.quizId}?courseId=${widget.courseId ?? ''}',
     );
   }
 
   void _onResumeQuiz() {
+    QuizLessonView.onQuizPassedFromQuizPage = widget.onQuizPassed;
     if (_eligibility?.activeAttemptId != null) {
       context.go(
         '/employee/quiz/${widget.quizId}?courseId=${widget.courseId ?? ''}&attemptId=${_eligibility!.activeAttemptId}',
@@ -109,6 +109,36 @@ class _QuizLessonViewState extends State<QuizLessonView>
     context.go(
       '/employee/quiz-history/${widget.quizId}?title=${Uri.encodeComponent(_quizInfo?.title ?? 'Bài kiểm tra')}',
     );
+  }
+
+  Future<void> _onResetAttempt() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận reset'),
+        content: const Text(
+          'Bạn sẽ mất toàn bộ tiến trình học tập và phải học lại từ đầu. Bạn có chắc chắn muốn reset không?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Đồng ý reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final success = await QuizService.resetMyAttempt(widget.quizId);
+    if (success) {
+      await _loadQuizData();
+      widget.onResetSuccess?.call();
+    }
   }
 
   @override
@@ -174,83 +204,6 @@ class _QuizLessonViewState extends State<QuizLessonView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF137FEC).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF137FEC).withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF137FEC).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.quiz_outlined,
-                        size: 14,
-                        color: Color(0xFF137FEC),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _isFinalQuiz ? 'Bài kiểm tra cuối khóa' : 'Kiểm tra Module',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF137FEC),
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_isFinalQuiz) ...[
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.star_rounded, size: 13, color: Colors.white),
-                      SizedBox(width: 5),
-                      Text(
-                        'CUỐI KHÓA',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 20),
           Text(
             _quizInfo?.title ?? 'Bài kiểm tra',
             style: const TextStyle(
@@ -476,22 +429,22 @@ class _QuizLessonViewState extends State<QuizLessonView>
       );
     }
 
-    if (_eligibility?.canStart == false) {
+    if (_eligibility?.progressReady == false) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFFFEE2E2),
-              const Color(0xFFFECACA).withValues(alpha: 0.5),
+              const Color(0xFFFEF3C7),
+              const Color(0xFFFDE68A).withValues(alpha: 0.5),
             ],
           ),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFFECACA)),
+          border: Border.all(color: const Color(0xFFFDE68A)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -502,12 +455,12 @@ class _QuizLessonViewState extends State<QuizLessonView>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                color: const Color(0xFFB45309).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
-                Icons.block_rounded,
-                color: Color(0xFFEF4444),
+                Icons.replay_rounded,
+                color: Color(0xFFB45309),
                 size: 24,
               ),
             ),
@@ -517,18 +470,16 @@ class _QuizLessonViewState extends State<QuizLessonView>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Không thể làm bài',
+                    'Tiến trình đã được reset',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFEF4444),
+                      color: Color(0xFFB45309),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _eligibility?.maxAttempts != null
-                        ? 'Bạn đã sử dụng hết ${_eligibility!.submittedAttempts ?? 0}/${_eligibility!.maxAttempts} lượt thi'
-                        : 'Đã xảy ra lỗi. Vui lòng thử lại sau.',
+                    'Bạn đã hết lượt thi và cần học lại các bài học trước khi làm bài kiểm tra.',
                     style: TextStyle(
                       fontSize: 13,
                       color: const Color(0xFF64748B),
@@ -539,6 +490,109 @@ class _QuizLessonViewState extends State<QuizLessonView>
             ),
           ],
         ),
+      );
+    }
+
+    if (_eligibility?.canStart == false && !(_eligibility?.passed ?? false)) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFFEE2E2),
+                  const Color(0xFFFECACA).withValues(alpha: 0.5),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFECACA)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.block_rounded,
+                    color: Color(0xFFEF4444),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Không thể làm bài',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFEF4444),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _eligibility?.maxAttempts != null
+                            ? 'Bạn đã sử dụng hết ${_eligibility!.submittedAttempts ?? 0}/${_eligibility!.maxAttempts} lượt thi'
+                            : 'Đã xảy ra lỗi. Vui lòng thử lại sau.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _onResetAttempt,
+              icon: const Icon(Icons.refresh_rounded, size: 18, color: Color(0xFFEF4444)),
+              label: const Text(
+                'Reset tiến độ & làm lại',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFEF4444),
+                side: const BorderSide(color: Color(0xFFFECACA)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_eligibility?.passed == true) {
+      return _ActionButton(
+        onPressed: null,
+        icon: Icons.check_circle_rounded,
+        label: 'Đã đạt',
+        gradient: const [Color(0xFF16A34A), Color(0xFF15803D)],
       );
     }
 
@@ -682,13 +736,13 @@ class _InfoCardState extends State<_InfoCard> {
 }
 
 class _ActionButton extends StatefulWidget {
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final IconData icon;
   final String label;
   final List<Color> gradient;
 
   const _ActionButton({
-    required this.onPressed,
+    this.onPressed,
     required this.icon,
     required this.label,
     required this.gradient,
@@ -927,13 +981,11 @@ class _QuizErrorState extends StatelessWidget {
 /// Quiz Lesson Header — hiển thị header của quiz trong learning workspace
 class QuizLessonHeader extends StatelessWidget {
   final String title;
-  final bool isFinalQuiz;
   final String? moduleTitle;
 
   const QuizLessonHeader({
     super.key,
     required this.title,
-    this.isFinalQuiz = false,
     this.moduleTitle,
   });
 
@@ -961,71 +1013,6 @@ class QuizLessonHeader extends StatelessWidget {
             color: Color(0xFF0F172A),
             height: 1.2,
           ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF137FEC).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFF137FEC).withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.quiz_outlined, size: 14, color: Color(0xFF137FEC)),
-                  const SizedBox(width: 6),
-                  Text(
-                    isFinalQuiz ? 'Bài kiểm tra cuối khóa' : 'Kiểm tra Module',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF137FEC),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isFinalQuiz) ...[
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.star_rounded, size: 13, color: Colors.white),
-                    SizedBox(width: 5),
-                    Text(
-                      'CUỐI KHÓA',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
         ),
       ],
     );

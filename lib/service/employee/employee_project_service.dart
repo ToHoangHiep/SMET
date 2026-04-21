@@ -5,6 +5,7 @@ import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/model/project_model.dart';
 import 'package:smet/model/project_member_model.dart';
 import 'package:smet/model/assignment_result_model.dart';
+import 'package:smet/model/assignable_user_model.dart';
 import 'dart:developer';
 
 class EmployeeProjectService {
@@ -16,11 +17,6 @@ class EmployeeProjectService {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
     };
-  }
-
-  static Future<int> get _currentUserId async {
-    final user = await AuthService.getCurrentUser();
-    return user.id;
   }
 
   // ============================================================
@@ -311,6 +307,51 @@ class EmployeeProjectService {
     } catch (e) {
       log('EmployeeProjectService.getAssignableUsers failed: $e');
       return [];
+    }
+  }
+
+  // ============================================================
+  // GET /api/projects/{id}/assignable-users (phan trang)
+  // Tra ve ProjectAssignableUsersPageResponse cho AssignableUserDialog
+  // ============================================================
+  static Future<ProjectAssignableUsersPageResponse> getAssignableUsersPaged({
+    required int projectId,
+    String? keyword,
+    String? role,
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      final headers = await _headers;
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+
+      final url = Uri.parse('$_baseEndpoint/$projectId/assignable-users')
+          .replace(queryParameters: queryParams);
+
+      log('GET ASSIGNABLE USERS PAGED: $url');
+
+      final response = await http.get(url, headers: headers);
+      log('GET ASSIGNABLE USERS PAGED STATUS: ${response.statusCode}');
+      log('GET ASSIGNABLE USERS PAGED RESPONSE: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return ProjectAssignableUsersPageResponse.fromJson(data as Map<String, dynamic>);
+      }
+
+      throw Exception('Get assignable users failed: HTTP ${response.statusCode}');
+    } catch (e) {
+      log('EmployeeProjectService.getAssignableUsersPaged failed: $e');
+      rethrow;
     }
   }
 
@@ -704,6 +745,70 @@ class ProjectMemberInfo {
       userId: json['userId'] ?? 0,
       fullName: json['fullName'] ?? json['userName'] ?? json['name'] ?? '',
       email: json['email'],
+    );
+  }
+}
+
+// ============================================================
+// DTO: PageResponse<ProjectAssignmentView> - backend tra ve
+// {
+//   "data": [{ userId, userName, role, courses, learningPaths, ... }],
+//   "page": 0, "size": 20, "totalElements": 5, "totalPages": 1, "last": true
+// }
+// ============================================================
+class ProjectAssignableUsersPageResponse implements AssignablePageResult {
+  @override
+  final List<AssignableUser> data;
+  @override
+  final int page;
+  final int size;
+  final int totalElements;
+  final int totalPages;
+  final bool last;
+
+  ProjectAssignableUsersPageResponse({
+    required this.data,
+    required this.page,
+    required this.size,
+    required this.totalElements,
+    required this.totalPages,
+    required this.last,
+  });
+
+  @override
+  bool get hasNext => !last;
+
+  factory ProjectAssignableUsersPageResponse.fromJson(Map<String, dynamic> json) {
+    // Spring Page returns "content", not "data"
+    final List<dynamic> rawList = (json['content'] ?? json['data'] ?? []) as List<dynamic>;
+
+    int parseInt(dynamic v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    return ProjectAssignableUsersPageResponse(
+      data: rawList.map((e) {
+        final map = e as Map<String, dynamic>;
+        return AssignableUser(
+          userId: parseInt(map['userId']),
+          fullName: map['userName']?.toString() ?? '',
+          email: '',
+          phone: '',
+          departmentName: null,
+          projectCount: 0,
+          enrolledCourseCount: parseInt(map['totalCourses']),
+          learningPathCount: (map['learningPaths'] as List<dynamic>?)?.length ?? 0,
+        );
+      }).toList(),
+      page: parseInt(json['page']),
+      size: parseInt(json['size']),
+      totalElements: parseInt(json['totalElements']),
+      totalPages: parseInt(json['totalPages']),
+      last: json['last'] ?? true,
     );
   }
 }

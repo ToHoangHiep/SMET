@@ -1,7 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smet/model/assignable_user_model.dart';
 import 'package:smet/service/admin/user_assignment/user_assignment_service.dart';
+import 'package:smet/service/common/base_url.dart';
+
+class Department {
+  final int id;
+  final String name;
+
+  Department({required this.id, required this.name});
+
+  factory Department.fromJson(Map<String, dynamic> json) {
+    return Department(
+      id: json['id'] ?? 0,
+      name: json['name'] ?? '',
+    );
+  }
+}
 
 // ============================================================
 // _UserListTile - Item widget cho danh sach user
@@ -217,6 +235,18 @@ class AssignableUserDialog extends StatefulWidget {
   final String title;
   final List<AssignableUser>? preSelectedUsers;
   final String? roleFilter;
+  /// Optional custom fetch function for project-scoped user selection.
+  /// When provided, this replaces the default UserAssignmentService call.
+  final Future<AssignablePageResult> Function({
+    String? keyword,
+    String? role,
+    int? departmentId,
+    int? page,
+    int? size,
+  })? customUserFetcher;
+  /// Optional static user list. When provided, this list is used directly
+  /// instead of fetching from API. Supports local search only (no pagination).
+  final List<AssignableUser>? customUsers;
 
   const AssignableUserDialog({
     super.key,
@@ -224,6 +254,8 @@ class AssignableUserDialog extends StatefulWidget {
     this.title = 'Chọn người được gán',
     this.preSelectedUsers,
     this.roleFilter,
+    this.customUserFetcher,
+    this.customUsers,
   });
 
   static Future<List<AssignableUser>?> show({
@@ -232,6 +264,14 @@ class AssignableUserDialog extends StatefulWidget {
     String title = 'Chọn người được gán',
     List<AssignableUser>? preSelectedUsers,
     String? roleFilter,
+    Future<AssignablePageResult> Function({
+      String? keyword,
+      String? role,
+      int? departmentId,
+      int? page,
+      int? size,
+    })? customUserFetcher,
+    List<AssignableUser>? customUsers,
   }) {
     return showDialog<List<AssignableUser>>(
       context: context,
@@ -240,6 +280,8 @@ class AssignableUserDialog extends StatefulWidget {
         title: title,
         preSelectedUsers: preSelectedUsers,
         roleFilter: roleFilter,
+        customUserFetcher: customUserFetcher,
+        customUsers: customUsers,
       ),
     );
   }
@@ -254,6 +296,8 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
 
   List<AssignableUser> _users = [];
   List<AssignableUser> _selectedUsers = [];
+  List<Department> _departments = [];
+  int? _selectedDepartmentId;
   bool _isLoading = true;
   bool _isLoadingMore = false;
   String? _error;
@@ -262,11 +306,16 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
   bool _hasNext = true;
   String _searchQuery = '';
   Timer? _debounce;
+  bool _useStaticList = false;
+  List<AssignableUser> _staticUsers = [];
 
   @override
   void initState() {
     super.initState();
     _selectedUsers = List.from(widget.preSelectedUsers ?? []);
+    _useStaticList = widget.customUsers != null;
+    _staticUsers = widget.customUsers ?? [];
+    _loadDepartments();
     _loadUsers();
   }
 
@@ -277,7 +326,44 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
     super.dispose();
   }
 
+  Future<void> _loadDepartments() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString("token");
+      if (token == null) return;
+
+      final res = await http.get(
+        Uri.parse('$baseUrl/departments'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final List<dynamic> content =
+            (data['data'] ?? data['content'] ?? data ?? []) as List<dynamic>;
+        if (mounted) {
+          setState(() {
+            _departments = content
+                .map((e) => Department.fromJson(e as Map<String, dynamic>))
+                .toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading departments: $e');
+    }
+  }
+
   Future<void> _loadUsers({bool append = false}) async {
+    if (_useStaticList) {
+      _applyStaticSearch();
+      return;
+    }
+
     if (append) {
       setState(() => _isLoadingMore = true);
     } else {
@@ -288,12 +374,24 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
     }
 
     try {
-      final result = await _service.getAssignableUsers(
-        keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
-        role: widget.roleFilter,
-        page: append ? _currentPage : 0,
-        size: 20,
-      );
+      AssignablePageResult result;
+      if (widget.customUserFetcher != null) {
+        result = await widget.customUserFetcher!(
+          keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
+          role: widget.roleFilter,
+          departmentId: _selectedDepartmentId,
+          page: append ? _currentPage : 0,
+          size: 20,
+        );
+      } else {
+        result = await _service.getAssignableUsers(
+          keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
+          role: widget.roleFilter,
+          departmentId: _selectedDepartmentId,
+          page: append ? _currentPage : 0,
+          size: 20,
+        );
+      }
 
       setState(() {
         if (append) {
@@ -315,6 +413,24 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
     }
   }
 
+  void _applyStaticSearch() {
+    setState(() {
+      _isLoading = true;
+    });
+    final query = _searchQuery.toLowerCase();
+    final filtered = query.isEmpty
+        ? _staticUsers
+        : _staticUsers.where((u) {
+            return u.fullName.toLowerCase().contains(query) ||
+                u.email.toLowerCase().contains(query);
+          }).toList();
+    setState(() {
+      _users = filtered;
+      _isLoading = false;
+      _hasNext = false;
+    });
+  }
+
   Future<void> _loadMore() async {
     if (_isLoadingMore || !_hasNext) return;
     await _loadUsers(append: true);
@@ -322,14 +438,40 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () {
-      setState(() {
-        _searchQuery = value;
-        _currentPage = 0;
-        _users = [];
-      });
-      _loadUsers();
+    setState(() {
+      _searchQuery = value;
     });
+    if (_useStaticList) {
+      _applyStaticSearch();
+    } else {
+      _debounce = Timer(const Duration(milliseconds: 400), () {
+        setState(() {
+          _currentPage = 0;
+          _users = [];
+        });
+        _loadUsers();
+      });
+    }
+  }
+
+  void _onDepartmentChanged(int? value) {
+    setState(() {
+      _selectedDepartmentId = value;
+      _currentPage = 0;
+      _users = [];
+    });
+    _loadUsers();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedDepartmentId = null;
+      _currentPage = 0;
+      _users = [];
+    });
+    _loadUsers();
   }
 
   void _toggleUser(AssignableUser user) {
@@ -359,11 +501,65 @@ class _AssignableUserDialogState extends State<AssignableUserDialog> {
           children: [
             _buildHeader(),
             _buildSearchBar(),
+            _buildFilterBar(),
             const Divider(height: 1),
             _buildUserList(),
             const Divider(height: 1),
             _buildFooter(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterBar() {
+    final hasFilters = _selectedDepartmentId != null;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          _buildDepartmentDropdown(),
+          const Spacer(),
+          if (hasFilters)
+            TextButton.icon(
+              onPressed: _clearFilters,
+              icon: const Icon(Icons.clear_all, size: 18),
+              label: const Text('Xoa loc'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: _selectedDepartmentId,
+          hint: const Text('Phong ban'),
+          icon: Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Tat ca phong ban')),
+            ..._departments.map(
+              (dept) => DropdownMenuItem(
+                value: dept.id,
+                child: Text(dept.name, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          onChanged: _onDepartmentChanged,
+          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
         ),
       ),
     );

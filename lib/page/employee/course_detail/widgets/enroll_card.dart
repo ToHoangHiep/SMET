@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Enroll card — hiển thị số chương, số bài học, nút đăng ký / tiếp tục học.
+/// Enroll card — hiển thị số chương, số bài học, nút đăng ký / tiếp tục học / rời khóa.
 class EnrollCard extends StatelessWidget {
   final VoidCallback? onEnroll;
   final VoidCallback? onStartLearning;
+  final VoidCallback? onLeaveCourse;
   final int moduleCount;
   final int lessonCount;
   final bool isEnrolled;
@@ -18,6 +19,7 @@ class EnrollCard extends StatelessWidget {
     super.key,
     this.onEnroll,
     this.onStartLearning,
+    this.onLeaveCourse,
     this.moduleCount = 0,
     this.lessonCount = 0,
     this.isEnrolled = false,
@@ -103,6 +105,36 @@ class EnrollCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+
+            // ─── Leave Course Button (chỉ hiện khi đã đăng ký) ───
+            if (isEnrolled && !isArchived && onLeaveCourse != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: isLoading ? null : onLeaveCourse,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFEF4444),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFFEF4444),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Text(
+                      'Rời khóa học',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             // Subtitle text
             Text(

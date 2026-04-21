@@ -74,7 +74,9 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
       if (mounted) {
         setState(() => _isLoading = false);
         _showSnackBar(
-            "Lỗi: ${e.toString().replaceAll('Exception: ', '')}", Colors.red);
+          "Lỗi: ${e.toString().replaceAll('Exception: ', '')}",
+          Colors.red,
+        );
       }
     }
   }
@@ -181,10 +183,7 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
           const SizedBox(height: 8),
           Text(
             'Nhập địa chỉ email để nhận liên kết đặt lại mật khẩu',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Colors.grey[500], fontSize: 15),
           ),
           const SizedBox(height: 32),
           _buildTextField(
@@ -202,8 +201,9 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF6366F1)
-                        .withOpacity(_isLoading ? 0.3 : 0.4),
+                    color: const Color(
+                      0xFF6366F1,
+                    ).withOpacity(_isLoading ? 0.3 : 0.4),
                     blurRadius: _isLoading ? 12 : 16,
                     offset: const Offset(0, 6),
                   ),
@@ -219,30 +219,32 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
                   ),
                   elevation: 0,
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.send, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Gửi liên kết đặt lại',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                child:
+                    _isLoading
+                        ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
                             ),
                           ),
-                        ],
-                      ),
+                        )
+                        : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.send, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Gửi liên kết đặt lại',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
               ),
             ),
           ),
@@ -295,10 +297,7 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
           const SizedBox(height: 8),
           Text(
             'Vui lòng kiểm tra hộp thư và nhấn vào liên kết để đặt lại mật khẩu.',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Colors.grey[500], fontSize: 15),
           ),
           const SizedBox(height: 32),
           Container(
@@ -319,10 +318,7 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
                 Expanded(
                   child: Text(
                     'Liên kết đặt lại có hiệu lực trong 15 phút.',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
                   ),
                 ),
               ],
@@ -349,10 +345,7 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
                   SizedBox(width: 8),
                   Text(
                     ' Quay lại đăng nhập',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -504,10 +497,7 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF6366F1),
-                                Color(0xFF8B5CF6),
-                              ],
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -559,7 +549,7 @@ class _ForgotPasswordWebState extends State<ForgotPasswordWeb>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '© 2026 SMETS Platform. All rights reserved.',
+                          '© 2026 SMETS System. All rights reserved.',
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 13,

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:smet/model/department_model.dart';
-import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -58,21 +57,13 @@ class DepartmentService {
     try {
       final url = "$baseUrl/departments/createDepartment";
 
-      int? createdById;
-      try {
-        final me = await AuthService.getMe();
-        final id = me['id'];
-        if (id != null) createdById = id is int ? id : (id as num).toInt();
-      } catch (_) {}
-
       final body = {
         "name": name,
         "code": code,
-        "is_active": isActive,
+        "isActive": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
         if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
         if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
-        if (createdById != null) "createdBy": createdById,
       };
 
       _logRequest(
@@ -115,13 +106,13 @@ class DepartmentService {
     try {
       final url = "$baseUrl/departments/$id";
 
-      final body = {
+      final body = <String, dynamic>{
         "name": name,
         "code": code,
-        "is_active": isActive,
+        "isActive": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
-        "mentorIds": mentorIds ?? [],
-        "userIds": userIds ?? [],
+        if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
+        if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
       };
 
       _logRequest(
@@ -144,6 +135,7 @@ class DepartmentService {
         return DepartmentModel.fromJson(jsonDecode(response.body));
       }
 
+      log("UPDATE DEPARTMENT FAILED - Status: ${response.statusCode}, Body: ${response.body}");
       return null;
     } catch (e) {
       log("UPDATE DEPARTMENT ERROR: $e");
@@ -153,8 +145,8 @@ class DepartmentService {
 
   /// ================= DELETE =================
   /// DELETE /api/departments/{id}?force={true/false}
-  /// Nếu force = true: xóa toàn bộ thông tin bên trong (users, courses, learning paths)
-  /// Nếu force = false (mặc định): chỉ xóa department rỗng
+  /// Nếu force = true: soft delete department + xử lý dependencies (users bị vô hiệu hóa, courses bị archived, projects bị inactive)
+  /// Nếu force = false (mặc định): chỉ deactive department rỗng, không có dependencies
   Future<Map<String, dynamic>> deleteDepartment(int id, {bool force = false}) async {
     try {
       final url = "$baseUrl/departments/$id${force ? '?force=true' : ''}";
@@ -205,7 +197,7 @@ class DepartmentService {
         queryParams['keyword'] = keyword;
       }
       if (active != null) {
-        queryParams['active'] = active.toString();
+        queryParams['isActive'] = active.toString();
       }
 
       final uri = Uri.parse("$baseUrl/departments").replace(
@@ -224,6 +216,7 @@ class DepartmentService {
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data = jsonDecode(response.body);
+        // Backend PageResponse: { data: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }
         List content = data['data'] ?? [];
 
         log("TOTAL DEPARTMENTS: ${data['totalElements'] ?? content.length}");
@@ -271,34 +264,18 @@ class DepartmentService {
 
   /// ================= GET MEMBERS =================
   /// GET /api/departments/{id}/members
+  /// Backend trả về List<DepartmentMemberResponse> (không phân trang)
   Future<Map<String, dynamic>> getDepartmentMembers({
     required int departmentId,
-    String? keyword,
-    String? role,
-    int page = 0,
-    int size = 10,
   }) async {
     try {
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (role != null && role.isNotEmpty) {
-        queryParams['role'] = role;
-      }
+      final url = "$baseUrl/departments/$departmentId/members";
 
-      final uri = Uri.parse("$baseUrl/departments/$departmentId/members").replace(
-        queryParameters: queryParams,
-      );
-
-      _logRequest("GET DEPARTMENT MEMBERS", uri.toString());
+      _logRequest("GET DEPARTMENT MEMBERS", url);
 
       final token = await _getToken();
       final response = await http.get(
-        uri,
+        Uri.parse(url),
         headers: _headers(token!),
       );
 
@@ -306,6 +283,7 @@ class DepartmentService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        // Backend trả về List<DepartmentMemberResponse>
         if (data is List) {
           return {
             'members': data,
@@ -571,12 +549,12 @@ class DepartmentService {
     }
 
     try {
-      final url = "$baseUrl/departments/toggleStatus/$id";
+      final url = "$baseUrl/departments/$id/toggle-active";
 
       _logRequest("TOGGLE DEPARTMENT ACTIVE", url);
 
       final token = await _getToken();
-      final res = await http.put(
+      final res = await http.patch(
         Uri.parse(url),
         headers: _headers(token!),
       );
@@ -589,6 +567,40 @@ class DepartmentService {
     } catch (e) {
       log("TOGGLE DEPARTMENT ACTIVE ERROR: $e");
       log("DEPARTMENT ID: $id");
+      rethrow;
+    }
+  }
+
+  /// ================= REMOVE PROJECT MANAGER =================
+  /// Gỡ PM khỏi phòng ban bằng cách gọi PATCH với projectManagerId = 0.
+  /// Backend sẽ gọi assignUsers, tìm user id=0 → null → set PM về null.
+  Future<DepartmentModel?> removeProjectManager(int departmentId) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId";
+
+      final body = {
+        "projectManagerId": 0,
+      };
+
+      _logRequest("REMOVE PROJECT MANAGER", url, body: jsonEncode(body));
+
+      final token = await _getToken();
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return DepartmentModel.fromJson(jsonDecode(response.body));
+      }
+
+      log("REMOVE PM FAILED - Status: ${response.statusCode}, Body: ${response.body}");
+      return null;
+    } catch (e) {
+      log("REMOVE PM ERROR: $e");
       rethrow;
     }
   }
@@ -609,7 +621,6 @@ class DepartmentService {
         "name": departmentName,
         "code": departmentCode,
         "isActive": isActive,
-        "is_active": isActive, // Fallback for snake_case
         if (userIds.isNotEmpty) "userIds": userIds,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
       };

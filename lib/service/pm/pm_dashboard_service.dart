@@ -11,7 +11,7 @@ import 'dart:developer';
 ///   GET /api/pm/dashboard/trends      → PmTrendData
 ///   GET /api/pm/dashboard/team        → PageResponse<UserCourseReview>
 ///   GET /api/pm/dashboard/risks       → PageResponse<PmRiskItem>
-///   GET /api/pm/dashboard/insights    → List<DashboardInsight>
+///   GET /api/pm/insights             → List<DashboardInsight>
 ///   GET /api/pm/insights/{id}         → InsightDetail
 ///   GET /api/pm/insights/{id}/preview → InsightPreview
 ///   POST /api/pm/insights/{id}/execute → ExecuteAction
@@ -162,15 +162,15 @@ class PmDashboardService {
   }
 
   // ============================================
-  // GET /api/pm/dashboard/insights
-  // All dashboard insights sorted by createdAt DESC
+  // GET /api/pm/insights
+  // All dashboard insights (sorted by createdAt DESC on backend)
   // ============================================
   Future<List<DashboardInsight>> getInsights() async {
     try {
       _log('getInsights', 'Fetching insights...');
       final headers = await _headers();
       final response = await http.get(
-        Uri.parse('$_baseUrl/pm/dashboard/insights'),
+        Uri.parse('$_baseUrl/pm/insights'),
         headers: headers,
       );
       _log('getInsights status', response.statusCode);
@@ -318,29 +318,41 @@ class CourseOption {
 
 class InsightDetail {
   final int id;
-  final String insightKey;
-  final String content;
-  final String? actionLabel;
-  final String? actionUrl;
+  final String insightKey;      // uniqueKey
+  final String content;         // message
+  final String? recommendation; // recommendation
+  final String? severity;       // severity
+  final String? status;         // status
+  final String? actionTaken;    // actionTaken
+  final String? type;           // type
   final DateTime createdAt;
+  final DateTime? handledAt;
 
   InsightDetail({
     required this.id,
     required this.insightKey,
     required this.content,
-    this.actionLabel,
-    this.actionUrl,
+    this.recommendation,
+    this.severity,
+    this.status,
+    this.actionTaken,
+    this.type,
     required this.createdAt,
+    this.handledAt,
   });
 
   factory InsightDetail.fromJson(Map<String, dynamic> json) {
     return InsightDetail(
       id: _parseInt(json['id']),
       insightKey: json['insightKey'] ?? '',
-      content: json['content'] ?? '',
-      actionLabel: json['actionLabel'],
-      actionUrl: json['actionUrl'],
+      content: json['content'] ?? json['message'] ?? '',
+      recommendation: json['recommendation'],
+      severity: json['severity'],
+      status: json['status'],
+      actionTaken: json['actionTaken'],
+      type: json['type'],
       createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
+      handledAt: _parseDateTime(json['handledAt']),
     );
   }
 }

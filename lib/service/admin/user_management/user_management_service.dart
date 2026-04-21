@@ -123,7 +123,7 @@ class UserManagementApi {
   }
 
   /// ================= UPDATE USER =================
-  Future<void> updateUser(UserModel user, {int? departmentId, bool confirmSwap = false}) async {
+  Future<void> updateUser(UserModel user, {int? departmentId}) async {
     try {
       final token = await _getToken();
       final url = "$baseUrl/admin/users/${user.id}";
@@ -137,14 +137,8 @@ class UserManagementApi {
         "isActive": user.isActive,
       };
 
-      // Thêm departmentId nếu có
       if (departmentId != null) {
         body["departmentId"] = departmentId;
-      }
-
-      // Thêm confirmSwap nếu là swap
-      if (confirmSwap) {
-        body["confirmSwap"] = true;
       }
 
       _logRequest(
@@ -154,7 +148,7 @@ class UserManagementApi {
         body: jsonEncode(body),
       );
 
-      final res = await http.put(
+      final res = await http.patch(
         Uri.parse(url),
         headers: _headers(token),
         body: jsonEncode(body),

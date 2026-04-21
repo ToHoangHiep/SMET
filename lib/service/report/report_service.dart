@@ -18,9 +18,13 @@ import 'package:smet/service/common/base_url.dart';
 //     PUT    /api/reports/{id}                     - Update
 //     POST   /api/reports/{id}/submit              - Submit
 //     GET    /api/reports/{id}/versions            - Version history
+//     GET    /api/reports/{id}/pm-detail           - PM report detail
 //   AdminReportController (/api/admin/reports):
+//     GET    /api/admin/reports                    - Admin list
+//     GET    /api/admin/reports/{id}              - Admin detail
 //     POST   /api/admin/reports/{id}/approve       - Approve
 //     POST   /api/admin/reports/{id}/reject        - Reject
+//     GET    /api/admin/reports/{id}/versions      - Admin version history
 //     GET    /api/admin/reports/{id}/export        - Export (pdf|excel|csv)
 // ================================================================
 
@@ -198,6 +202,7 @@ class ReportService {
   // ============================================
   // GET ADMIN REPORT DETAIL
   // GET /api/admin/reports/{id}
+  // Admin can view any report via /api/reports/{id} (backend checks role)
   // ============================================
   Future<ReportDetailResponse> getAdminReportDetail(int id) async {
     final token = await _getToken();
@@ -221,6 +226,37 @@ class ReportService {
       throw _parseError(res);
     } catch (e) {
       _log('getAdminReportDetail error: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // GET PM REPORT DETAIL
+  // GET /api/reports/{id}/pm-detail
+  // Returns enriched PM report with metrics, summary, history
+  // ============================================
+  Future<PmReportDetailResponse> getPmReportDetail(int id) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final uri = Uri.parse('$baseUrl/reports/$id/pm-detail');
+    _log('getPmReportDetail: $uri');
+
+    try {
+      final res = await http.get(uri, headers: _headers(token));
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        _log('getPmReportDetail OK: id=$id');
+        return PmReportDetailResponse.fromJson(
+          decoded is Map<String, dynamic> ? decoded : {},
+        );
+      }
+
+      _log('getPmReportDetail failed: HTTP ${res.statusCode}');
+      throw _parseError(res);
+    } catch (e) {
+      _log('getPmReportDetail error: $e');
       rethrow;
     }
   }
@@ -361,7 +397,7 @@ class ReportService {
     final token = await _getToken();
     if (token == null) throw Exception('Token not found');
 
-    final uri = Uri.parse('$baseUrl/admin/reports/$id');
+    final uri = Uri.parse('$baseUrl/admin/reports/$id/versions');
     _log('getAdminReportVersions: $uri');
 
     try {
@@ -489,6 +525,7 @@ class ReportService {
   // GENERATE REPORT (Create new report with snapshot)
   // POST /api/reports?type={type}&scopeId={id}
   // Returns ReportDetailResponse
+  // Validation: if scopeId is null or <= 0, treat as "all" (send nothing)
   // ============================================
   Future<ReportDetailResponse> generateReport({
     required ReportType type,
@@ -498,7 +535,10 @@ class ReportService {
     if (token == null) throw Exception('Token not found');
 
     final params = <String, String>{'type': type.name};
-    if (scopeId != null) params['scopeId'] = scopeId.toString();
+    // If scopeId is provided and > 0, include it; otherwise treat as "all"
+    if (scopeId != null && scopeId > 0) {
+      params['scopeId'] = scopeId.toString();
+    }
 
     final uri = Uri.parse('$baseUrl/reports').replace(queryParameters: params);
 

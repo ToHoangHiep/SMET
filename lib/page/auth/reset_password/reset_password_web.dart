@@ -84,7 +84,10 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
     }
 
     if (_token == null || _token!.isEmpty) {
-      _showSnackBar("Token không hợp lệ. Vui lòng yêu cầu gửi lại email.", Colors.red);
+      _showSnackBar(
+        "Token không hợp lệ. Vui lòng yêu cầu gửi lại email.",
+        Colors.red,
+      );
       return;
     }
 
@@ -108,7 +111,9 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
           _errorMessage = e.toString().replaceAll('Exception: ', '');
         });
         _showSnackBar(
-            "Lỗi: ${e.toString().replaceAll('Exception: ', '')}", Colors.red);
+          "Lỗi: ${e.toString().replaceAll('Exception: ', '')}",
+          Colors.red,
+        );
       }
     }
   }
@@ -230,10 +235,7 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
           const SizedBox(height: 8),
           Text(
             'Nhập mật khẩu mới cho tài khoản của bạn',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Colors.grey[500], fontSize: 15),
           ),
           const SizedBox(height: 32),
           _buildTextField(
@@ -254,7 +256,9 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
             icon: Icons.lock_outline,
             obscureText: _obscureConfirmPassword,
             onToggleObscure: () {
-              setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
+              setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword,
+              );
             },
           ),
           if (_errorMessage != null) ...[
@@ -289,8 +293,9 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF6366F1)
-                        .withOpacity(_isLoading ? 0.3 : 0.4),
+                    color: const Color(
+                      0xFF6366F1,
+                    ).withOpacity(_isLoading ? 0.3 : 0.4),
                     blurRadius: _isLoading ? 12 : 16,
                     offset: const Offset(0, 6),
                   ),
@@ -306,30 +311,32 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
                   ),
                   elevation: 0,
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Đặt lại mật khẩu',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                child:
+                    _isLoading
+                        ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
                             ),
                           ),
-                        ],
-                      ),
+                        )
+                        : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Đặt lại mật khẩu',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
               ),
             ),
           ),
@@ -382,10 +389,7 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
           const SizedBox(height: 8),
           Text(
             'Mật khẩu của bạn đã được đặt lại. Bạn có thể đăng nhập ngay bây giờ.',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Colors.grey[500], fontSize: 15),
           ),
           const SizedBox(height: 32),
           SizedBox(
@@ -408,10 +412,7 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
                   SizedBox(width: 8),
                   Text(
                     'Đăng nhập ngay',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -563,10 +564,7 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF6366F1),
-                                Color(0xFF8B5CF6),
-                              ],
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -618,7 +616,7 @@ class _ResetPasswordWebState extends State<ResetPasswordWeb>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '© 2026 SMETS Platform. All rights reserved.',
+                          '© 2026 SMETS System. All rights reserved.',
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 13,

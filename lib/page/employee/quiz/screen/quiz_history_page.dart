@@ -274,6 +274,11 @@ class _QuizHistoryPageState extends State<QuizHistoryPage> {
                     'Nộp lúc: ${_formatDate(item.submittedAt!)}',
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
+                if (item.duration != null)
+                  Text(
+                    'Thời gian: ${item.durationText}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
               ],
             ),
             trailing: Container(

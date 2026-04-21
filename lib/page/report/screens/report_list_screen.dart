@@ -1,11 +1,15 @@
+import 'dart:convert';
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:smet/model/course_model.dart';
 import 'package:smet/model/report_model.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/page/report/shared/report_badges.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/mentor/course_service.dart';
+import 'package:smet/service/mentor/mentor_student_service.dart';
 import 'package:smet/service/project/project_service.dart';
 import 'package:smet/service/report/report_service.dart';
 
@@ -181,7 +185,9 @@ class _ReportListScreenState extends State<ReportListScreen> {
                 ],
                 primaryColor: widget.primaryColor,
                 actions: [
-                  _buildGenerateButton(),
+                  if (widget.currentRole != UserRole.ADMIN &&
+                      widget.currentRole != UserRole.USER)
+                    _buildGenerateButton(),
                 ],
               ),
             ),
@@ -325,6 +331,15 @@ class _ReportListScreenState extends State<ReportListScreen> {
           Navigator.of(ctx).pop();
           try {
             final report = await _svc.generateReport(type: type, scopeId: scopeId);
+
+            // Patch course enrollment stats on the frontend for MENTOR reports.
+            // Backend's buildMentorReport uses project-based aggregation which
+            // doesn't correctly compute course stats when scopeId is a course ID.
+            if (scopeId != null && scopeId > 0 &&
+                (type == ReportType.MENTOR_MONTHLY || type == ReportType.MENTOR_QUARTERLY)) {
+              await _patchMentorCourseStats(report.id, scopeId);
+            }
+
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Tạo báo cáo thành công!')),
@@ -346,6 +361,26 @@ class _ReportListScreenState extends State<ReportListScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _patchMentorCourseStats(int reportId, int scopeId) async {
+    try {
+      final studentSvc = MentorStudentService();
+      final stats = await studentSvc.getCourseEnrollmentStats(Long(scopeId));
+
+      // Build patch with only course enrollment stats, leaving other data untouched.
+      // Backend stores the full snapshot in dataJson; we only update editableJson.
+      final patchData = <String, dynamic>{
+        'completedCourses': stats.completedCourses,
+        'inProgressCourses': stats.inProgressCourses,
+        'notStartedCourses': stats.notStartedCourses,
+        'totalCourses': stats.completedCourses + stats.inProgressCourses + stats.notStartedCourses,
+      };
+      final editableJson = jsonEncode(patchData);
+      await _svc.updateReport(reportId, editableJson: editableJson);
+    } catch (e) {
+      log('[ReportListScreen] _patchMentorCourseStats failed: $e');
+    }
   }
 }
 
@@ -381,9 +416,9 @@ class _FilterBar extends StatelessWidget {
       case UserRole.ADMIN:
         return ReportType.values;
       case UserRole.MENTOR:
-        return [ReportType.MENTOR_WEEKLY, ReportType.MENTOR_MONTHLY];
+        return [ReportType.MENTOR_MONTHLY, ReportType.MENTOR_QUARTERLY];
       case UserRole.PROJECT_MANAGER:
-        return [ReportType.PM_WEEKLY, ReportType.PM_MONTHLY];
+        return [ReportType.PM_MONTHLY, ReportType.PM_QUARTERLY];
       case UserRole.USER:
         return [];
     }
@@ -986,9 +1021,9 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
       case UserRole.ADMIN:
         return ReportType.values;
       case UserRole.MENTOR:
-        return [ReportType.MENTOR_WEEKLY, ReportType.MENTOR_MONTHLY];
+        return [ReportType.MENTOR_MONTHLY, ReportType.MENTOR_QUARTERLY];
       case UserRole.PROJECT_MANAGER:
-        return [ReportType.PM_WEEKLY, ReportType.PM_MONTHLY];
+        return [ReportType.PM_MONTHLY, ReportType.PM_QUARTERLY];
       case UserRole.USER:
         return [];
     }
@@ -996,10 +1031,21 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
 
   bool get _needsScopeSelection {
     return _selectedType != null &&
-        (_selectedType == ReportType.MENTOR_WEEKLY ||
-            _selectedType == ReportType.MENTOR_MONTHLY ||
-            _selectedType == ReportType.PM_WEEKLY ||
-            _selectedType == ReportType.PM_MONTHLY);
+        (_selectedType == ReportType.MENTOR_MONTHLY ||
+            _selectedType == ReportType.MENTOR_QUARTERLY ||
+            _selectedType == ReportType.PM_MONTHLY ||
+            _selectedType == ReportType.PM_QUARTERLY);
+  }
+
+  bool _canSubmit() {
+    if (_selectedType == null) return false;
+    if (widget.currentRole == UserRole.PROJECT_MANAGER &&
+        (_selectedType == ReportType.PM_MONTHLY ||
+            _selectedType == ReportType.PM_QUARTERLY) &&
+        (_selectedScopeId == null || _selectedScopeId! <= 0)) {
+      return false;
+    }
+    return true;
   }
 
   @override
@@ -1042,13 +1088,13 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
         ];
       case UserRole.PROJECT_MANAGER:
         final result = await ProjectService.getAll(size: 100);
-        return [
-          _ScopeOption(id: null, label: 'Tất cả dự án'),
-          ...result.projects.map((p) => _ScopeOption(
-                id: p.id,
-                label: p.title,
-              )),
-        ];
+        if (result.projects.isEmpty) {
+          return [_ScopeOption(id: null, label: 'Chưa có dự án nào')];
+        }
+        return result.projects.map((p) => _ScopeOption(
+              id: p.id,
+              label: p.title,
+            )).toList();
       case UserRole.ADMIN:
         return [_ScopeOption(id: null, label: 'Toàn hệ thống')];
       case UserRole.USER:
@@ -1152,10 +1198,12 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
         ElevatedButton(
           onPressed: _selectedType == null || _isLoading
               ? null
-              : () {
-                  setState(() => _isLoading = true);
-                  widget.onGenerated(_selectedType!, _selectedScopeId);
-                },
+              : _canSubmit()
+                  ? () {
+                      setState(() => _isLoading = true);
+                      widget.onGenerated(_selectedType!, _selectedScopeId);
+                    }
+                  : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: widget.primaryColor,
             foregroundColor: Colors.white,
@@ -1171,14 +1219,14 @@ class _GenerateReportDialogState extends State<_GenerateReportDialog> {
 
   ReportScope _scopeOf(ReportType type) {
     switch (type) {
-      case ReportType.MENTOR_WEEKLY:
       case ReportType.MENTOR_MONTHLY:
+      case ReportType.MENTOR_QUARTERLY:
         return ReportScope.COURSE;
-      case ReportType.PM_WEEKLY:
       case ReportType.PM_MONTHLY:
+      case ReportType.PM_QUARTERLY:
         return ReportScope.PROJECT;
-      case ReportType.ADMIN_WEEKLY:
       case ReportType.ADMIN_MONTHLY:
+      case ReportType.ADMIN_QUARTERLY:
         return ReportScope.SYSTEM;
     }
   }

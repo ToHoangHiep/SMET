@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/page/chat/widgets/floating_chat_button.dart';
+import 'package:smet/page/shared/widgets/notification_bell_button.dart';
 import 'package:smet/page/sidebar/shared_sidebar.dart';
 import 'package:smet/page/sidebar/sidebar_menu_item.dart';
 import 'package:smet/service/common/auth_guard_service.dart';
@@ -162,7 +163,14 @@ class _MentorShellState extends State<MentorShell> {
               Expanded(child: widget.child),
             ],
           ),
-          // Floating chat button cho mentor - xuất hiện xuyên suốt mọi trang
+          Positioned(
+            top: 16,
+            right: 16,
+            child: NotificationBellButton(
+              primaryColor: MentorShell.mentorPrimaryColor,
+              onOpenPanel: () => context.go('/notifications'),
+            ),
+          ),
           Positioned(
             right: 20,
             bottom: 20,

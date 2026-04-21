@@ -69,9 +69,9 @@ class PageResponse<T> {
       content:
           rawList?.map((e) => fromJsonT(e as Map<String, dynamic>)).toList() ??
           [],
-      totalElements: _parseInt(json['totalElements'] ?? 0),
+      totalElements: _parseInt(json['totalElements'] ?? json['totalElements'] ?? 0),
       totalPages: _parseInt(json['totalPages'] ?? 0),
-      number: _parseInt(json['number'] ?? 0),
+      number: _parseInt(json['number'] ?? json['page'] ?? 0),
       size: _parseInt(json['size'] ?? 0),
       first: json['first'] ?? true,
       last: json['last'] ?? true,

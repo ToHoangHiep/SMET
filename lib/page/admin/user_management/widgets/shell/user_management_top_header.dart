@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/page/shared/widgets/notification_bell_button.dart';
 
 class UserManagementTopHeader extends StatefulWidget {
   final List<BreadcrumbItem>? breadcrumbs;
@@ -97,119 +98,11 @@ class _UserManagementTopHeaderState extends State<UserManagementTopHeader>
                   ],
                 ),
                 const Spacer(),
-                _NotificationButton(),
+                NotificationBellButton(
+                  primaryColor: const Color(0xFF6366F1),
+                ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationButton extends StatefulWidget {
-  @override
-  State<_NotificationButton> createState() => _NotificationButtonState();
-}
-
-class _NotificationButtonState extends State<_NotificationButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _pulseAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _AnimatedIconButton(
-      icon: Icons.notifications_outlined,
-      onPressed: () {},
-      badge: AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Transform.scale(scale: _pulseAnimation.value, child: child);
-        },
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFFEF4444),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.4),
-                blurRadius: 4,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AnimatedIconButton extends StatefulWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-  final Widget? badge;
-
-  const _AnimatedIconButton({
-    required this.icon,
-    required this.onPressed,
-    this.badge,
-  });
-
-  @override
-  State<_AnimatedIconButton> createState() => _AnimatedIconButtonState();
-}
-
-class _AnimatedIconButtonState extends State<_AnimatedIconButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: _isHovered ? const Color(0xFFF9FAFB) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            InkWell(
-              onTap: widget.onPressed,
-              borderRadius: BorderRadius.circular(12),
-              child: Icon(
-                widget.icon,
-                color: _isHovered ? const Color(0xFF4F46E5) : Colors.grey[500],
-                size: 22,
-              ),
-            ),
-            if (widget.badge != null)
-              Positioned(right: -2, top: -2, child: widget.badge!),
           ],
         ),
       ),

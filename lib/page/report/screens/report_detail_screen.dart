@@ -579,14 +579,14 @@ class _MetadataSection extends StatelessWidget {
 
   ReportScope _scopeOf(ReportType type) {
     switch (type) {
-      case ReportType.MENTOR_WEEKLY:
       case ReportType.MENTOR_MONTHLY:
+      case ReportType.MENTOR_QUARTERLY:
         return ReportScope.COURSE;
-      case ReportType.PM_WEEKLY:
       case ReportType.PM_MONTHLY:
+      case ReportType.PM_QUARTERLY:
         return ReportScope.PROJECT;
-      case ReportType.ADMIN_WEEKLY:
       case ReportType.ADMIN_MONTHLY:
+      case ReportType.ADMIN_QUARTERLY:
         return ReportScope.SYSTEM;
     }
   }
@@ -655,12 +655,12 @@ class _SnapshotSection extends StatelessWidget {
           const SizedBox(height: 20),
           if (snapshot == null)
             _buildRawJson()
-          else if (snapshot.mentor != null)
-            _buildMentorSnapshot(snapshot.mentor!)
-          else if (snapshot.pm != null)
-            _buildPmSnapshot(snapshot.pm!)
-          else if (snapshot.admin != null)
-            _buildAdminSnapshot(snapshot.admin!),
+          else if (snapshot.isMentor)
+            _buildMentorSnapshot(snapshot)
+          else if (snapshot.isPm)
+            _buildPmSnapshot(snapshot)
+          else if (snapshot.isAdmin)
+            _buildAdminSnapshot(snapshot),
         ],
       ),
     );
@@ -681,7 +681,7 @@ class _SnapshotSection extends StatelessWidget {
     );
   }
 
-  Widget _buildMentorSnapshot(MentorSnapshot m) {
+  Widget _buildMentorSnapshot(ReportSnapshotData s) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -698,62 +698,37 @@ class _SnapshotSection extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 2.2,
               children: [
-                _KpiCard(label: 'Tổng học viên', value: '${m.totalStudents}', icon: Icons.group_rounded, color: const Color(0xFF6366F1)),
-                _KpiCard(label: 'Hoàn thành', value: '${m.completedStudents}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
-                _KpiCard(label: 'Tỷ lệ hoàn thành', value: '${m.completionRate.toStringAsFixed(1)}%', icon: Icons.trending_up_rounded, color: const Color(0xFF2563EB)),
-                _KpiCard(label: 'Điểm trung bình', value: m.avgScore.toStringAsFixed(1), icon: Icons.star_rounded, color: const Color(0xFFD97706)),
+                _KpiCard(label: 'Dự án được giao', value: '${s.assignedProjects ?? 0}', icon: Icons.group_rounded, color: const Color(0xFF6366F1)),
+                _KpiCard(label: 'Hoàn thành', value: '${s.completedCourses ?? 0}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+                _KpiCard(label: 'Tỷ lệ hoàn thành', value: '${s.completionRate.toStringAsFixed(1)}%', icon: Icons.trending_up_rounded, color: const Color(0xFF2563EB)),
+                _KpiCard(label: 'Đang học', value: '${s.inProgressCourses ?? 0}', icon: Icons.play_circle_rounded, color: const Color(0xFFD97706)),
               ],
             );
           },
         ),
-        if (m.atRiskUsers.isNotEmpty) ...[
-          const SizedBox(height: 32),
-          _SectionTitle(title: 'Học viên có nguy cơ', icon: Icons.warning_rounded, primaryColor: Colors.orange),
-          const SizedBox(height: 16),
-          _buildAtRiskTable(m.atRiskUsers),
-        ],
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final count = constraints.maxWidth > 700 ? 4 : 2;
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: count,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 2.2,
+              children: [
+                _KpiCard(label: 'Chưa bắt đầu', value: '${s.notStartedCourses ?? 0}', icon: Icons.hourglass_empty_rounded, color: Colors.grey),
+                _KpiCard(label: 'Tổng khóa học', value: '${s.totalCourses}', icon: Icons.menu_book_rounded, color: const Color(0xFF8B5CF6)),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildAtRiskTable(List<AtRiskUser> users) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Table(
-        columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(3), 2: FlexColumnWidth(2)},
-        border: TableBorder(horizontalInside: BorderSide(color: Colors.grey.shade200)),
-        children: [
-          TableRow(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            children: const [
-              Padding(padding: EdgeInsets.all(12), child: Text('ID', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-              Padding(padding: EdgeInsets.all(12), child: Text('Họ tên', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-              Padding(padding: EdgeInsets.all(12), child: Text('Hạn chót', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-            ],
-          ),
-          ...users.map((u) => TableRow(
-                children: [
-                  Padding(padding: const EdgeInsets.all(12), child: Text('#${u.userId}', style: const TextStyle(fontSize: 13))),
-                  Padding(padding: const EdgeInsets.all(12), child: Text(u.userName ?? '—', style: const TextStyle(fontSize: 13))),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(u.deadline != null ? DateFormat('dd/MM/yyyy').format(u.deadline!) : '—', style: TextStyle(fontSize: 13, color: Colors.orange.shade700)),
-                  ),
-                ],
-              )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPmSnapshot(PmSnapshot m) {
+  Widget _buildPmSnapshot(ReportSnapshotData s) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -770,18 +745,20 @@ class _SnapshotSection extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 2.2,
               children: [
-                _KpiCard(label: 'Tổng người dùng', value: '${m.totalUsers}', icon: Icons.group_rounded, color: const Color(0xFF6366F1)),
-                _KpiCard(label: 'Hoàn thành', value: '${m.completed}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
-                _KpiCard(label: 'Tỷ lệ hoàn thành', value: '${m.completionRate.toStringAsFixed(1)}%', icon: Icons.trending_up_rounded, color: const Color(0xFF2563EB)),
+                _KpiCard(label: 'Tổng dự án', value: '${s.totalProjects ?? 0}', icon: Icons.folder_rounded, color: const Color(0xFF6366F1)),
+                _KpiCard(label: 'Hoàn thành', value: '${s.completedProjects ?? 0}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+                _KpiCard(label: 'Tỷ lệ hoàn thành', value: '${s.completionRate.toStringAsFixed(1)}%', icon: Icons.trending_up_rounded, color: const Color(0xFF2563EB)),
               ],
             );
           },
         ),
+        const SizedBox(height: 24),
+        _buildCourseSummary(s),
       ],
     );
   }
 
-  Widget _buildAdminSnapshot(AdminSnapshot m) {
+  Widget _buildAdminSnapshot(ReportSnapshotData s) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -798,9 +775,40 @@ class _SnapshotSection extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 2.2,
               children: [
-                _KpiCard(label: 'Tổng người dùng', value: '${m.totalUsers}', icon: Icons.people_rounded, color: const Color(0xFF6366F1)),
-                _KpiCard(label: 'Tổng khóa học', value: '${m.totalCourses}', icon: Icons.menu_book_rounded, color: const Color(0xFF2563EB)),
-                _KpiCard(label: 'Hoàn thành', value: '${m.completedUsers}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+                _KpiCard(label: 'Tổng người dùng', value: '${s.totalUsers ?? 0}', icon: Icons.people_rounded, color: const Color(0xFF6366F1)),
+                _KpiCard(label: 'Tổng dự án', value: '${s.totalProjects ?? 0}', icon: Icons.folder_rounded, color: const Color(0xFF2563EB)),
+                _KpiCard(label: 'Hoàn thành', value: '${s.completedCourses ?? 0}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+        _buildCourseSummary(s),
+      ],
+    );
+  }
+
+  Widget _buildCourseSummary(ReportSnapshotData s) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        _SectionTitle(title: 'Tổng quan Khóa học', icon: Icons.menu_book_rounded, primaryColor: const Color(0xFF6366F1)),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final count = constraints.maxWidth > 600 ? 3 : 2;
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: count,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 2.2,
+              children: [
+                _KpiCard(label: 'Hoàn thành', value: '${s.completedCourses ?? 0}', icon: Icons.check_circle_rounded, color: const Color(0xFF16A34A)),
+                _KpiCard(label: 'Đang học', value: '${s.inProgressCourses ?? 0}', icon: Icons.play_circle_rounded, color: const Color(0xFFD97706)),
+                _KpiCard(label: 'Chưa bắt đầu', value: '${s.notStartedCourses ?? 0}', icon: Icons.hourglass_empty_rounded, color: Colors.grey),
               ],
             );
           },

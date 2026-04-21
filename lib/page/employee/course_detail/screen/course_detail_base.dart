@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_web.dart';
 import 'package:smet/page/employee/course_detail/screen/course_detail_mobile.dart';
-import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/model/Employee_course_model.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/model/chat/chat_models.dart';
 import 'package:smet/page/shared/widgets/app_toast.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/service/chat/chat_service.dart';
 
 class CourseDetailPage extends StatefulWidget {
   final String courseId;
@@ -25,6 +28,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   bool _isLoading = true;
   String? _error;
   bool _isEnrolling = false;
+  bool _isLeaving = false;
   bool _isPreviewMode = false;
   final Map<int, bool> _expandedModules = {};
 
@@ -43,12 +47,16 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     try {
       try {
         final user = await AuthService.getCurrentUser();
+        debugPrint('>>> [DEBUG] _loadCourseDetail — frontend user: id=${user.id}, email=${user.email}, role=${user.role}');
         _isPreviewMode = user.role != UserRole.USER;
       } catch (_) {
         _isPreviewMode = false;
       }
 
       final course = await CourseService.getCourseDetail(widget.courseId);
+
+      debugPrint('>>> [DEBUG] _loadCourseDetail — course loaded: id=${widget.courseId}, '
+          'enrolled=${course.enrolled}, enrollmentStatus=${course.enrollmentStatus}, progress=${course.progress}');
 
       for (var i = 0; i < course.modules.length; i++) {
         _expandedModules[i] = false;
@@ -80,12 +88,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   Future<void> _onEnroll() async {
     setState(() => _isEnrolling = true);
     try {
+      debugPrint('>>> [DEBUG] _onEnroll — courseId=${widget.courseId}');
       final success = await CourseService.enrollCourse(widget.courseId);
+      debugPrint('>>> [DEBUG] _onEnroll — result=$success');
       if (success) {
-        // Reload course to get updated enrollment data (enrolled, progress, etc.)
-        await _loadCourseDetail();
         if (mounted) {
           context.showAppToast('Đăng ký thành công!');
+          await _loadCourseDetail();
         }
       }
     } catch (e) {
@@ -95,6 +104,76 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     } finally {
       if (mounted) {
         setState(() => _isEnrolling = false);
+      }
+    }
+  }
+
+  Future<void> _onLeaveCourse() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Expanded(child: Text('Xác nhận rời khóa học')),
+              ],
+            ),
+            content: Text(
+              'Bạn có chắc chắn muốn rời khóa học "${_course?.title}" không?\n'
+              'Tiến độ học tập của bạn sẽ bị mất.',
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF64748B),
+                ),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Rời khóa học'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLeaving = true);
+    try {
+      final success = await CourseService.leaveCourse(widget.courseId);
+      if (success) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        await _loadCourseDetail();
+        if (mounted) {
+          context.showAppToast('Đã rời khóa học thành công!');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showAppToast('Không thể rời khóa học: $e', variant: AppToastVariant.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLeaving = false);
       }
     }
   }
@@ -137,6 +216,30 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   void _onBookmark() {
     if (mounted) {
       context.showAppToast('Đã lưu khóa học!');
+    }
+  }
+
+  Future<void> _onChatWithMentor() async {
+    if (_course == null || _course!.mentorId <= 0) {
+      if (mounted) {
+        context.showAppToast('Không có mentor cho khóa học này');
+      }
+      return;
+    }
+
+    try {
+      final courseIdInt = int.tryParse(widget.courseId) ?? 0;
+      final roomId = await ChatService.createOrGetRoom(
+        mentorId: _course!.mentorId,
+        contextType: ChatContextType.COURSE,
+        contextId: courseIdInt,
+      );
+      floatingChatKey.currentState?.openChatWithRoom(roomId);
+    } catch (e) {
+      debugPrint('Error opening chat with mentor: $e');
+      if (mounted) {
+        context.showAppToast('Không thể mở chat với mentor', variant: AppToastVariant.error);
+      }
     }
   }
 
@@ -211,12 +314,14 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                     course: _course!,
                     expandedModules: _expandedModules,
                     onToggleModule: _toggleModule,
-                    isEnrolling: _isEnrolling,
+                    isEnrolling: _isEnrolling || _isLeaving,
                     isPreviewMode: _isPreviewMode,
                     onEnroll: _onEnroll,
+                    onLeaveCourse: _onLeaveCourse,
                     onStartLearning: _onStartLearning,
                     onShare: _onShare,
                     onBookmark: _onBookmark,
+                    onChatWithMentor: _onChatWithMentor,
                     breadcrumbs: [
                       const BreadcrumbItem(label: 'Trang chủ', route: '/employee/dashboard'),
                       _buildBreadcrumbParent(),
@@ -228,12 +333,14 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                     course: _course!,
                     expandedModules: _expandedModules,
                     onToggleModule: _toggleModule,
-                    isEnrolling: _isEnrolling,
+                    isEnrolling: _isEnrolling || _isLeaving,
                     isPreviewMode: _isPreviewMode,
                     onEnroll: _onEnroll,
+                    onLeaveCourse: _onLeaveCourse,
                     onStartLearning: _onStartLearning,
                     onNavigate: _onNavigateTo,
                     onLogout: _handleLogout,
+                    onChatWithMentor: _onChatWithMentor,
                   );
                   }
                 },
