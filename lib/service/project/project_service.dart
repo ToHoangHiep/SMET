@@ -8,16 +8,16 @@ import 'dart:developer';
 class ProjectService {
   static String get _baseUrl => baseUrl;
 
-  /// GET ALL PROJECTS (có phân trang, tìm kiếm, lọc theo status)
-  static Future<List<ProjectModel>> getAll({
+  /// Response wrapper chứa pagination metadata
+  static Future<ProjectPageResult> getAll({
     String? keyword,
     String? status,
+    int? departmentId,
     int page = 0,
     int size = 10,
   }) async {
     final token = await AuthService.getToken();
-    
-    // Build query params
+
     final queryParams = <String, String>{
       'page': page.toString(),
       'size': size.toString(),
@@ -28,8 +28,11 @@ class ProjectService {
     if (status != null && status.isNotEmpty) {
       queryParams['status'] = status;
     }
+    if (departmentId != null) {
+      queryParams['departmentId'] = departmentId.toString();
+    }
     
-    final uri = Uri.parse("$_baseUrl/projects/get").replace(queryParameters: queryParams);
+    final uri = Uri.parse("$_baseUrl/projects").replace(queryParameters: queryParams);
 
     final response = await http.get(
       uri,
@@ -40,14 +43,21 @@ class ProjectService {
     );
 
     log("GET ALL PROJECTS STATUS: ${response.statusCode}");
+    log("GET ALL PROJECTS BODY: ${response.body}");
 
     if (response.statusCode == 200) {
-      // Backend trả về PageResponse nên cần extract content
       final Map<String, dynamic> data = jsonDecode(response.body);
-      // Backend có thể trả về 'content' hoặc 'data' tùy version
-      final List<dynamic> content = data['content'] ?? data['data'] ?? [];
-      log("PROJECTS RESPONSE: ${response.body}");
-      return content.map((json) => ProjectModel.fromJson(json)).toList();
+      
+      final List<dynamic> content = data['data'] ?? data['content'] ?? [];
+      final List<ProjectModel> projects = content.map((json) => ProjectModel.fromJson(json)).toList();
+      
+      return ProjectPageResult(
+        projects: projects,
+        page: data['page'] ?? 0,
+        size: data['size'] ?? size,
+        totalElements: data['totalElements'] ?? 0,
+        totalPages: data['totalPages'] ?? 1,
+      );
     } else {
       throw Exception("Cannot get projects");
     }
@@ -81,6 +91,7 @@ class ProjectService {
     String? description,
     required int departmentId,
     required int leaderId,
+    int? mentorId,
     List<int>? memberIds,
     String status = 'INACTIVE',
   }) async {
@@ -95,10 +106,15 @@ class ProjectService {
       'status': status,
     };
 
-    // Thêm memberIds nếu có
+    if (mentorId != null) {
+      bodyMap['mentorId'] = mentorId;
+    }
+
     if (memberIds != null && memberIds.isNotEmpty) {
       bodyMap['memberIds'] = memberIds;
     }
+
+    log("CREATE PROJECT REQUEST BODY: ${jsonEncode(bodyMap)}");
 
     final response = await http.post(
       url,
@@ -126,6 +142,7 @@ class ProjectService {
     String? description,
     required int departmentId,
     required int leaderId,
+    int? mentorId,
     List<int>? memberIds,
   }) async {
     final token = await AuthService.getToken();
@@ -138,7 +155,10 @@ class ProjectService {
       'leaderId': leaderId,
     };
 
-    // Thêm memberIds nếu có
+    if (mentorId != null) {
+      bodyMap['mentorId'] = mentorId;
+    }
+
     if (memberIds != null && memberIds.isNotEmpty) {
       bodyMap['memberIds'] = memberIds;
     }
@@ -204,4 +224,20 @@ class ProjectService {
       throw Exception("Cannot update project status");
     }
   }
+}
+
+class ProjectPageResult {
+  final List<ProjectModel> projects;
+  final int page;
+  final int size;
+  final int totalElements;
+  final int totalPages;
+
+  ProjectPageResult({
+    required this.projects,
+    required this.page,
+    required this.size,
+    required this.totalElements,
+    required this.totalPages,
+  });
 }

@@ -1,16 +1,20 @@
+import 'dart:developer';
+import 'dart:html' as html; // For web file download
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/model/department_model.dart';
 import 'package:smet/service/admin/user_management/user_management_service.dart';
-import 'package:smet/page/admin/widgets/admin_sidebar.dart';
+import 'package:smet/service/admin/department_management/api_department_management.dart';
+import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import '../widgets/form/user_management_form_card.dart';
 import '../widgets/shell/user_management_page_header.dart';
 import '../widgets/shell/user_management_top_header.dart';
 import '../widgets/table/user_management_table_card.dart';
 import '../widgets/table/user_management_role_badge.dart';
 import 'package:flutter/foundation.dart';
-import 'package:smet/service/common/auth_service.dart';
 
 int? _parsePaginationInt(dynamic value) {
   if (value == null) return null;
@@ -29,10 +33,13 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   final UserManagementApi _apiService = UserManagementApi();
+  final DepartmentService _departmentService = DepartmentService();
 
   String _searchQuery = '';
   String _selectedRole = 'ALL';
+  bool? _selectedIsActive;
   int? _selectedDepartmentId;
+  List<DepartmentModel> _departments = [];
 
   List<UserModel> _users = [];
   bool _isLoading = true;
@@ -54,30 +61,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   UserRole _createRole = UserRole.USER;
-  String _currentUserName = 'Admin';
+
+  bool _isRoleLocked = false;
+  bool _isCheckingProject = false;
+  bool _userInDepartment = false;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
+    _fetchDepartments();
     _fetchUsers();
   }
 
-  Future<void> _loadCurrentUser() async {
+  Future<void> _fetchDepartments() async {
     try {
-      final userData = await AuthService.getMe();
-      setState(() {
-        _currentUserName =
-            '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
-                .trim();
-        if (_currentUserName.isEmpty) {
-          _currentUserName = userData['userName'] ?? 'Admin';
-        }
-      });
+      final result = await _departmentService.searchDepartments(
+        page: 0,
+        size: 100,
+      );
+      if (mounted) {
+        setState(() {
+          _departments = result['departments'] as List<DepartmentModel>? ?? [];
+        });
+      }
     } catch (e) {
-      setState(() {
-        _currentUserName = 'Admin';
-      });
+      log("Lỗi khi tải danh sách phòng ban: $e");
     }
   }
 
@@ -114,6 +122,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         size: _rowsPerPage,
         keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
         role: _selectedRole != 'ALL' ? _selectedRole : null,
+        isActive: _selectedIsActive,
         departmentId: _selectedDepartmentId,
       );
 
@@ -156,26 +165,75 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Đã nhập file '${file.name}' thành công! "),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
+        GlobalNotificationService.show(
+          context: context,
+          message: "Đã nhập file '${file.name}' thành công!",
+          type: NotificationType.success,
         );
 
         _fetchUsers();
       }
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi nhập file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      Navigator.pop(context);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi khi nhập file: $e',
+        type: NotificationType.error,
+      );
+    }
+  }
+
+  Future<void> _handleDownloadTemplate() async {
+    if (!mounted) return;
+    final NavigatorState rootNav = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    var downloadOk = false;
+    Object? caught;
+
+    try {
+      final res = await _apiService.downloadTemplate();
+      if (!mounted) return;
+
+      final bytes = res.bodyBytes;
+      final blob = html.Blob(
+        [bytes],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      html.AnchorElement(href: url)
+        ..setAttribute('download', 'user_import_template.xlsx')
+        ..click();
+
+      html.Url.revokeObjectUrl(url);
+      downloadOk = true;
+    } catch (e) {
+      caught = e;
+    } finally {
+      // Dùng NavigatorState đã bắt trước showDialog — tránh ctx.mounted sai trên Web.
+      // Không mở thông báo trước bước này (tránh 2 dialog chồng nhau làm pop lệch).
+      rootNav.pop();
+    }
+
+    if (!mounted) return;
+    if (downloadOk) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đã tải template thành công!',
+        type: NotificationType.success,
+      );
+    } else if (caught != null) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Lỗi khi tải template: $caught',
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -192,7 +250,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
   }
 
-  void _openUpdateUserScreen(UserModel user) {
+  void _openUpdateUserScreen(UserModel user) async {
+    // RULE 1: Không cho sửa ADMIN khác
+    if (user.role == UserRole.ADMIN) {
+      try {
+        final currentUser = await AuthService.getCurrentUser();
+        if (!mounted) return;
+        if (user.id != currentUser.id) {
+          GlobalNotificationService.show(
+            context: context,
+            message: 'Không thể chỉnh sửa ADMIN khác.',
+            type: NotificationType.warning,
+          );
+          return;
+        }
+      } catch (e) {
+        if (!mounted) return;
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Không thể chỉnh sửa ADMIN khác.',
+          type: NotificationType.warning,
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isCreateMode = false;
       _isUpdateMode = true;
@@ -202,6 +284,26 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _emailController.text = user.email;
       _phoneController.text = user.phone;
       _createRole = user.role;
+      _isRoleLocked = false;
+      _isCheckingProject = true;
+      _userInDepartment = false;
+    });
+
+    // ADMIN không được đổi role (chỉ khóa role, vẫn cho sửa thông tin khác)
+    // Non-ADMIN: kiểm tra có đang thuộc phòng ban không (theo backend RULE 2)
+    bool roleLocked = user.role == UserRole.ADMIN;
+    bool inDepartment = user.departmentId != null;
+
+    // RULE 2: Không cho đổi role nếu user đã thuộc phòng ban
+    if (!roleLocked && inDepartment) {
+      roleLocked = true;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isCheckingProject = false;
+      _isRoleLocked = roleLocked;
+      _userInDepartment = inDepartment;
     });
   }
 
@@ -212,6 +314,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _isViewMode = false;
       _editingUserId = null;
       _viewingUser = null;
+      _isRoleLocked = false;
+      _isCheckingProject = false;
+      _userInDepartment = false;
     });
   }
 
@@ -236,7 +341,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       phone: _phoneController.text.trim(),
       role: _createRole,
       mustChangePassword: true,
-      lastUpdated: DateTime.now(),
     );
 
     await _apiService.createUser({
@@ -255,11 +359,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _currentPage = 1;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Tạo nhân viên thành công!'),
-        backgroundColor: Colors.green,
-      ),
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Tạo nhân viên thành công!',
+      type: NotificationType.success,
     );
   }
 
@@ -268,6 +371,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
     if (_editingUserId == null) return;
 
     final existingUser = _users.firstWhere((u) => u.id == _editingUserId!);
+
+    // Neu role thay doi va user dang thuoc phong ban -> khong cho phep (RULE 2)
+    if (!_isRoleLocked && existingUser.role != _createRole && _userInDepartment) {
+      if (!mounted) return;
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể đổi vai trò vì nhân viên đã thuộc phòng ban.',
+        type: NotificationType.warning,
+      );
+      return;
+    }
 
     final updatedUser = UserModel(
       id: _editingUserId!,
@@ -280,28 +394,36 @@ class _UserManagementPageState extends State<UserManagementPage> {
       mustChangePassword: existingUser.mustChangePassword,
       department: _departmentController.text.trim(),
       createdAt: existingUser.createdAt,
-      lastUpdated: DateTime.now(),
       isActive: existingUser.isActive,
     );
-    await _apiService.updateUser(
-      updatedUser,
-      departmentId: updatedUser.departmentId,
-    );
-    await _fetchUsers();
 
-    if (!mounted) return;
+    try {
+      await _apiService.updateUser(
+        updatedUser,
+        departmentId: updatedUser.departmentId,
+      );
+      await _fetchUsers();
 
-    setState(() {
-      _isUpdateMode = false;
-      _editingUserId = null;
-    });
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Cập nhật nhân viên thành công!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+      setState(() {
+        _isUpdateMode = false;
+        _editingUserId = null;
+      });
+
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Cập nhật nhân viên thành công!',
+        type: NotificationType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      GlobalNotificationService.show(
+        context: context,
+        message: e.toString().replaceAll('Exception: ', ''),
+        type: NotificationType.error,
+      );
+    }
   }
 
   @override
@@ -318,27 +440,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: _bgLight,
-      body: SafeArea(
-        child: Row(
-          children: [
-            AdminSidebar(
-              primaryColor: _primaryColor,
-              userDisplayName: _currentUserName,
-              activeRoute: '/user_management',
-              onProfileTap: () => context.go('/profile'),
-              onLogout: () async {
-                final router = GoRouter.of(context);
-                await AuthService.logout();
-                if (!mounted) return;
-                router.go('/login');
-              },
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  const UserManagementTopHeader(),
+    return ColoredBox(
+      color: _bgLight,
+      child: Column(
+        children: [
+          const UserManagementTopHeader(
+                    breadcrumbs: [BreadcrumbItem(label: 'Quản lý nhân viên')],
+                  ),
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -348,6 +456,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           UserManagementPageHeader(
                             primaryColor: _primaryColor,
                             onImportExcel: _handleImportExcel,
+                            onDownloadTemplate: _handleDownloadTemplate,
                             onCreateUser: _openCreateUserScreen,
                           ),
                           const SizedBox(height: 20),
@@ -369,6 +478,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     _isUpdateMode
                                         ? _submitUpdateUser
                                         : _submitCreateUser,
+                                isRoleLocked: _isRoleLocked,
+                                isCheckingProject: _isCheckingProject,
                               )
                               : _isViewMode && _viewingUser != null
                               ? _buildViewUserCard()
@@ -379,6 +490,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 roleOptions: _roleOptions,
                                 isLoading: _isLoading,
                                 selectedRole: _selectedRole,
+                                selectedIsActive: _selectedIsActive,
+                                departments: _departments,
+                                selectedDepartmentId: _selectedDepartmentId,
                                 currentPage: _currentPage + 1,
                                 rowsPerPage: _rowsPerPage,
                                 totalElements: _totalElements,
@@ -391,6 +505,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 onRoleChanged: (val) {
                                   setState(() {
                                     _selectedRole = val;
+                                  });
+                                  _fetchUsers(resetPage: true);
+                                },
+                                onIsActiveChanged: (val) {
+                                  setState(() {
+                                    _selectedIsActive = val;
+                                  });
+                                  _fetchUsers(resetPage: true);
+                                },
+                                onDepartmentChanged: (val) {
+                                  setState(() {
+                                    _selectedDepartmentId = val;
                                   });
                                   _fetchUsers(resetPage: true);
                                 },
@@ -425,10 +551,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -442,13 +564,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
         padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: _primaryColor.withValues(alpha: 0.08),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
+              color: _primaryColor.withValues(alpha: 0.06),
+              blurRadius: 36,
+              spreadRadius: 4,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -595,28 +723,42 @@ class _UserManagementPageState extends State<UserManagementPage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            _primaryColor.withValues(alpha: 0.2),
-            _primaryColor.withValues(alpha: 0.05),
+            _primaryColor.withValues(alpha: 0.3),
+            Colors.cyanAccent.withValues(alpha: 0.1),
           ],
         ),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryColor.withValues(alpha: 0.15),
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Container(
-        width: 90,
-        height: 90,
+        width: 100,
+        height: 100,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
             colors: [
-              _primaryColor.withValues(alpha: 0.15),
-              _primaryColor.withValues(alpha: 0.05),
+              _primaryColor.withValues(alpha: 0.2),
+              Colors.purpleAccent.withValues(alpha: 0.08),
             ],
           ),
           border: Border.all(
-            color: _primaryColor.withValues(alpha: 0.2),
-            width: 2,
+            color: Colors.white,
+            width: 3,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+            ),
+          ],
         ),
         child: Center(
           child: Text(
@@ -641,78 +783,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     bool isStatus = false,
     bool isActive = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 300 + (index * 50)),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [const Color(0xFFFAFBFC), const Color(0xFFF8FAFC)],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color:
-                    isStatus
-                        ? (isActive
-                            ? const Color(0xFFDCFCE7)
-                            : const Color(0xFFF3F4F6))
-                        : _primaryColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color:
-                    isStatus
-                        ? (isActive
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFF9CA3AF))
-                        : _primaryColor,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Color(0xFF6B7280),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      color:
-                          isStatus
-                              ? (isActive
-                                  ? const Color(0xFF16A34A)
-                                  : const Color(0xFF6B7280))
-                              : const Color(0xFF111827),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _HoverableDetailItem(
+      label: label,
+      value: value,
+      icon: icon,
+      index: index,
+      isStatus: isStatus,
+      isActive: isActive,
+      primaryColor: _primaryColor,
     );
   }
 
@@ -884,6 +962,117 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HoverableDetailItem extends StatefulWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final int index;
+  final bool isStatus;
+  final bool isActive;
+  final Color primaryColor;
+
+  const _HoverableDetailItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.index,
+    this.isStatus = false,
+    this.isActive = false,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_HoverableDetailItem> createState() => _HoverableDetailItemState();
+}
+
+class _HoverableDetailItemState extends State<_HoverableDetailItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: _isHovered ? Colors.white : const Color(0xFFFAFBFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isHovered
+                  ? widget.primaryColor.withValues(alpha: 0.3)
+                  : const Color(0xFFE5E7EB),
+            ),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: widget.primaryColor.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    )
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: widget.isStatus
+                      ? (widget.isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF3F4F6))
+                      : (_isHovered
+                          ? widget.primaryColor
+                          : widget.primaryColor.withValues(alpha: 0.08)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 18,
+                  color: widget.isStatus
+                      ? (widget.isActive ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF))
+                      : (_isHovered ? Colors.white : widget.primaryColor),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.value,
+                      style: TextStyle(
+                        color: widget.isStatus
+                            ? (widget.isActive ? const Color(0xFF16A34A) : const Color(0xFF6B7280))
+                            : const Color(0xFF111827),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

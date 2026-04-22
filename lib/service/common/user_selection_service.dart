@@ -5,26 +5,6 @@ import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
 
-/// Get user by ID
-Future<UserModel?> getUserById(int userId) async {
-  final token = await AuthService.getToken();
-  if (token == null) throw Exception("Token not found");
-
-  final response = await http.get(
-    Uri.parse("$baseUrl/users/$userId"),
-    headers: {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/json',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    return UserModel.fromJson(data);
-  }
-  return null;
-}
-
 /// Enum để xác định context khi chọn user - map với API mới
 enum UserSelectionContext {
   /// Admin: Chọn Project Manager cho Department (lấy user có role PROJECT_MANAGER)
@@ -33,87 +13,69 @@ enum UserSelectionContext {
   /// Admin: Thêm Members vào Department (lấy user có role USER + MENTOR)
   departmentMembers,
 
-  /// PM: Chọn Lead cho Project (lấy user có role PROJECT_MANAGER)
+  /// PM: Chọn Lead cho Project (lấy user có role USER)
   projectLead,
 
-  /// PM: Thêm Mentors vào Project (lấy user có role MENTOR)
-  projectMentors,
+  /// PM: Chọn Mentor cho Project (lấy user có role MENTOR)
+  projectMentor,
 
   /// PM: Thêm Users vào Project (lấy user có role USER)
   projectMembers,
 }
 
-/// Map Flutter enum → API endpoint và query params
+/// Map Flutter enum → API endpoint
 class UserSelectionConfig {
   final String endpoint;
-  final String? roleFilter;
   final bool requiresDepartmentId;
+  final String? fixedRole;
 
   const UserSelectionConfig({
     required this.endpoint,
-    this.roleFilter,
     this.requiresDepartmentId = false,
+    this.fixedRole,
   });
 }
 
 UserSelectionConfig _getConfig(UserSelectionContext context) {
   switch (context) {
     case UserSelectionContext.departmentProjectManager:
-      // Backend: /api/users/department/managers - lấy PROJECT_MANAGER
       return const UserSelectionConfig(
         endpoint: '/users/department/managers',
-        roleFilter: 'PROJECT_MANAGER',
+        fixedRole: 'PROJECT_MANAGER',
       );
     case UserSelectionContext.departmentMembers:
-      // Backend: /api/users/department/members - lấy USER và MENTOR
       return const UserSelectionConfig(
         endpoint: '/users/department/members',
-        roleFilter: null,
       );
     case UserSelectionContext.projectLead:
-      // Backend: /api/users/for-project với role=PROJECT_MANAGER
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
-        roleFilter: 'PROJECT_MANAGER',
         requiresDepartmentId: true,
+        fixedRole: 'USER',
       );
-    case UserSelectionContext.projectMentors:
-      // Backend: /api/users/for-project với role=MENTOR
+
+    case UserSelectionContext.projectMentor:
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
-        roleFilter: 'MENTOR',
         requiresDepartmentId: true,
+        fixedRole: 'MENTOR',
       );
+
     case UserSelectionContext.projectMembers:
-      // Backend: /api/users/for-project với role=USER
       return const UserSelectionConfig(
         endpoint: '/users/for-project',
-        roleFilter: 'USER',
         requiresDepartmentId: true,
+        fixedRole: 'USER',
       );
   }
 }
 
-/// API call lấy danh sách user có thể chọn theo context
-///
-/// Ví dụ sử dụng:
-/// ```dart
-/// // Admin: Chọn PM cho Department
-/// final pmList = await fetchSelectableUsers(
-///     UserSelectionContext.departmentProjectManager,
-/// );
-///
-/// // PM: Thêm Mentors vào Project
-/// final mentors = await fetchSelectableUsers(
-///     UserSelectionContext.projectMentors,
-///     departmentId: 1,
-/// );
-/// ```
 Future<List<UserModel>> fetchSelectableUsers(
   UserSelectionContext context, {
   int? departmentId,
   String? keyword,
   List<int>? excludeUserIds,
+  bool? assigned,
   int page = 0,
   int size = 100,
 }) async {
@@ -123,7 +85,7 @@ Future<List<UserModel>> fetchSelectableUsers(
   final config = _getConfig(context);
 
   log("Fetching selectable users with context: $context");
-  log("Config: endpoint=${config.endpoint}, role=${config.roleFilter}, requiresDeptId=${config.requiresDepartmentId}");
+  log("Config: endpoint=${config.endpoint}, requiresDeptId=${config.requiresDepartmentId}");
 
   // Build query params
   final queryParams = <String, String>{
@@ -135,18 +97,26 @@ Future<List<UserModel>> fetchSelectableUsers(
     queryParams['keyword'] = keyword;
   }
 
-  if (excludeUserIds != null && excludeUserIds.isNotEmpty) {
-    queryParams['excludeUserIds'] = excludeUserIds.join(',');
+  // Truyen role xuong API (thay vi filter phia client)
+  if (config.fixedRole != null) {
+    queryParams['role'] = config.fixedRole!;
   }
 
-  // Thêm role parameter lên backend nếu có
-  if (config.roleFilter != null) {
-    queryParams['role'] = config.roleFilter!;
+  if (excludeUserIds != null && excludeUserIds.isNotEmpty) {
+    queryParams['excludeUserIds'] = excludeUserIds.join(',');
   }
 
   // Thêm departmentId nếu cần
   if (config.requiresDepartmentId && departmentId != null) {
     queryParams['departmentId'] = departmentId.toString();
+  }
+
+  // Thêm filter assigned nếu cần (áp dụng cho department managers và department members)
+  // assigned=true: chỉ user đã được assign (đã có phòng ban)
+  // assigned=false: chỉ user chưa được assign (chưa có phòng ban)
+  // assigned=null: lấy tất cả (để client filter)
+  if (assigned != null) {
+    queryParams['assigned'] = assigned.toString();
   }
 
   final uri = Uri.parse("$baseUrl${config.endpoint}").replace(
@@ -167,26 +137,23 @@ Future<List<UserModel>> fetchSelectableUsers(
   log("Response body: ${response.body}");
 
   if (response.statusCode == 200) {
-    final Map<String, dynamic> data = jsonDecode(response.body);
-    
-    // Backend trả về PageResponse nên cần extract content/data
-    List<dynamic> content = data['content'] ?? data['data'] ?? [];
-    
-    final users = content.map((e) => UserModel.fromJson(e)).toList();
+    final dynamic rawData = jsonDecode(response.body);
 
-    // Filter role ở client nếu cần
-    if (config.roleFilter != null) {
-      return users.where((u) => u.role.name == config.roleFilter).toList();
+    List<dynamic> content;
+    if (rawData is List) {
+      content = rawData;
+    } else if (rawData is Map<String, dynamic>) {
+      final data = rawData;
+      content = data['content'] ?? data['data'] ?? [];
+    } else {
+      content = [];
     }
 
-    // Filter cho departmentMembers: chỉ lấy MENTOR và USER
-    if (context == UserSelectionContext.departmentMembers) {
-      return users.where((u) =>
-        u.role.name == 'MENTOR' || u.role.name == 'USER'
-      ).toList();
-    }
+    final users = content.map((e) => UserModel.fromJson(e as Map<String, dynamic>)).toList();
 
-    return users;
+    // Chỉ filter inactive user phía client
+    // Role đã được filter bởi backend qua tham số 'role'
+    return users.where((u) => u.isActive).toList();
   } else {
     throw Exception('Failed to load users: ${response.statusCode}');
   }

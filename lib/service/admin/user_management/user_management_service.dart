@@ -39,9 +39,13 @@ class UserManagementApi {
     }
   }
 
-  void _logResponse(http.Response res) {
+  void _logResponse(http.Response res, {bool logBody = true}) {
     log("STATUS: ${res.statusCode}");
-    log("RESPONSE: ${res.body}");
+    if (logBody) {
+      log("RESPONSE: ${res.body}");
+    } else {
+      log("RESPONSE: <binary> ${res.bodyBytes.length} bytes (không log nội dung file)");
+    }
     log("====================================");
   }
 
@@ -55,12 +59,13 @@ class UserManagementApi {
   }
 
   /// ================= GET USERS =================
-  /// Backend hỗ trợ: pagination, search, filter
+  /// Backend hỗ trợ: pagination, search, filter (keyword, role, isActive, departmentId)
   Future<Map<String, dynamic>> getUsers({
     int page = 0,
     int size = 10,
     String? keyword,
     String? role,
+    bool? isActive,
     int? departmentId,
   }) async {
     try {
@@ -76,6 +81,9 @@ class UserManagementApi {
       }
       if (role != null && role.isNotEmpty && role != 'ALL') {
         queryParams['role'] = role;
+      }
+      if (isActive != null) {
+        queryParams['isActive'] = isActive.toString();
       }
       if (departmentId != null) {
         queryParams['departmentId'] = departmentId.toString();
@@ -129,7 +137,6 @@ class UserManagementApi {
         "isActive": user.isActive,
       };
 
-      // Thêm departmentId nếu có
       if (departmentId != null) {
         body["departmentId"] = departmentId;
       }
@@ -141,7 +148,7 @@ class UserManagementApi {
         body: jsonEncode(body),
       );
 
-      final res = await http.put(
+      final res = await http.patch(
         Uri.parse(url),
         headers: _headers(token),
         body: jsonEncode(body),
@@ -150,7 +157,12 @@ class UserManagementApi {
       _logResponse(res);
 
       if (res.statusCode != 200) {
-        throw Exception("Update user failed");
+        String msg = 'Cập nhật thất bại';
+        try {
+          final body = jsonDecode(res.body);
+          msg = body['message'] ?? msg;
+        } catch (_) {}
+        throw Exception(msg);
       }
     } catch (e) {
       log("UPDATE USER ERROR: $e");
@@ -220,6 +232,27 @@ class UserManagementApi {
     }
   }
 
+  /// ================= DOWNLOAD TEMPLATE =================
+  Future<http.Response> downloadTemplate() async {
+    final token = await _getToken();
+    final url = "$baseUrl/admin/import/template";
+
+    _logRequest("DOWNLOAD TEMPLATE", url, headers: _headers(token!));
+
+    final res = await http.get(
+      Uri.parse(url),
+      headers: _headers(token),
+    );
+
+    _logResponse(res, logBody: false);
+
+    if (res.statusCode != 200) {
+      throw Exception("Download template failed");
+    }
+
+    return res;
+  }
+
   /// ================= CREATE USER =================
   Future<void> createUser(Map<String, dynamic> body) async {
     try {
@@ -251,7 +284,7 @@ class UserManagementApi {
   }
 
   /// ================= FIND USERS FOR DEPARTMENT =================
-  /// Backend: GET /api/users/for-department?keyword=&role=&page=0&size=10
+  /// Backend: GET /api/admin/listUser?keyword=&role=&page=0&size=10
   /// Dùng để lấy danh sách user theo department có phân trang
   Future<Map<String, dynamic>> findUsersForDepartment({
     String? keyword,
@@ -273,7 +306,7 @@ class UserManagementApi {
         queryParams['role'] = role;
       }
 
-      final uri = Uri.parse("$baseUrl/users/for-department").replace(queryParameters: queryParams);
+      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
 
       _logRequest("FIND USERS FOR DEPARTMENT", uri.toString(), headers: _headers(token!));
 
@@ -302,7 +335,7 @@ class UserManagementApi {
   }
 
   /// ================= FIND USERS FOR DEPARTMENT ASSIGN =================
-  /// Backend: GET /api/users/for-department/update?keyword=&role=&page=0&size=10
+  /// Backend: GET /api/admin/listUser?keyword=&role=&page=0&size=10
   /// Dùng để assign user vào department
   Future<Map<String, dynamic>> findUsersForDepartmentAssign({
     String? keyword,
@@ -324,7 +357,7 @@ class UserManagementApi {
         queryParams['role'] = role;
       }
 
-      final uri = Uri.parse("$baseUrl/users/for-department/update").replace(queryParameters: queryParams);
+      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
 
       _logRequest("FIND USERS FOR DEPARTMENT ASSIGN", uri.toString(), headers: _headers(token!));
 

@@ -1,6 +1,8 @@
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/model/department_model.dart';
 import 'user_management_role_badge.dart';
 
 class UserManagementTableCard extends StatefulWidget {
@@ -10,11 +12,16 @@ class UserManagementTableCard extends StatefulWidget {
   final List<Map<String, String>> roleOptions;
   final bool isLoading;
   final String selectedRole;
+  final bool? selectedIsActive;
+  final List<DepartmentModel> departments;
+  final int? selectedDepartmentId;
   final int currentPage;
   final int rowsPerPage;
   final int? totalElements;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onRoleChanged;
+  final ValueChanged<bool?> onIsActiveChanged;
+  final ValueChanged<int?> onDepartmentChanged;
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
   final ValueChanged<UserModel> onEditUser;
@@ -29,11 +36,16 @@ class UserManagementTableCard extends StatefulWidget {
     required this.roleOptions,
     required this.isLoading,
     required this.selectedRole,
+    this.selectedIsActive,
+    required this.departments,
+    this.selectedDepartmentId,
     required this.currentPage,
     required this.rowsPerPage,
     this.totalElements,
     required this.onSearchChanged,
     required this.onRoleChanged,
+    required this.onIsActiveChanged,
+    required this.onDepartmentChanged,
     required this.onPrevPage,
     required this.onNextPage,
     required this.onEditUser,
@@ -42,7 +54,8 @@ class UserManagementTableCard extends StatefulWidget {
   });
 
   @override
-  State<UserManagementTableCard> createState() => _UserManagementTableCardState();
+  State<UserManagementTableCard> createState() =>
+      _UserManagementTableCardState();
 }
 
 class _UserManagementTableCardState extends State<UserManagementTableCard>
@@ -79,6 +92,30 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
     super.dispose();
   }
 
+  /// Returns the display info for a user's department.
+  /// For PMs: uses department.projectManagerId to determine if they're truly managing a department.
+  /// For non-PMs: uses user.departmentId.
+  /// Workaround for backend not clearing user.departmentId when PM is unassigned.
+  ({String? name, bool isManaging}) _getUserDepartmentDisplay(UserModel user) {
+    // PM: check if user is truly managing any department via departments list
+    if (user.role.name == 'PROJECT_MANAGER') {
+      for (final dept in widget.departments) {
+        if (dept.projectManagerId == user.id) {
+          return (name: dept.name, isManaging: true);
+        }
+      }
+      // PM is not managing any department (removed but departmentId not cleared by backend)
+      return (name: null, isManaging: false);
+    }
+
+    // Non-PM: use departmentId as normal
+    if (user.departmentId != null) {
+      final dept = widget.departments.where((d) => d.id == user.departmentId).firstOrNull;
+      return (name: dept?.name ?? user.department, isManaging: false);
+    }
+    return (name: null, isManaging: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Ưu tiên total từ backend; fallback chỉ khi không có phân trang phía server
@@ -109,13 +146,13 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -134,21 +171,44 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
   Widget _buildFilterSection() {
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _SearchField(
-              primaryColor: widget.primaryColor,
-              controller: _searchController,
-              onChanged: widget.onSearchChanged,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _SearchField(
+                  primaryColor: widget.primaryColor,
+                  controller: _searchController,
+                  onChanged: widget.onSearchChanged,
+                ),
+              ),
+              const SizedBox(width: 16),
+              _RoleFilter(
+                primaryColor: widget.primaryColor,
+                selectedRole: widget.selectedRole,
+                roleOptions: widget.roleOptions,
+                onChanged: widget.onRoleChanged,
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          _RoleFilter(
-            primaryColor: widget.primaryColor,
-            selectedRole: widget.selectedRole,
-            roleOptions: widget.roleOptions,
-            onChanged: widget.onRoleChanged,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _IsActiveFilter(
+                primaryColor: widget.primaryColor,
+                selectedIsActive: widget.selectedIsActive,
+                onChanged: widget.onIsActiveChanged,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _DepartmentFilter(
+                  primaryColor: widget.primaryColor,
+                  departments: widget.departments,
+                  selectedDepartmentId: widget.selectedDepartmentId,
+                  onChanged: widget.onDepartmentChanged,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -174,15 +234,11 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.search_off_rounded,
-                size: 64,
-                color: Colors.grey[300],
-              ),
+              Icon(Icons.search_off_rounded, size: 64, color: Colors.grey[300]),
               const SizedBox(height: 16),
               Text(
                 'Không tìm thấy dữ liệu',
-                style: TextStyle(
+                style: GoogleFonts.notoSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                   color: Colors.grey[600],
@@ -191,7 +247,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
               const SizedBox(height: 8),
               Text(
                 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm',
-                style: TextStyle(
+                style: GoogleFonts.notoSans(
                   fontSize: 14,
                   color: Colors.grey[400],
                 ),
@@ -211,9 +267,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
         minWidth: 1100,
         headingRowHeight: 56,
         dataRowHeight: 72,
-        headingRowColor: WidgetStateProperty.all(
-          const Color(0xFFFAFBFC),
-        ),
+        headingRowColor: WidgetStateProperty.all(const Color(0xFFFAFBFC)),
         dividerThickness: 0,
         border: TableBorder.symmetric(
           inside: BorderSide(color: Colors.grey.shade100, width: 1),
@@ -260,8 +314,8 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
       decoration: BoxDecoration(
         color: const Color(0xFFFAFBFC),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
         border: Border(top: BorderSide(color: Colors.grey.shade100)),
       ),
@@ -270,7 +324,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
         children: [
           Text(
             'Hiển thị $start - $end trong số $total kết quả',
-            style: TextStyle(
+            style: GoogleFonts.notoSans(
               color: Colors.grey[600],
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -286,7 +340,10 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: widget.primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -317,11 +374,9 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
     return DataRow(
       color: WidgetStateProperty.resolveWith<Color?>((states) {
         if (states.contains(WidgetState.hovered)) {
-          return widget.primaryColor.withValues(alpha: 0.04);
+          return widget.primaryColor.withValues(alpha: 0.08);
         }
-        return index.isEven
-            ? Colors.white
-            : const Color(0xFFFAFBFC);
+        return index.isEven ? Colors.white : const Color(0xFFFAFBFC);
       }),
       cells: [
         DataCell(
@@ -341,9 +396,9 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
                     Text(
                       user.fullName,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: GoogleFonts.notoSans(
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF111827),
+                        color: const Color(0xFF111827),
                         fontSize: 14,
                       ),
                     ),
@@ -352,7 +407,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
                       user.email,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
-                      style: TextStyle(
+                      style: GoogleFonts.notoSans(
                         color: Colors.grey[500],
                         fontSize: 12,
                       ),
@@ -366,19 +421,48 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
         DataCell(
           Row(
             children: [
-              Icon(
-                Icons.business_outlined,
-                size: 16,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.business_outlined, size: 16, color: Colors.grey[400]),
               const SizedBox(width: 8),
-              Text(
-                user.department ?? 'Chưa có',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 13,
-                ),
-              ),
+              Builder(builder: (context) {
+                final info = _getUserDepartmentDisplay(user);
+                if (user.role.name == 'PROJECT_MANAGER' && info.name != null) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        info.name!,
+                        style: GoogleFonts.notoSans(
+                          color: Colors.grey[600],
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Quản lý',
+                          style: GoogleFonts.notoSans(
+                            fontSize: 10,
+                            color: const Color(0xFF1D4ED8),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return Text(
+                  info.name ?? 'Chưa có',
+                  style: GoogleFonts.notoSans(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                  ),
+                );
+              }),
             ],
           ),
         ),
@@ -402,7 +486,7 @@ class _UserManagementTableCardState extends State<UserManagementTableCard>
         DataCell(
           Text(
             user.lastUpdated.toString().split(' ')[0],
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            style: GoogleFonts.notoSans(color: Colors.grey[600], fontSize: 13),
           ),
         ),
         DataCell(
@@ -437,9 +521,9 @@ class _TableHeaderLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: GoogleFonts.notoSans(
         fontWeight: FontWeight.w700,
-        color: Color(0xFF6B7280),
+        color: const Color(0xFF6B7280),
         fontSize: 12,
         letterSpacing: 0.5,
       ),
@@ -471,15 +555,16 @@ class _SearchFieldState extends State<_SearchField> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: _isFocused
-            ? [
-                BoxShadow(
-                  color: widget.primaryColor.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : [],
+        boxShadow:
+            _isFocused
+                ? [
+                  BoxShadow(
+                    color: widget.primaryColor.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+                : [],
       ),
       child: TextField(
         controller: widget.controller,
@@ -493,15 +578,20 @@ class _SearchFieldState extends State<_SearchField> {
             Icons.search_rounded,
             color: _isFocused ? widget.primaryColor : Colors.grey[400],
           ),
-          suffixIcon: widget.controller.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear_rounded, color: Colors.grey[400], size: 18),
-                  onPressed: () {
-                    widget.controller.clear();
-                    widget.onChanged('');
-                  },
-                )
-              : null,
+          suffixIcon:
+              widget.controller.text.isNotEmpty
+                  ? IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: Colors.grey[400],
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      widget.controller.clear();
+                      widget.onChanged('');
+                    },
+                  )
+                  : null,
           filled: true,
           fillColor: const Color(0xFFFAFBFC),
           border: OutlineInputBorder(
@@ -516,7 +606,10 @@ class _SearchFieldState extends State<_SearchField> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: widget.primaryColor, width: 1.5),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
       ),
     );
@@ -548,24 +641,319 @@ class _RoleFilter extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedRole,
-          icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey[600]),
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.grey[600],
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           borderRadius: BorderRadius.circular(12),
-          items: roleOptions
-              .map(
-                (item) => DropdownMenuItem<String>(
-                  value: item['value'],
-                  child: Text(
-                    item['label']!,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              )
-              .toList(),
+          items:
+              roleOptions
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: item['value'],
+                      child: Text(
+                        item['label']!,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  )
+                  .toList(),
           onChanged: (val) {
             if (val == null) return;
             onChanged(val);
           },
+        ),
+      ),
+    );
+  }
+}
+
+enum _StatusOption { all, active, inactive }
+
+class _IsActiveFilter extends StatefulWidget {
+  final Color primaryColor;
+  final bool? selectedIsActive;
+  final ValueChanged<bool?> onChanged;
+
+  const _IsActiveFilter({
+    required this.primaryColor,
+    required this.selectedIsActive,
+    required this.onChanged,
+  });
+
+  @override
+  State<_IsActiveFilter> createState() => _IsActiveFilterState();
+}
+
+class _IsActiveFilterState extends State<_IsActiveFilter> {
+  late _StatusOption _currentValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentValue = _toOption(widget.selectedIsActive);
+  }
+
+  @override
+  void didUpdateWidget(covariant _IsActiveFilter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIsActive != widget.selectedIsActive) {
+      _currentValue = _toOption(widget.selectedIsActive);
+    }
+  }
+
+  _StatusOption _toOption(bool? v) {
+    if (v == null) return _StatusOption.all;
+    return v ? _StatusOption.active : _StatusOption.inactive;
+  }
+
+  bool? _toBool(_StatusOption opt) {
+    switch (opt) {
+      case _StatusOption.all: return null;
+      case _StatusOption.active: return true;
+      case _StatusOption.inactive: return false;
+    }
+  }
+
+  String get _label {
+    switch (_currentValue) {
+      case _StatusOption.all: return 'Tất cả trạng thái';
+      case _StatusOption.active: return 'Hoạt động';
+      case _StatusOption.inactive: return 'Không hoạt động';
+    }
+  }
+
+  Color get _bgColor {
+    switch (_currentValue) {
+      case _StatusOption.all: return const Color(0xFFFAFBFC);
+      case _StatusOption.active: return const Color(0xFFDCFCE7);
+      case _StatusOption.inactive: return const Color(0xFFF3F4F6);
+    }
+  }
+
+  Color get _borderColor {
+    switch (_currentValue) {
+      case _StatusOption.all: return Colors.grey.shade200;
+      case _StatusOption.active: return const Color(0xFF86EFAC);
+      case _StatusOption.inactive: return const Color(0xFFE5E7EB);
+    }
+  }
+
+  Color get _textColor {
+    switch (_currentValue) {
+      case _StatusOption.all: return Colors.grey[600]!;
+      case _StatusOption.active: return const Color(0xFF16A34A);
+      case _StatusOption.inactive: return const Color(0xFF6B7280);
+    }
+  }
+
+  IconData get _icon {
+    switch (_currentValue) {
+      case _StatusOption.all: return Icons.filter_list_rounded;
+      case _StatusOption.active: return Icons.check_circle_outline;
+      case _StatusOption.inactive: return Icons.cancel_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final RenderBox renderBox = context.findRenderObject() as RenderBox;
+        final Offset offset = renderBox.localToGlobal(Offset.zero);
+        final RelativeRect position = RelativeRect.fromLTRB(
+          offset.dx,
+          offset.dy + renderBox.size.height,
+          offset.dx + renderBox.size.width,
+          offset.dy,
+        );
+        final result = await showMenu<_StatusOption>(
+          context: context,
+          position: position,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          items: [
+            PopupMenuItem<_StatusOption>(
+              value: _StatusOption.all,
+              child: Row(
+                children: [
+                  Icon(Icons.filter_list_rounded, size: 18, color: Colors.grey[600]),
+                  const SizedBox(width: 10),
+                  const Text('Tất cả trạng thái', style: TextStyle(fontSize: 14)),
+                  if (_currentValue == _StatusOption.all)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.check, size: 16, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+            PopupMenuItem<_StatusOption>(
+              value: _StatusOption.active,
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 10),
+                  const Text('Hoạt động', style: TextStyle(fontSize: 14)),
+                  if (_currentValue == _StatusOption.active)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.check, size: 16, color: Color(0xFF16A34A)),
+                    ),
+                ],
+              ),
+            ),
+            PopupMenuItem<_StatusOption>(
+              value: _StatusOption.inactive,
+              child: Row(
+                children: [
+                  const Icon(Icons.cancel_outlined, size: 18, color: Color(0xFF6B7280)),
+                  const SizedBox(width: 10),
+                  const Text('Không hoạt động', style: TextStyle(fontSize: 14)),
+                  if (_currentValue == _StatusOption.inactive)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.check, size: 16, color: Color(0xFF6B7280)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+        if (result != null) {
+          setState(() => _currentValue = result);
+          widget.onChanged(_toBool(result));
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_icon, size: 18, color: _textColor),
+            const SizedBox(width: 8),
+            Text(
+              _label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: _textColor,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _textColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DepartmentFilter extends StatelessWidget {
+  final Color primaryColor;
+  final List<DepartmentModel> departments;
+  final int? selectedDepartmentId;
+  final ValueChanged<int?> onChanged;
+
+  const _DepartmentFilter({
+    required this.primaryColor,
+    required this.departments,
+    required this.selectedDepartmentId,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFBFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: selectedDepartmentId,
+          isExpanded: true,
+          hint: Row(
+            children: [
+              Icon(Icons.business_outlined, size: 18, color: Colors.grey[500]),
+              const SizedBox(width: 8),
+              Text(
+                'Tất cả phòng ban',
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.grey[600],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          borderRadius: BorderRadius.circular(12),
+          items: [
+            DropdownMenuItem<int?>(
+              value: null,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.business_outlined,
+                    size: 18,
+                    color: Colors.grey[500],
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Tất cả phòng ban',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            ...departments.map(
+              (dept) => DropdownMenuItem<int?>(
+                value: dept.id,
+                child: Row(
+                  children: [
+                    Icon(Icons.business, size: 18, color: primaryColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        dept.name,
+                        style: const TextStyle(fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (dept.code != null && dept.code.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          dept.code,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: primaryColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          onChanged: onChanged,
         ),
       ),
     );
@@ -705,14 +1093,16 @@ class _StatusToggleState extends State<_StatusToggle> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: widget.isActive
-              ? const Color(0xFFDCFCE7)
-              : const Color(0xFFF3F4F6),
+          color:
+              widget.isActive
+                  ? const Color(0xFFDCFCE7)
+                  : const Color(0xFFF3F4F6),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: widget.isActive
-                ? const Color(0xFF86EFAC)
-                : const Color(0xFFE5E7EB),
+            color:
+                widget.isActive
+                    ? const Color(0xFF86EFAC)
+                    : const Color(0xFFE5E7EB),
           ),
         ),
         child: Row(
@@ -724,18 +1114,20 @@ class _StatusToggleState extends State<_StatusToggle> {
               height: 8,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: widget.isActive
-                    ? const Color(0xFF22C55E)
-                    : const Color(0xFF9CA3AF),
+                color:
+                    widget.isActive
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFF9CA3AF),
               ),
             ),
             const SizedBox(width: 6),
             Text(
               widget.isActive ? 'Hoạt động' : 'Tắt',
               style: TextStyle(
-                color: widget.isActive
-                    ? const Color(0xFF16A34A)
-                    : const Color(0xFF6B7280),
+                color:
+                    widget.isActive
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFF6B7280),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -749,13 +1141,15 @@ class _StatusToggleState extends State<_StatusToggle> {
 
 class _ActionButton extends StatefulWidget {
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final String tooltip;
+  final Color? color;
 
   const _ActionButton({
     required this.icon,
     required this.onPressed,
     required this.tooltip,
+    this.color,
   });
 
   @override
@@ -767,6 +1161,7 @@ class _ActionButtonState extends State<_ActionButton> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDisabled = widget.onPressed == null;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -776,20 +1171,24 @@ class _ActionButtonState extends State<_ActionButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: _isHovered
-                ? const Color(0xFFEEF2FF)
-                : Colors.transparent,
+            color:
+                _isHovered && !isDisabled
+                    ? const Color(0xFFEEF2FF)
+                    : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: InkWell(
-            onTap: widget.onPressed,
+            onTap: isDisabled ? null : widget.onPressed,
             borderRadius: BorderRadius.circular(8),
             child: Icon(
               widget.icon,
               size: 18,
-              color: _isHovered
-                  ? const Color(0xFF4F46E5)
-                  : Colors.grey[500],
+              color:
+                  isDisabled
+                      ? Colors.grey[300]
+                      : (_isHovered
+                          ? (widget.color ?? const Color(0xFF4F46E5))
+                          : (widget.color ?? Colors.grey[500])),
             ),
           ),
         ),
@@ -829,14 +1228,14 @@ class _PaginationButtonState extends State<_PaginationButton> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: _isHovered && widget.isEnabled
-              ? widget.primaryColor.withValues(alpha: 0.1)
-              : Colors.transparent,
+          color:
+              _isHovered && widget.isEnabled
+                  ? widget.primaryColor.withValues(alpha: 0.1)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: widget.isEnabled
-                ? Colors.grey.shade300
-                : Colors.grey.shade200,
+            color:
+                widget.isEnabled ? Colors.grey.shade300 : Colors.grey.shade200,
           ),
         ),
         child: InkWell(
@@ -845,9 +1244,10 @@ class _PaginationButtonState extends State<_PaginationButton> {
           child: Icon(
             widget.icon,
             size: 20,
-            color: widget.isEnabled
-                ? (_isHovered ? widget.primaryColor : Colors.grey[600])
-                : Colors.grey[300],
+            color:
+                widget.isEnabled
+                    ? (_isHovered ? widget.primaryColor : Colors.grey[600])
+                    : Colors.grey[300],
           ),
         ),
       ),

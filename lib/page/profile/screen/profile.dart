@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/user_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 import 'profile_web.dart';
 import 'profile_mobile.dart';
 import '../widgets/profile_contact_section.dart';
@@ -30,6 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _departmentController = TextEditingController();
 
   // Controllers for password form
   final _oldPassController = TextEditingController();
@@ -54,18 +56,16 @@ class _ProfilePageState extends State<ProfilePage> {
           _lastNameController.text = user.lastName ?? '';
           _emailController.text = user.email;
           _phoneController.text = user.phone;
+          _departmentController.text = user.department ?? '';
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Lỗi tải profile: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      setState(() => _isLoading = false);
+      GlobalNotificationService.show(
+        context: context,
+        message: "Lỗi tải profile: $e",
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -75,6 +75,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _departmentController.dispose();
     _oldPassController.dispose();
     _newPassController.dispose();
     _confirmPassController.dispose();
@@ -83,14 +84,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _handleSaveProfile() async {
     if (_firstNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Tên không được để trống"),
-          backgroundColor: Colors.red,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: "Tên không được để trống",
+        type: NotificationType.warning,
       );
       return;
     }
+
+    final bool emailChanged = _emailController.text != _currentUser!.email;
 
     setState(() => _isSaving = true);
 
@@ -105,25 +107,31 @@ class _ProfilePageState extends State<ProfilePage> {
         email: _emailController.text,
       );
 
-      if (mounted) {
-        setState(() {
-          _currentUser = updatedUser;
-          _isSaving = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Cập nhật hồ sơ thành công!"),
-            backgroundColor: Colors.green,
-          ),
+      setState(() {
+        _currentUser = updatedUser;
+        _isSaving = false;
+      });
+
+      if (emailChanged) {
+        GlobalNotificationService.show(
+          context: context,
+          message: "Đã gửi email xác nhận đến \"${_emailController.text}\". Vui lòng kiểm tra hộp thư để xác nhận thay đổi.",
+          type: NotificationType.success,
+        );
+      } else {
+        GlobalNotificationService.show(
+          context: context,
+          message: "Cập nhật hồ sơ thành công!",
+          type: NotificationType.success,
         );
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
-        );
-      }
+      setState(() => _isSaving = false);
+      GlobalNotificationService.show(
+        context: context,
+        message: "Lỗi: $e",
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -133,41 +141,41 @@ class _ProfilePageState extends State<ProfilePage> {
       _lastNameController.text = _currentUser!.lastName ?? '';
       _emailController.text = _currentUser!.email;
       _phoneController.text = _currentUser!.phone;
+      _departmentController.text = _currentUser!.department ?? '';
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Đã hủy thay đổi")));
+    GlobalNotificationService.show(
+      context: context,
+      message: "Đã hủy thay đổi",
+      type: NotificationType.info,
+    );
   }
 
   Future<void> _handleUpdatePassword() async {
     if (_oldPassController.text.isEmpty ||
         _newPassController.text.isEmpty ||
         _confirmPassController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Vui lòng nhập đầy đủ thông tin mật khẩu"),
-          backgroundColor: Colors.orange,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: "Vui lòng nhập đầy đủ thông tin mật khẩu",
+        type: NotificationType.warning,
       );
       return;
     }
 
     if (_newPassController.text != _confirmPassController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Mật khẩu xác nhận không khớp!"),
-          backgroundColor: Colors.orange,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: "Mật khẩu xác nhận không khớp!",
+        type: NotificationType.warning,
       );
       return;
     }
 
     if (_newPassController.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Mật khẩu mới phải có ít nhất 6 ký tự"),
-          backgroundColor: Colors.orange,
-        ),
+      GlobalNotificationService.show(
+        context: context,
+        message: "Mật khẩu mới phải có ít nhất 6 ký tự",
+        type: NotificationType.warning,
       );
       return;
     }
@@ -180,28 +188,22 @@ class _ProfilePageState extends State<ProfilePage> {
         newPassword: _newPassController.text,
       );
 
-      if (mounted) {
-        _oldPassController.clear();
-        _newPassController.clear();
-        _confirmPassController.clear();
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Đổi mật khẩu thành công!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      _oldPassController.clear();
+      _newPassController.clear();
+      _confirmPassController.clear();
+      setState(() => _isSaving = false);
+      GlobalNotificationService.show(
+        context: context,
+        message: "Đổi mật khẩu thành công!",
+        type: NotificationType.success,
+      );
     } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Lỗi: ${e.toString().replaceAll('Exception: ', '')}"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      setState(() => _isSaving = false);
+      GlobalNotificationService.show(
+        context: context,
+        message: "Lỗi: ${e.toString().replaceAll('Exception: ', '')}",
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -239,24 +241,18 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       if (xFile == null || !mounted) return;
       final bytes = await xFile.readAsBytes();
-      if (mounted) {
-        setState(() => _pickedAvatarBytes = bytes);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã chọn ảnh. Bấm "Lưu" để cập nhật.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      setState(() => _pickedAvatarBytes = bytes);
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đã chọn ảnh. Bấm "Lưu" để cập nhật.',
+        type: NotificationType.success,
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể chọn ảnh: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Không thể chọn ảnh: $e',
+        type: NotificationType.error,
+      );
     }
   }
 
@@ -300,10 +296,12 @@ class _ProfilePageState extends State<ProfilePage> {
           lastNameController: _lastNameController,
           emailController: _emailController,
           phoneController: _phoneController,
+          departmentController: _departmentController,
           isSaving: _isSaving,
           primaryColor: _primaryColor,
           onCancel: _handleCancel,
           onSave: _handleSaveProfile,
+          pendingEmail: _currentUser?.pendingEmail,
         ),
         const SizedBox(height: 24),
         ProfileSecuritySection(

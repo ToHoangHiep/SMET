@@ -14,7 +14,6 @@ class DepartmentManagementTableSection extends StatefulWidget {
   final ValueChanged<String> onManagerChanged;
   final ValueChanged<String> onStatusChanged;
   final void Function(DepartmentModel department, bool active) onToggleActive;
-  final ValueChanged<DepartmentModel> onEdit;
   final ValueChanged<DepartmentModel> onDelete;
   final ValueChanged<DepartmentModel> onShowDetail;
   final VoidCallback? onPrevPage;
@@ -33,7 +32,6 @@ class DepartmentManagementTableSection extends StatefulWidget {
     required this.onManagerChanged,
     required this.onStatusChanged,
     required this.onToggleActive,
-    required this.onEdit,
     required this.onDelete,
     required this.onShowDetail,
     required this.onPrevPage,
@@ -103,13 +101,19 @@ class _DepartmentManagementTableSectionState
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: widget.primaryColor.withValues(alpha: 0.06),
+              blurRadius: 36,
+              spreadRadius: 4,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -224,9 +228,13 @@ class _DepartmentManagementTableSectionState
           ),
           DataColumn2(
             size: ColumnSize.M,
+            label: _TableHeaderLabel(text: 'NGÀY TẠO'),
+          ),
+          DataColumn2(
+            size: ColumnSize.M,
             label: _TableHeaderLabel(text: 'NGÀY CẬP NHẬT'),
           ),
-          DataColumn2(size: ColumnSize.M, label: Text('')),
+          DataColumn2(size: ColumnSize.S, label: Text('')),
         ],
         rows: List<DataRow>.generate(
           widget.paginatedDepartments.length,
@@ -242,8 +250,8 @@ class _DepartmentManagementTableSectionState
       decoration: BoxDecoration(
         color: const Color(0xFFFAFBFC),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
         border: Border(top: BorderSide(color: Colors.grey.shade100)),
       ),
@@ -304,7 +312,7 @@ class _DepartmentManagementTableSectionState
     return DataRow(
       color: WidgetStateProperty.resolveWith<Color?>((states) {
         if (states.contains(WidgetState.hovered)) {
-          return widget.primaryColor.withValues(alpha: 0.04);
+          return widget.primaryColor.withValues(alpha: 0.08);
         }
         return index.isEven ? Colors.white : const Color(0xFFFAFBFC);
       }),
@@ -332,21 +340,32 @@ class _DepartmentManagementTableSectionState
         ),
         DataCell(
           Text(
-            '16/07/2021',
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            dept.createdAt != null
+                ? '${dept.createdAt!.day.toString().padLeft(2, '0')}/${dept.createdAt!.month.toString().padLeft(2, '0')}/${dept.createdAt!.year}'
+                : 'Chưa có',
+            style: TextStyle(
+              color: dept.createdAt != null ? Colors.grey[600] : Colors.grey[400],
+              fontSize: 13,
+              fontStyle: dept.createdAt == null ? FontStyle.italic : FontStyle.normal,
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            dept.updatedAt != null
+                ? '${dept.updatedAt!.day.toString().padLeft(2, '0')}/${dept.updatedAt!.month.toString().padLeft(2, '0')}/${dept.updatedAt!.year}'
+                : 'Chưa có',
+            style: TextStyle(
+              color: dept.updatedAt != null ? Colors.grey[600] : Colors.grey[400],
+              fontSize: 13,
+              fontStyle: dept.updatedAt == null ? FontStyle.italic : FontStyle.normal,
+            ),
           ),
         ),
         DataCell(
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _ActionButton(
-                icon: Icons.edit_outlined,
-                onPressed: () => widget.onEdit(dept),
-                tooltip: 'Chỉnh sửa',
-                primaryColor: widget.primaryColor,
-              ),
-              const SizedBox(width: 4),
               _ActionButton(
                 icon: Icons.delete_outline,
                 onPressed: () => widget.onDelete(dept),

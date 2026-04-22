@@ -1,6 +1,7 @@
 enum ProjectStatus {
   INACTIVE,
   ACTIVE,
+  REVIEW_PENDING,
   COMPLETED;
 
   static ProjectStatus fromString(String? value) {
@@ -9,6 +10,8 @@ enum ProjectStatus {
         return ProjectStatus.INACTIVE;
       case 'ACTIVE':
         return ProjectStatus.ACTIVE;
+      case 'REVIEW_PENDING':
+        return ProjectStatus.REVIEW_PENDING;
       case 'COMPLETED':
         return ProjectStatus.COMPLETED;
       default:
@@ -19,9 +22,11 @@ enum ProjectStatus {
   String get label {
     switch (this) {
       case ProjectStatus.INACTIVE:
-        return 'Không hoạt động';
+        return 'Khởi tạo';
       case ProjectStatus.ACTIVE:
-        return 'Hoạt động';
+        return 'Đang hoạt động';
+      case ProjectStatus.REVIEW_PENDING:
+        return 'Chờ duyệt';
       case ProjectStatus.COMPLETED:
         return 'Hoàn thành';
     }
@@ -36,10 +41,24 @@ class ProjectModel {
   final ProjectStatus status;
   final int leaderId;
   final String? leaderName;
-  final int? managerId;
-  final String? managerName;
+  final int? mentorId;
+  final String? mentorName;
   final List<int>? memberIds;
   final List<String>? memberNames;
+
+  // Trường phê duyệt
+  final bool submitted;
+  final String? submissionLink;
+  final DateTime? submittedAt;
+  final int? submittedBy;
+  final bool mentorApproved;
+  final int? mentorApprovedBy;
+  final DateTime? mentorApprovedAt;
+  final String? mentorFeedback;
+  final bool pmApproved;
+  final int? pmApprovedBy;
+  final DateTime? pmApprovedAt;
+  final String? pmFeedback;
 
   ProjectModel({
     required this.id,
@@ -49,10 +68,22 @@ class ProjectModel {
     required this.status,
     required this.leaderId,
     this.leaderName,
-    this.managerId,
-    this.managerName,
+    this.mentorId,
+    this.mentorName,
     this.memberIds,
     this.memberNames,
+    this.submitted = false,
+    this.submissionLink,
+    this.submittedAt,
+    this.submittedBy,
+    this.mentorApproved = false,
+    this.mentorApprovedBy,
+    this.mentorApprovedAt,
+    this.mentorFeedback,
+    this.pmApproved = false,
+    this.pmApprovedBy,
+    this.pmApprovedAt,
+    this.pmFeedback,
   });
 
   factory ProjectModel.fromJson(Map<String, dynamic> json) {
@@ -64,14 +95,36 @@ class ProjectModel {
       status: ProjectStatus.fromString(json['status']),
       leaderId: json['leaderId'] ?? 0,
       leaderName: json['leaderName']?.toString(),
-      managerId: json['managerId'] as int?,
-      managerName: json['managerName']?.toString(),
-      memberIds: json['memberIds'] != null 
-          ? List<int>.from(json['memberIds']) 
-          : null,
-      memberNames: json['memberNames'] != null 
-          ? List<String>.from(json['memberNames']) 
-          : null,
+      mentorId: json['mentorId'] as int?,
+      mentorName: json['mentorName']?.toString(),
+      memberIds:
+          json['memberIds'] != null ? List<int>.from(json['memberIds']) : null,
+      memberNames:
+          json['memberNames'] != null
+              ? List<String>.from(json['memberNames'])
+              : null,
+      // Trường phê duyệt
+      submitted: json['submitted'] == true,
+      submissionLink: json['submissionLink']?.toString(),
+      submittedAt:
+          json['submittedAt'] != null
+              ? DateTime.tryParse(json['submittedAt'].toString())
+              : null,
+      submittedBy: json['submittedBy'] as int?,
+      mentorApproved: json['mentorApproved'] == true,
+      mentorApprovedBy: json['mentorApprovedBy'] as int?,
+      mentorApprovedAt:
+          json['mentorApprovedAt'] != null
+              ? DateTime.tryParse(json['mentorApprovedAt'].toString())
+              : null,
+      mentorFeedback: json['mentorFeedback']?.toString(),
+      pmApproved: json['pmApproved'] == true,
+      pmApprovedBy: json['pmApprovedBy'] as int?,
+      pmApprovedAt:
+          json['pmApprovedAt'] != null
+              ? DateTime.tryParse(json['pmApprovedAt'].toString())
+              : null,
+      pmFeedback: json['pmFeedback']?.toString(),
     );
   }
 
@@ -95,10 +148,22 @@ class ProjectModel {
     ProjectStatus? status,
     int? leaderId,
     String? leaderName,
-    int? managerId,
-    String? managerName,
+    int? mentorId,
+    String? mentorName,
     List<int>? memberIds,
     List<String>? memberNames,
+    bool? submitted,
+    String? submissionLink,
+    DateTime? submittedAt,
+    int? submittedBy,
+    bool? mentorApproved,
+    int? mentorApprovedBy,
+    DateTime? mentorApprovedAt,
+    String? mentorFeedback,
+    bool? pmApproved,
+    int? pmApprovedBy,
+    DateTime? pmApprovedAt,
+    String? pmFeedback,
   }) {
     return ProjectModel(
       id: id ?? this.id,
@@ -108,10 +173,22 @@ class ProjectModel {
       status: status ?? this.status,
       leaderId: leaderId ?? this.leaderId,
       leaderName: leaderName ?? this.leaderName,
-      managerId: managerId ?? this.managerId,
-      managerName: managerName ?? this.managerName,
+      mentorId: mentorId ?? this.mentorId,
+      mentorName: mentorName ?? this.mentorName,
       memberIds: memberIds ?? this.memberIds,
       memberNames: memberNames ?? this.memberNames,
+      submitted: submitted ?? this.submitted,
+      submissionLink: submissionLink ?? this.submissionLink,
+      submittedAt: submittedAt ?? this.submittedAt,
+      submittedBy: submittedBy ?? this.submittedBy,
+      mentorApproved: mentorApproved ?? this.mentorApproved,
+      mentorApprovedBy: mentorApprovedBy ?? this.mentorApprovedBy,
+      mentorApprovedAt: mentorApprovedAt ?? this.mentorApprovedAt,
+      mentorFeedback: mentorFeedback ?? this.mentorFeedback,
+      pmApproved: pmApproved ?? this.pmApproved,
+      pmApprovedBy: pmApprovedBy ?? this.pmApprovedBy,
+      pmApprovedAt: pmApprovedAt ?? this.pmApprovedAt,
+      pmFeedback: pmFeedback ?? this.pmFeedback,
     );
   }
 }

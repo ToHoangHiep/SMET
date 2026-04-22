@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 enum UserRole { ADMIN, PROJECT_MANAGER, MENTOR, USER }
 
 extension UserRoleDisplay on UserRole {
@@ -32,6 +34,7 @@ class UserModel {
   final DateTime? createdAt;
   final DateTime? lastUpdated;
   final int? departmentId;
+  final String? pendingEmail; // Email đang chờ xác nhận
 
   UserModel({
     required this.id,
@@ -50,6 +53,7 @@ class UserModel {
     this.createdAt,
     this.lastUpdated,
     this.departmentId,
+    this.pendingEmail,
   });
 
   String get fullName => '$firstName ${lastName ?? ""}'.trim();
@@ -57,6 +61,8 @@ class UserModel {
   /// Parse role từ backend
   static UserRole _parseRole(dynamic role) {
     final value = role?.toString().toLowerCase();
+
+    log("ROLE PARSE DEBUG: raw role='$role', lowercased='$value'");
 
     switch (value) {
       case 'admin':
@@ -74,6 +80,7 @@ class UserModel {
         return UserRole.USER;
 
       default:
+        log("ROLE PARSE WARNING: unknown role='$value', defaulting to USER");
         return UserRole.USER;
     }
   }
@@ -94,19 +101,30 @@ class UserModel {
       role: _parseRole(json['role']),
       isActive: json['isActive'] ?? json['active'] ?? true,
       mustChangePassword: json['mustChangePassword'] ?? false,
-      isTwoFactorEnabled: json['twoFactorEnabled'] ?? json['isTwoFactorEnabled'] ?? false,
+      isTwoFactorEnabled:
+          json['twoFactorEnabled'] ?? json['isTwoFactorEnabled'] ?? false,
       // Parse department - backend trả về departmentName, departmentCode ở root level
-      department: json["departmentName"]?.toString() ?? 
-                  (json["department"] is Map ? json["department"]["name"]?.toString() : null),
-      departmentCode: json["departmentCode"]?.toString() ?? 
-                      (json["department"] is Map ? json["department"]["code"]?.toString() : null),
+      department:
+          json["departmentName"]?.toString() ??
+          (json["department"] is Map
+              ? json["department"]["name"]?.toString()
+              : null),
+      departmentCode:
+          json["departmentCode"]?.toString() ??
+          (json["department"] is Map
+              ? json["department"]["code"]?.toString()
+              : null),
       avatarUrl: json['avatarUrl']?.toString(),
       createdAt: parseDate(json['createdAt']),
       lastUpdated:
           parseDate(json['lastUpdated']) ?? parseDate(json['updatedAt']),
       // Parse departmentId - ưu tiên từ root level, fallback từ object department
-      departmentId: json['departmentId'] ?? 
-                   (json["department"] is Map ? (json["department"]["id"] as int?) : null),
+      departmentId:
+          json['departmentId'] ??
+          (json["department"] is Map
+              ? (json["department"]["id"] as int?)
+              : null),
+      pendingEmail: json['pendingEmail']?.toString(),
     );
   }
 
@@ -129,7 +147,7 @@ class UserModel {
   String get rolePath {
     switch (role) {
       case UserRole.ADMIN:
-        return '/user_management';
+        return '/admin/dashboard';
 
       case UserRole.PROJECT_MANAGER:
         return '/pm/dashboard';

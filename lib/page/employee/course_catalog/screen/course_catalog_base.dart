@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,11 @@ import 'package:smet/page/employee/course_catalog/screen/course_catalog_web.dart
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_mobile.dart';
 import 'package:smet/page/employee/course_catalog/widgets/course_card.dart';
 import 'package:smet/page/employee/course_catalog/widgets/search_filters.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
+import 'package:smet/service/employee/course_service.dart';
+import 'package:smet/service/employee/lms_service.dart' show CatalogCourse;
+import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 class CourseCatalogPage extends StatefulWidget {
   const CourseCatalogPage({super.key});
@@ -14,13 +20,20 @@ class CourseCatalogPage extends StatefulWidget {
 }
 
 class _CourseCatalogPageState extends State<CourseCatalogPage> {
-  String _selectedCategory = 'all';
+  EnrollmentFilter _selectedEnrollment = EnrollmentFilter.all;
   String _searchQuery = '';
+  bool _isLoading = true;
+  String? _error;
+  Timer? _debounce;
 
-  // Courses data - sẽ được load từ API sau
-  List<Map<String, dynamic>> _courses = [];
+  List<CatalogCourse> _courses = [];
 
-  bool _isLoading = true; // TODO: Sử dụng để hiển thị loading indicator
+  // Pagination
+  int _currentPage = 0;
+  int _totalPages = 1;
+  int _totalElements = 0;
+  final int _pageSize = 12;
+  bool _isPaging = false;
 
   @override
   void initState() {
@@ -28,104 +41,219 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
     _loadCourses();
   }
 
-  // Placeholder methods - sẽ gọi API thật sau
-  Future<void> _loadCourses() async {
-    setState(() => _isLoading = true);
-    try {
-      // TODO: Gọi API lấy danh sách khóa học
-      // Ví dụ:
-      // final data = await CourseService.getCourses(
-      //   category: _selectedCategory,
-      //   search: _searchQuery,
-      // );
-      // setState(() {
-      //   _courses = data;
-      // });
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
 
-      // Mock data tạm thời để test
+  Future<void> _loadCourses() async {
+    await _fetchPage(0, isFullReload: true);
+  }
+
+  Future<void> _fetchPage(int page, {required bool isFullReload}) async {
+    if (isFullReload) {
       setState(() {
-        _courses = [
-          {
-            'id': '1',
-            'title': 'Advanced Management & Technology Systems',
-            'imageUrl': 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800',
-            'category': 'technical',
-            'rating': 4.9,
-            'duration': '12 tuần',
-          },
-        ];
+        _isLoading = true;
+        _error = null;
+      });
+    } else {
+      if (page < 0 || page >= _totalPages || page == _currentPage) return;
+      setState(() => _isPaging = true);
+    }
+
+    try {
+      final result = await CourseService.getCourses(
+        keyword: _searchQuery.isNotEmpty ? _searchQuery : null,
+        departmentId: null,
+        enrollmentStatus: _selectedEnrollment.apiValue,
+        page: page,
+        size: _pageSize,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _courses = result.content;
+        final tp = result.totalPages <= 0 ? 1 : result.totalPages;
+        _currentPage = result.number.clamp(0, tp - 1);
+        _totalPages = tp;
+        _totalElements = result.totalElements;
+        _isLoading = false;
+        _isPaging = false;
+        _error = null;
       });
     } catch (e) {
       debugPrint('Error loading courses: $e');
-    } finally {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        if (isFullReload) {
+          _error = 'Không thể tải danh sách khóa học';
+        }
+        _isLoading = false;
+        _isPaging = false;
+      });
     }
   }
 
-  void _onCategoryChanged(CourseCategory category) {
+  void _goToPage(int page) {
+    if (page < 0 || page >= _totalPages || page == _currentPage) return;
+    _fetchPage(page, isFullReload: false);
+  }
+
+  Widget _buildPaginationBar() {
+    const primary = Color(0xFF137FEC);
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed:
+                !_isPaging && _currentPage > 0
+                    ? () => _goToPage(_currentPage - 1)
+                    : null,
+            icon: const Icon(Icons.chevron_left),
+            color: const Color(0xFF64748B),
+          ),
+          Opacity(
+            opacity: _isPaging ? 0.5 : 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(_totalPages > 5 ? 5 : _totalPages, (
+                index,
+              ) {
+                int pageNum;
+                if (_totalPages > 5) {
+                  if (_currentPage < 3) {
+                    pageNum = index;
+                  } else if (_currentPage > _totalPages - 3) {
+                    pageNum = _totalPages - 5 + index;
+                  } else {
+                    pageNum = _currentPage - 2 + index;
+                  }
+                } else {
+                  pageNum = index;
+                }
+                final isCurrent = pageNum == _currentPage;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: InkWell(
+                    onTap: _isPaging ? null : () => _goToPage(pageNum),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isCurrent ? primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${pageNum + 1}',
+                        style: TextStyle(
+                          color:
+                              isCurrent
+                                  ? Colors.white
+                                  : const Color(0xFF64748B),
+                          fontWeight:
+                              isCurrent ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          IconButton(
+            onPressed:
+                !_isPaging && _currentPage < _totalPages - 1
+                    ? () => _goToPage(_currentPage + 1)
+                    : null,
+            icon: const Icon(Icons.chevron_right),
+            color: const Color(0xFF64748B),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Trang ${_currentPage + 1}/$_totalPages · $_totalElements khóa học',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onEnrollmentFilterChanged(EnrollmentFilter filter) {
     setState(() {
-      _selectedCategory = category.name;
+      _selectedEnrollment = filter;
     });
     _loadCourses();
   }
 
   void _onSearchChanged(String query) {
-    setState(() {
-      _searchQuery = query;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _searchQuery = query;
+      });
+      _loadCourses();
     });
-    _loadCourses();
   }
 
   String get pageTitle => 'Danh mục khóa học';
 
-  void _onNavigateTo(String path) {
-    context.go(path);
-  }
-
-  void _onLogout() {
-    context.go('/login');
-  }
-
-  // Search filters widget
   Widget buildSearchFilters() {
     return SearchFilters(
-      selectedCategory: _selectedCategory,
       searchQuery: _searchQuery,
-      onCategoryChanged: _onCategoryChanged,
+      selectedEnrollment: _selectedEnrollment,
       onSearchChanged: _onSearchChanged,
+      onEnrollmentChanged: _onEnrollmentFilterChanged,
     );
   }
 
-  // Course grid widget
   Widget buildCourseGrid() {
-    if (_courses.isEmpty) {
+    if (_isLoading) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(48),
+          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.school_outlined,
-                size: 64,
-                color: Color(0xFFE5E7EB),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Không tìm thấy khóa học nào',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF64748B),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(
+                  Icons.error_outline_rounded,
+                  size: 44,
+                  color: Color(0xFFEF4444),
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 16),
               Text(
-                'Hãy thử điều chỉnh tìm kiếm hoặc bộ lọc',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF94A3B8),
+                _error!,
+                style: const TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadCourses,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF137FEC),
                 ),
+                child: const Text('Thử lại'),
               ),
             ],
           ),
@@ -133,50 +261,163 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
       );
     }
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 300,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _courses.length,
-      padding: const EdgeInsets.only(top: 24),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        final course = _courses[index];
-        final courseId = course['id'] ?? '1';
-        return CourseCard(
-          title: course['title'] ?? '',
-          imageUrl: course['imageUrl'],
-          category: _parseCategory(course['category']),
-          rating: (course['rating'] ?? 0).toDouble(),
-          duration: course['duration'] ?? '',
-          onJoin: () {},
-          onTap: () => context.go('/employee/course/$courseId'),
-        );
-      },
+    if (_courses.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC), // Lighter background
+                  borderRadius: BorderRadius.circular(24), // Softer radius
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
+                ),
+                child: const Icon(
+                  Icons.search_off_rounded,
+                  size: 44,
+                  color: Color(0xFF94A3B8), // Slightly stronger icon
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Không tìm thấy khóa học nào',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Hãy thử điều chỉnh tìm kiếm hoặc bộ lọc',
+                style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _searchQuery = '';
+                    _selectedEnrollment = EnrollmentFilter.all;
+                  });
+                  _loadCourses();
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF137FEC),
+                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Làm mới'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Opacity(
+              opacity: _isPaging ? 0.45 : 1,
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 330,
+                  childAspectRatio: 0.82,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 24,
+                ),
+                itemCount: _courses.length,
+                padding: const EdgeInsets.only(top: 16),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final course = _courses[index];
+                  return CourseCard(
+                    title: course.title,
+                    description: course.description,
+                    departmentName: course.departmentName,
+                    status: course.status,
+                    deadlineStatus: course.deadlineStatus,
+                    fixedDeadline: course.fixedDeadline,
+                    deadlineType: course.deadlineType,
+                    defaultDeadlineDays: course.defaultDeadlineDays,
+                    isEnrolled: course.enrolled,
+                    moduleCount: course.moduleCount,
+                    lessonCount: course.lessonCount,
+                    mentorName: course.mentorName,
+                    onJoin:
+                        course.status == 'PUBLISHED' && !course.enrolled
+                            ? () => _enrollCourse(course.id)
+                            : null,
+                    onTap:
+                        () => context.go(
+                          '/employee/course/${course.id}?from=catalog',
+                        ),
+                  );
+                },
+              ),
+            ),
+            if (_isPaging)
+              const Material(
+                color: Colors.transparent,
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF137FEC),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        _buildPaginationBar(),
+      ],
     );
   }
 
-  CourseCategory _parseCategory(String? category) {
-    switch (category) {
-      case 'technical':
-        return CourseCategory.technical;
-      case 'softSkills':
-        return CourseCategory.softSkills;
-      case 'leadership':
-        return CourseCategory.leadership;
-      default:
-        return CourseCategory.all;
+  Future<void> _enrollCourse(String courseId) async {
+    try {
+      final success = await CourseService.enrollCourse(courseId);
+      if (success && mounted) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Đăng ký khóa học thành công!',
+          type: NotificationType.success,
+        );
+        await Future.delayed(const Duration(milliseconds: 200));
+        _loadCourses();
+      }
+    } catch (e) {
+      debugPrint('Error enrolling course: $e');
+      if (mounted) {
+        GlobalNotificationService.show(
+          context: context,
+          message: 'Lỗi đăng ký: $e',
+          type: NotificationType.error,
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
+      backgroundColor: const Color(0xFFF3F6FC),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -185,16 +426,25 @@ class _CourseCatalogPageState extends State<CourseCatalogPage> {
                 pageTitle: pageTitle,
                 searchFilters: buildSearchFilters(),
                 courseGrid: buildCourseGrid(),
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                breadcrumbs: const [
+                  BreadcrumbItem(
+                    label: 'Trang chủ',
+                    route: '/employee/dashboard',
+                  ),
+                  BreadcrumbItem(label: 'Danh mục khóa học'),
+                ],
               );
             } else {
               return CourseCatalogMobile(
                 pageTitle: pageTitle,
                 searchFilters: buildSearchFilters(),
                 courseGrid: buildCourseGrid(),
-                onNavigate: _onNavigateTo,
-                onLogout: _onLogout,
+                onNavigate: (path) => context.go(path),
+                onLogout: () async {
+                  await AuthService.logout();
+                  if (!mounted) return;
+                  if (context.mounted) context.go('/login');
+                },
               );
             }
           },

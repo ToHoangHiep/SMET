@@ -1,239 +1,219 @@
 import 'package:flutter/material.dart';
-import 'package:smet/service/employee/learning_service.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'video_player_web_stub.dart'
+    if (dart.library.html) 'video_player_web.dart'
+    as platform;
 
-class VideoPlayer extends StatefulWidget {
+export 'package:youtube_player_iframe/youtube_player_iframe.dart';
+
+/// Video Player — modern Coursera-style:
+/// - Rounded container with subtle shadow
+/// - Gradient overlay below video for lesson title
+/// - Focus dark container
+class VideoPlayerWidget extends StatefulWidget {
+  final String? youtubeVideoId;
   final String? thumbnailUrl;
   final int videoDurationSeconds;
   final int currentPositionSeconds;
   final VoidCallback? onPlay;
+  final VoidCallback? onVideoComplete;
+  final String? lessonTitle;
+  final String? lessonDuration;
 
-  const VideoPlayer({
+  const VideoPlayerWidget({
     super.key,
+    this.youtubeVideoId,
     this.thumbnailUrl,
-    required this.videoDurationSeconds,
-    required this.currentPositionSeconds,
+    this.videoDurationSeconds = 0,
+    this.currentPositionSeconds = 0,
     this.onPlay,
+    this.onVideoComplete,
+    this.lessonTitle,
+    this.lessonDuration,
   });
 
   @override
-  State<VideoPlayer> createState() => _VideoPlayerState();
+  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
 }
 
-class _VideoPlayerState extends State<VideoPlayer> {
-  bool _isPlaying = false;
-  late double _progress;
-
-  @override
-  void initState() {
-    super.initState();
-    _progress = widget.currentPositionSeconds / widget.videoDurationSeconds;
-  }
-
-  void _togglePlay() {
-    setState(() {
-      _isPlaying = !_isPlaying;
-    });
-    widget.onPlay?.call();
+class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+  String _resolveVideoId(String? input) {
+    if (input == null || input.isEmpty) return '';
+    if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(input)) return input;
+    final extracted = YoutubePlayerController.convertUrlToId(input);
+    return extracted ?? '';
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentTime = (_progress * widget.videoDurationSeconds).round();
-    final totalTime = widget.videoDurationSeconds;
+    final videoId = _resolveVideoId(widget.youtubeVideoId);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          // Video Area
-          AspectRatio(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Video container — rounded with shadow
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: AspectRatio(
             aspectRatio: 16 / 9,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Thumbnail / Video
-                if (widget.thumbnailUrl != null)
-                  Image.network(
-                    widget.thumbnailUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: const Color(0xFF1E293B),
-                        child: const Center(
-                          child: Icon(
-                            Icons.play_circle_outline,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    },
-                  )
-                else
-                  Container(
-                    color: const Color(0xFF1E293B),
-                    child: const Center(
-                      child: Icon(
-                        Icons.play_circle_outline,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ),
-                
-                // Overlay gradient
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.3),
-                        Colors.black.withValues(alpha: 0.7),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                // Play button
-                Center(
-                  child: GestureDetector(
-                    onTap: _togglePlay,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: _isPlaying ? 0 : 80,
-                      height: _isPlaying ? 0 : 80,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF137FEC),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF137FEC).withValues(alpha: 0.4),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow,
-                        color: Colors.white,
-                        size: 48,
-                      ),
-                    ),
-                  ),
-                ),
-                
-                // Video controls overlay (bottom)
+                _buildContent(videoId),
+
+                // Gradient overlay at bottom for title area
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: 0,
+                  height: 80,
                   child: Container(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        // Progress bar
-                        _buildProgressBar(),
-                        const SizedBox(height: 12),
-                        // Controls
-                        _buildControls(currentTime, totalTime),
-                      ],
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.7),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressBar() {
-    return SliderTheme(
-      data: SliderThemeData(
-        trackHeight: 4,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-        activeTrackColor: const Color(0xFF137FEC),
-        inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
-        thumbColor: Colors.white,
-        overlayColor: const Color(0xFF137FEC).withValues(alpha: 0.2),
-      ),
-      child: Slider(
-        value: _progress.clamp(0.0, 1.0),
-        onChanged: (value) {
-          setState(() {
-            _progress = value;
-          });
-        },
-      ),
-    );
-  }
-
-  Widget _buildControls(int currentTime, int totalTime) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Left controls
-        Row(
-          children: [
-            _buildControlButton(
-              icon: _isPlaying ? Icons.pause : Icons.play_arrow,
-              onTap: _togglePlay,
-            ),
-            const SizedBox(width: 8),
-            _buildControlButton(
-              icon: Icons.volume_up,
-              onTap: () {},
-            ),
-            const SizedBox(width: 16),
-            Text(
-              '${LearningService.formatDuration(currentTime)} / ${LearningService.formatDuration(totalTime)}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
         ),
-        // Right controls
-        Row(
-          children: [
-            _buildControlButton(
-              icon: Icons.settings,
-              onTap: () {},
+
+        // Lesson title bar below video
+        if (widget.lessonTitle != null || widget.lessonDuration != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+            child: Row(
+              children: [
+                if (widget.lessonTitle != null)
+                  Expanded(
+                    child: Text(
+                      widget.lessonTitle!,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                if (widget.lessonDuration != null) ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.schedule,
+                          size: 14,
+                          color: Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          widget.lessonDuration!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(width: 8),
-            _buildControlButton(
-              icon: Icons.fullscreen,
-              onTap: () {},
+          ),
+      ],
+    );
+  }
+
+  Widget _buildContent(String videoId) {
+    if (videoId.isEmpty) {
+      return _buildNoVideo();
+    }
+
+    return platform.YouTubePlayerView(
+      key: ValueKey(videoId),
+      videoId: videoId,
+      thumbnailUrl: widget.thumbnailUrl,
+      videoDurationSeconds: widget.videoDurationSeconds,
+      onPlay: widget.onPlay,
+      onVideoComplete: widget.onVideoComplete,
+    );
+  }
+
+  Widget _buildNoVideo() {
+    String? imageUrl = widget.thumbnailUrl;
+    if ((imageUrl == null || imageUrl.isEmpty)) {
+      imageUrl = null;
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (imageUrl != null)
+          Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildPlaceholder(),
+          )
+        else
+          _buildPlaceholder(),
+
+        // Play button with glow
+        Center(
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: const Color(0xFF137FEC),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF137FEC).withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
-          ],
+            child: const Icon(Icons.play_arrow, color: Colors.white, size: 48),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildControlButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: 22,
-        ),
+  Widget _buildPlaceholder() {
+    return Container(
+      color: const Color(0xFF1E293B),
+      child: const Center(
+        child: Icon(Icons.play_circle_outline, size: 80,
+            color: Colors.white54),
       ),
     );
   }

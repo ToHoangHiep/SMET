@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'package:smet/model/department_model.dart';
-import 'package:smet/service/common/auth_service.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -58,21 +57,13 @@ class DepartmentService {
     try {
       final url = "$baseUrl/departments/createDepartment";
 
-      int? createdById;
-      try {
-        final me = await AuthService.getMe();
-        final id = me['id'];
-        if (id != null) createdById = id is int ? id : (id as num).toInt();
-      } catch (_) {}
-
       final body = {
         "name": name,
         "code": code,
-        "is_active": isActive,
+        "isActive": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
         if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
         if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
-        if (createdById != null) "createdBy": createdById,
       };
 
       _logRequest(
@@ -115,13 +106,13 @@ class DepartmentService {
     try {
       final url = "$baseUrl/departments/$id";
 
-      final body = {
+      final body = <String, dynamic>{
         "name": name,
         "code": code,
-        "is_active": isActive,
+        "isActive": isActive,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
-        "mentorIds": mentorIds ?? [],
-        "userIds": userIds ?? [],
+        if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
+        if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
       };
 
       _logRequest(
@@ -144,6 +135,7 @@ class DepartmentService {
         return DepartmentModel.fromJson(jsonDecode(response.body));
       }
 
+      log("UPDATE DEPARTMENT FAILED - Status: ${response.statusCode}, Body: ${response.body}");
       return null;
     } catch (e) {
       log("UPDATE DEPARTMENT ERROR: $e");
@@ -152,12 +144,14 @@ class DepartmentService {
   }
 
   /// ================= DELETE =================
-  /// DELETE /api/departments/{id}
-  Future<bool> deleteDepartment(int id) async {
+  /// DELETE /api/departments/{id}?force={true/false}
+  /// Nếu force = true: soft delete department + xử lý dependencies (users bị vô hiệu hóa, courses bị archived, projects bị inactive)
+  /// Nếu force = false (mặc định): chỉ deactive department rỗng, không có dependencies
+  Future<Map<String, dynamic>> deleteDepartment(int id, {bool force = false}) async {
     try {
-      final url = "$baseUrl/departments/$id";
+      final url = "$baseUrl/departments/$id${force ? '?force=true' : ''}";
 
-      _logRequest("DELETE DEPARTMENT", url);
+      _logRequest("DELETE DEPARTMENT (force=$force)", url);
 
       final token = await _getToken();
       final response = await http.delete(
@@ -167,10 +161,21 @@ class DepartmentService {
 
       _logResponse(response);
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        // Backend trả về message mô tả kết quả
+        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        return {
+          'success': true,
+          'message': body['message'] ?? 'Xóa thành công',
+        };
+      }
+
+      // Parse error message từ response
+      final errorBody = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      throw Exception(errorBody['message'] ?? errorBody['error'] ?? 'Xóa thất bại');
     } catch (e) {
       log("DELETE DEPARTMENT ERROR: $e");
-      log("DEPARTMENT ID: $id");
+      log("DEPARTMENT ID: $id, FORCE: $force");
       rethrow;
     }
   }
@@ -192,7 +197,7 @@ class DepartmentService {
         queryParams['keyword'] = keyword;
       }
       if (active != null) {
-        queryParams['active'] = active.toString();
+        queryParams['isActive'] = active.toString();
       }
 
       final uri = Uri.parse("$baseUrl/departments").replace(
@@ -211,6 +216,7 @@ class DepartmentService {
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data = jsonDecode(response.body);
+        // Backend PageResponse: { data: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }
         List content = data['data'] ?? [];
 
         log("TOTAL DEPARTMENTS: ${data['totalElements'] ?? content.length}");
@@ -258,7 +264,10 @@ class DepartmentService {
 
   /// ================= GET MEMBERS =================
   /// GET /api/departments/{id}/members
-  Future<List<Map<String, dynamic>>> getDepartmentMembers(int departmentId) async {
+  /// Backend trả về List<DepartmentMemberResponse> (không phân trang)
+  Future<Map<String, dynamic>> getDepartmentMembers({
+    required int departmentId,
+  }) async {
     try {
       final url = "$baseUrl/departments/$departmentId/members";
 
@@ -273,20 +282,35 @@ class DepartmentService {
       _logResponse(response);
 
       if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        // Backend trả về List<DepartmentMemberResponse>
+        if (data is List) {
+          return {
+            'members': data,
+            'totalElements': data.length,
+            'totalPages': 1,
+          };
+        }
+        return {
+          'members': data['content'] ?? data['data'] ?? data,
+          'totalElements': data['totalElements'] ?? (data['content'] ?? data['data'] ?? []).length,
+          'totalPages': data['totalPages'] ?? 1,
+        };
       }
 
-      return [];
+      return {'members': [], 'totalElements': 0, 'totalPages': 0};
     } catch (e) {
       log("GET DEPARTMENT MEMBERS ERROR: $e");
-      return [];
+      return {'members': [], 'totalElements': 0, 'totalPages': 0};
     }
   }
 
   /// ================= GET PROJECT MANAGERS FOR DEPARTMENT =================
   /// GET /api/departments/department/managers
+  /// assigned: true = đã có phòng ban, false = chưa có phòng ban, null = tất cả
   Future<Map<String, dynamic>> getProjectManagersForDepartment({
     String? keyword,
+    bool? assigned,
     int page = 0,
     int size = 10,
   }) async {
@@ -298,8 +322,11 @@ class DepartmentService {
       if (keyword != null && keyword.isNotEmpty) {
         queryParams['keyword'] = keyword;
       }
+      if (assigned != null) {
+        queryParams['assigned'] = assigned.toString();
+      }
 
-      final uri = Uri.parse("$baseUrl/departments/department/managers").replace(
+      final uri = Uri.parse("$baseUrl/users/department/managers").replace(
         queryParameters: queryParams,
       );
 
@@ -326,8 +353,11 @@ class DepartmentService {
 
   /// ================= GET PROJECT MEMBERS FOR DEPARTMENT =================
   /// GET /api/departments/department/members
+  /// assigned: true = đã tham gia dự án, false = chưa tham gia dự án, null = tất cả
   Future<Map<String, dynamic>> getProjectMembersForDepartment({
     String? keyword,
+    String? role,
+    bool? assigned,
     int page = 0,
     int size = 10,
   }) async {
@@ -339,8 +369,14 @@ class DepartmentService {
       if (keyword != null && keyword.isNotEmpty) {
         queryParams['keyword'] = keyword;
       }
+      if (role != null && role.isNotEmpty) {
+        queryParams['role'] = role;
+      }
+      if (assigned != null) {
+        queryParams['assigned'] = assigned.toString();
+      }
 
-      final uri = Uri.parse("$baseUrl/departments/department/members").replace(
+      final uri = Uri.parse("$baseUrl/users/department/members").replace(
         queryParameters: queryParams,
       );
 
@@ -407,6 +443,168 @@ class DepartmentService {
     );
   }
 
+  /// ================= GET DEPARTMENT COURSES =================
+  /// GET /api/lms/courses?departmentId={id}
+  Future<Map<String, dynamic>> getDepartmentCourses({
+    required int departmentId,
+    String? keyword,
+    String? level,
+    int page = 0,
+    int size = 10,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'departmentId': departmentId.toString(),
+        'page': page.toString(),
+        'size': size.toString(),
+      };
+      if (keyword != null && keyword.isNotEmpty) {
+        queryParams['keyword'] = keyword;
+      }
+      if (level != null && level.isNotEmpty) {
+        queryParams['level'] = level;
+      }
+
+      final uri = Uri.parse("$baseUrl/lms/courses").replace(
+        queryParameters: queryParams,
+      );
+
+      _logRequest("GET DEPARTMENT COURSES", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<dynamic> content;
+        if (data is List) {
+          content = data;
+        } else {
+          content = data['content'] as List<dynamic>? ??
+              data['data'] as List<dynamic>? ??
+              [];
+        }
+        return {
+          'courses': List<Map<String, dynamic>>.from(content),
+          'totalElements': data is Map ? (data['totalElements'] ?? content.length) : content.length,
+          'totalPages': data is Map ? (data['totalPages'] ?? 1) : 1,
+        };
+      }
+
+      return {'courses': [], 'totalElements': 0, 'totalPages': 0};
+    } catch (e) {
+      log("GET DEPARTMENT COURSES ERROR: $e");
+      return {'courses': [], 'totalElements': 0, 'totalPages': 0};
+    }
+  }
+
+  /// ================= GET DEPARTMENT LEARNING PATHS =================
+  /// GET /api/lms/learning-paths?departmentId={id}
+  Future<List<Map<String, dynamic>>> getDepartmentLearningPaths(int departmentId) async {
+    try {
+      final uri = Uri.parse("$baseUrl/lms/learning-paths").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      _logRequest("GET DEPARTMENT LEARNING PATHS", uri.toString());
+
+      final token = await _getToken();
+      final response = await http.get(
+        uri,
+        headers: _headers(token!),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final content = data['content'] as List<dynamic>? ??
+            data['data'] as List<dynamic>? ??
+            data as List<dynamic>;
+        return List<Map<String, dynamic>>.from(content);
+      }
+
+      return [];
+    } catch (e) {
+      log("GET DEPARTMENT LEARNING PATHS ERROR: $e");
+      return [];
+    }
+  }
+
+  /// ================= TOGGLE ACTIVE =================
+  /// PUT /api/departments/toggleStatus/{id}
+  Future<void> toggleDepartmentActive(int id) async {
+    if (id == 0) {
+      log("ERROR: DEPARTMENT ID IS INVALID");
+      throw Exception("Department id is invalid");
+    }
+
+    try {
+      final url = "$baseUrl/departments/$id/toggle-active";
+
+      _logRequest("TOGGLE DEPARTMENT ACTIVE", url);
+
+      final token = await _getToken();
+      final res = await http.patch(
+        Uri.parse(url),
+        headers: _headers(token!),
+      );
+
+      _logResponse(res);
+
+      if (res.statusCode != 200) {
+        throw Exception("Toggle active failed: ${res.body}");
+      }
+    } catch (e) {
+      log("TOGGLE DEPARTMENT ACTIVE ERROR: $e");
+      log("DEPARTMENT ID: $id");
+      rethrow;
+    }
+  }
+
+  /// ================= REMOVE PROJECT MANAGER =================
+  /// Gỡ PM khỏi phòng ban bằng cách gọi PATCH với projectManagerId = 0.
+  /// Backend sẽ gọi assignUsers, tìm user id=0 → null → set PM về null.
+  Future<DepartmentModel?> removeProjectManager(int departmentId) async {
+    try {
+      final url = "$baseUrl/departments/$departmentId";
+
+      final body = {
+        "projectManagerId": 0,
+      };
+
+      _logRequest("REMOVE PROJECT MANAGER", url, body: jsonEncode(body));
+
+      final token = await _getToken();
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: _headers(token!),
+        body: jsonEncode(body),
+      );
+
+      _logResponse(response);
+
+      if (response.statusCode == 200) {
+        return DepartmentModel.fromJson(jsonDecode(response.body));
+      }
+
+      log("REMOVE PM FAILED - Status: ${response.statusCode}, Body: ${response.body}");
+      return null;
+    } catch (e) {
+      log("REMOVE PM ERROR: $e");
+      rethrow;
+    }
+  }
+
   /// ================= ADD USERS TO DEPARTMENT (Legacy) =================
   Future<bool> addUsersToDepartment({
     required int departmentId,
@@ -423,7 +621,6 @@ class DepartmentService {
         "name": departmentName,
         "code": departmentCode,
         "isActive": isActive,
-        "is_active": isActive, // Fallback for snake_case
         if (userIds.isNotEmpty) "userIds": userIds,
         if (projectManagerId != null) "projectManagerId": projectManagerId,
       };

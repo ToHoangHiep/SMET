@@ -12,6 +12,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
   final bool isActive;
   final List<UserModel> selectedEmployees;
   final VoidCallback onPickManager;
+  final VoidCallback? onRemoveManager;
   final VoidCallback onPickEmployees;
   final ValueChanged<bool> onActiveChanged;
   final ValueChanged<UserModel> onRemoveEmployee;
@@ -20,7 +21,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
 
   const DepartmentManagementFormCard({
     super.key,
-    this.primaryColor = const Color(0xFF6366F1), // Indigo như login
+    this.primaryColor = const Color(0xFF137FEC), // Indigo như login
     required this.formKey,
     required this.isUpdateMode,
     required this.nameController,
@@ -30,6 +31,7 @@ class DepartmentManagementFormCard extends StatefulWidget {
     required this.isActive,
     required this.selectedEmployees,
     required this.onPickManager,
+    this.onRemoveManager,
     required this.onPickEmployees,
     required this.onActiveChanged,
     required this.onRemoveEmployee,
@@ -52,13 +54,22 @@ class _DepartmentManagementFormCardState
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.grey.shade200.withValues(alpha: 0.8),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: widget.primaryColor.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: widget.primaryColor.withValues(alpha: 0.06),
+            blurRadius: 36,
+            spreadRadius: 4,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -146,7 +157,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -179,6 +190,12 @@ class _DepartmentManagementFormCardState
             if (value == null || value.trim().isEmpty) {
               return 'Vui lòng nhập tên phòng ban';
             }
+            if (value.trim().length < 3) {
+              return 'Tên phòng ban phải có ít nhất 3 ký tự';
+            }
+            if (value.trim().length > 100) {
+              return 'Tên phòng ban không được vượt quá 100 ký tự';
+            }
             return null;
           },
         ),
@@ -195,7 +212,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -228,6 +245,15 @@ class _DepartmentManagementFormCardState
             if (value == null || value.trim().isEmpty) {
               return 'Vui lòng nhập mã phòng ban';
             }
+            if (value.trim().length < 2) {
+              return 'Mã phòng ban phải có ít nhất 2 ký tự';
+            }
+            if (value.trim().length > 20) {
+              return 'Mã phòng ban không được vượt quá 20 ký tự';
+            }
+            if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value.trim())) {
+              return 'Mã phòng ban chỉ chứa chữ, số, gạch dưới và gạch ngang';
+            }
             return null;
           },
         ),
@@ -236,6 +262,9 @@ class _DepartmentManagementFormCardState
   }
 
   Widget _buildManagerField() {
+    final hasManager =
+        widget.selectedManager != null || widget.managerFallbackText.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -244,7 +273,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -277,7 +306,7 @@ class _DepartmentManagementFormCardState
                           widget.selectedManager != null
                               ? '${widget.selectedManager!.fullName} (${widget.selectedManager!.role.displayName})${widget.selectedManager!.department != null ? ' - ${widget.selectedManager!.department}' : ' - Chưa có'}'
                               : widget.managerFallbackText.isEmpty
-                              ? 'Chọn người quản lý'
+                              ? 'Có thể chọn PM quản lý'
                               : widget.managerFallbackText,
                           style: TextStyle(
                             fontSize: 14,
@@ -294,22 +323,23 @@ class _DepartmentManagementFormCardState
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: widget.onPickManager,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+            if (hasManager && widget.onRemoveManager != null) ...[
+              ElevatedButton(
+                onPressed: widget.onPickManager,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                child: Text(hasManager ? 'ĐỔI' : 'CHỌN'),
               ),
-              child: const Text('CHỌN'),
-            ),
+            ],
           ],
         ),
       ],
@@ -325,7 +355,7 @@ class _DepartmentManagementFormCardState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF6366F1),
+            color: Color(0xFF137FEC),
           ),
         ),
         const SizedBox(height: 8),
@@ -393,7 +423,7 @@ class _DepartmentManagementFormCardState
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF6366F1),
+                color: Color(0xFF137FEC),
               ),
             ),
             const SizedBox(width: 8),
@@ -446,7 +476,7 @@ class _DepartmentManagementFormCardState
     return Chip(
       label: RichText(
         text: TextSpan(
-          style: const TextStyle(fontSize: 12, color: Color(0xFF6366F1)),
+          style: const TextStyle(fontSize: 12, color: Color(0xFF137FEC)),
           children: [
             TextSpan(text: employee.fullName),
             TextSpan(text: ' (${employee.role.displayName})'),
@@ -455,7 +485,7 @@ class _DepartmentManagementFormCardState
                   employee.department != null
                       ? ' - ${employee.department}'
                       : ' - Chưa có',
-              style: const TextStyle(color: Color(0xFF6366F1)),
+              style: const TextStyle(color: Color(0xFF137FEC)),
             ),
           ],
         ),

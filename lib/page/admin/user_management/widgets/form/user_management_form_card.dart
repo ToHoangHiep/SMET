@@ -13,6 +13,8 @@ class UserManagementFormCard extends StatefulWidget {
   final ValueChanged<UserRole> onRoleChanged;
   final VoidCallback onCancel;
   final VoidCallback onSubmit;
+  final bool isRoleLocked;
+  final bool isCheckingProject;
 
   const UserManagementFormCard({
     super.key,
@@ -27,6 +29,8 @@ class UserManagementFormCard extends StatefulWidget {
     required this.onRoleChanged,
     required this.onCancel,
     required this.onSubmit,
+    this.isRoleLocked = false,
+    this.isCheckingProject = false,
   });
 
   @override
@@ -74,13 +78,19 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.8), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: widget.primaryColor.withValues(alpha: 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+                color: widget.primaryColor.withValues(alpha: 0.06),
+                blurRadius: 36,
+                spreadRadius: 4,
+                offset: const Offset(0, 12),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -206,7 +216,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF137FEC),
                 ),
               ),
             ],
@@ -285,7 +295,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF137FEC),
                 ),
               ),
             ],
@@ -355,7 +365,7 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF137FEC),
                 ),
               ),
             ],
@@ -363,12 +373,27 @@ class _UserManagementFormCardState extends State<UserManagementFormCard>
           const SizedBox(height: 20),
           _AnimatedDropdown(
             value: widget.selectedRole,
+            isUpdateMode: widget.isUpdateMode,
             primaryColor: widget.primaryColor,
+            isRoleLocked: widget.isRoleLocked,
             onChanged: (value) {
               if (value == null) return;
               widget.onRoleChanged(value);
             },
           ),
+          if (widget.isCheckingProject)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _CheckingProjectIndicator(primaryColor: widget.primaryColor),
+            ),
+          if (!widget.isCheckingProject && widget.isRoleLocked && widget.isUpdateMode)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _RoleLockedWarning(
+                primaryColor: widget.primaryColor,
+                isAdmin: widget.selectedRole == UserRole.ADMIN,
+              ),
+            ),
         ],
       ),
     );
@@ -472,9 +497,10 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField> {
             _isFocused
                 ? [
                   BoxShadow(
-                    color: widget.primaryColor.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: widget.primaryColor.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
                   ),
                 ]
                 : [],
@@ -526,12 +552,16 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField> {
 
 class _AnimatedDropdown extends StatefulWidget {
   final UserRole value;
+  final bool isUpdateMode;
   final Color primaryColor;
+  final bool isRoleLocked;
   final ValueChanged<UserRole?> onChanged;
 
   const _AnimatedDropdown({
     required this.value,
+    required this.isUpdateMode,
     required this.primaryColor,
+    this.isRoleLocked = false,
     required this.onChanged,
   });
 
@@ -544,69 +574,118 @@ class _AnimatedDropdownState extends State<_AnimatedDropdown> {
 
   @override
   Widget build(BuildContext context) {
+    final bool roleLocked = widget.isRoleLocked;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         boxShadow:
-            _isFocused
+            !roleLocked && _isFocused
                 ? [
-                  BoxShadow(
-                    color: widget.primaryColor.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
+                    BoxShadow(
+                      color: widget.primaryColor.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
                 : [],
       ),
       child: DropdownButtonFormField<UserRole>(
         initialValue: widget.value,
         onTap: () => setState(() => _isFocused = true),
-        onChanged: (val) {
+        onChanged: roleLocked ? null : (val) {
           setState(() => _isFocused = false);
           widget.onChanged(val);
         },
         decoration: InputDecoration(
           labelText: 'Vai trò',
           labelStyle: TextStyle(
-            color: _isFocused ? widget.primaryColor : Colors.grey[500],
+            color: roleLocked
+                ? Colors.grey[400]
+                : (_isFocused ? widget.primaryColor : Colors.grey[500]),
             fontWeight: FontWeight.w500,
           ),
           prefixIcon: Icon(
             Icons.badge_outlined,
             size: 20,
-            color: _isFocused ? widget.primaryColor : Colors.grey[400],
+            color: roleLocked
+                ? Colors.grey[400]
+                : (_isFocused ? widget.primaryColor : Colors.grey[400]),
           ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade200),
+            borderSide: BorderSide(
+              color: roleLocked ? Colors.grey.shade300 : Colors.grey.shade200,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: widget.primaryColor, width: 1.5),
+            borderSide: BorderSide(
+              color: roleLocked ? Colors.grey.shade300 : widget.primaryColor,
+              width: 1.5,
+            ),
           ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: roleLocked ? const Color(0xFFF9FAFB) : Colors.white,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
           ),
         ),
-        items: const [
-          DropdownMenuItem(value: UserRole.ADMIN, child: Text('Quản trị viên')),
-          DropdownMenuItem(
-            value: UserRole.PROJECT_MANAGER,
-            child: Text('Quản lý dự án'),
-          ),
-          DropdownMenuItem(
-            value: UserRole.MENTOR,
-            child: Text('Người hướng dẫn'),
-          ),
-          DropdownMenuItem(value: UserRole.USER, child: Text('Nhân viên')),
+        items: [
+          if (roleLocked)
+            DropdownMenuItem(
+              value: widget.value,
+              enabled: false,
+              child: Row(
+                children: [
+                  Text(
+                    _getRoleLabel(widget.value),
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.value == UserRole.ADMIN
+                        ? '(không thể thay đổi)'
+                        : '(đang tham gia dự án)',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          if (!roleLocked) ...[
+            DropdownMenuItem(
+              value: UserRole.PROJECT_MANAGER,
+              child: Text('Quản lý dự án'),
+            ),
+            DropdownMenuItem(
+              value: UserRole.MENTOR,
+              child: Text('Người hướng dẫn'),
+            ),
+            DropdownMenuItem(value: UserRole.USER, child: Text('Nhân viên')),
+          ],
         ],
       ),
     );
+  }
+
+  String _getRoleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.ADMIN:
+        return 'Quản trị viên';
+      case UserRole.PROJECT_MANAGER:
+        return 'Quản lý dự án';
+      case UserRole.MENTOR:
+        return 'Người hướng dẫn';
+      case UserRole.USER:
+        return 'Nhân viên';
+    }
   }
 }
 
@@ -819,6 +898,87 @@ class _AnimatedElevatedButtonState extends State<_AnimatedElevatedButton>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CheckingProjectIndicator extends StatelessWidget {
+  final Color primaryColor;
+
+  const _CheckingProjectIndicator({required this.primaryColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEFCE8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Đang kiểm tra dự án...',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.amber[700],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleLockedWarning extends StatelessWidget {
+  final Color primaryColor;
+  final bool isAdmin;
+
+  const _RoleLockedWarning({
+    required this.primaryColor,
+    this.isAdmin = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lock_outline, size: 16, color: Colors.red[400]),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              isAdmin
+                  ? 'Không thể thay đổi vai trò Quản trị viên.'
+                  : 'Không thể thay đổi vai trò vì nhân viên đã thuộc phòng ban.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.red[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

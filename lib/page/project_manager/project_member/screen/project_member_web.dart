@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:smet/page/project_manager/widgets/shell/pm_sidebar.dart';
 import 'package:smet/page/project_manager/widgets/shell/pm_top_header.dart';
+import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 
 class ProjectMemberWeb extends StatelessWidget {
   final Widget pageHeader;
@@ -22,27 +22,26 @@ class ProjectMemberWeb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        PmSidebar(userDisplayName: userName, onLogout: onLogout),
+        PmTopHeader(
+          currentPage: 'Thành viên',
+          breadcrumbs: const [
+            BreadcrumbItem(label: 'Trang chủ', route: '/home'),
+            BreadcrumbItem(label: 'Thành viên'),
+          ],
+        ),
         Expanded(
-          child: Column(
-            children: [
-              const PmTopHeader(currentPage: 'Thành viên'),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      pageHeader,
-                      const SizedBox(height: 20),
-                      showForm ? formCard : tableSection,
-                    ],
-                  ),
-                ),
-              ),
-            ],
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                pageHeader,
+                const SizedBox(height: 20),
+                showForm ? formCard : tableSection,
+              ],
+            ),
           ),
         ),
       ],

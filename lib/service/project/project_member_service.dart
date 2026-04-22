@@ -3,227 +3,434 @@ import 'package:http/http.dart' as http;
 import 'package:smet/model/project_member_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/auth_service.dart';
+import 'package:smet/service/project/project_service.dart';
+import 'package:smet/service/pm/pm_project_service.dart' show PmProjectListItem;
 import 'dart:developer';
 
 class ProjectMemberService {
-  static String get _baseUrl => baseUrl;
+
+  // ================================================================
+  // LAY THANH VIEN TU PROJECT
+  // Backend: Chi co ProjectService.getById() tra ve thong tin project
+  // ProjectModel da co memberIds + memberNames
+  // Refactor: goi ProjectService.getById() roi convert sang ProjectMemberModel
+  // ================================================================
 
   /// GET MEMBERS BY PROJECT
+  /// Backend: Dung ProjectService.getById() (backend khong co endpoint rieng cho project-members)
+  /// Endpoint: GET /api/projects/get/{projectId}
+  /// Response: ProjectModel voi memberIds + memberNames
   static Future<List<ProjectMemberModel>> getByProject(int projectId) async {
-    final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/project-members/findProject/$projectId");
+    log("[ProjectMemberService] getByProject() called - projectId=$projectId");
 
-    final response = await http.get(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-    );
+    try {
+      final project = await ProjectService.getById(projectId);
 
-    log("GET MEMBERS BY PROJECT $projectId STATUS: ${response.statusCode}");
+      final members = <ProjectMemberModel>[];
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map((json) => ProjectMemberModel.fromJson(json)).toList();
-    } else {
-      throw Exception("Cannot get project members");
+      // Leader
+      if (project.leaderId != 0) {
+        members.add(ProjectMemberModel(
+          id: 0, // Khong co ID rieng trong backend
+          projectId: projectId,
+          userId: project.leaderId,
+          role: ProjectMemberRole.PROJECT_LEAD,
+          userName: project.leaderName,
+          userEmail: null,
+        ));
+      }
+
+      // Mentor
+      if (project.mentorId != null) {
+        members.add(ProjectMemberModel(
+          id: 0,
+          projectId: projectId,
+          userId: project.mentorId!,
+          role: ProjectMemberRole.PROJECT_MENTOR,
+          userName: project.mentorName,
+          userEmail: null,
+        ));
+      }
+
+      // Members
+      if (project.memberIds != null && project.memberNames != null) {
+        for (int i = 0; i < project.memberIds!.length; i++) {
+          members.add(ProjectMemberModel(
+            id: 0,
+            projectId: projectId,
+            userId: project.memberIds![i],
+            role: ProjectMemberRole.PROJECT_MEMBER,
+            userName: i < project.memberNames!.length
+                ? project.memberNames![i]
+                : null,
+            userEmail: null,
+          ));
+        }
+      }
+
+      log("[ProjectMemberService] getByProject() success - ${members.length} members found");
+      return members;
+    } catch (e) {
+      log("[ProjectMemberService] getByProject() FAILED: $e");
+      rethrow;
     }
   }
 
+  // ================================================================
+  // CAC PHUONG THUC CON LAI: KHONG CO ENDPOINT TRONG BACKEND
+  // Backend xu ly member thong qua ProjectService.create/update
+  // memberIds duoc truyen trong request body cua ProjectRequest
+  // ================================================================
+
   /// ADD MEMBER TO PROJECT
+  /// Backend KHONG co endpoint rieng.
+  /// De them member: goi ProjectService.update() voi danh sach memberIds da cap nhat.
+  /// Phuong thuc nay chi ghi log canh bao.
   static Future<ProjectMemberModel> addMember({
     required int projectId,
     required int userId,
     required String role,
   }) async {
-    final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/project-members/addProjectMember");
-
-    final bodyJson = {
-      'projectId': projectId,
-      'userId': userId,
-      'role': role,
-    };
-
-    log("========== ADD MEMBER TO PROJECT ==========");
-    log("URL: $url");
-    log("TOKEN: ${token?.substring(0, 20)}...");
-    log("BODY: $bodyJson");
-
-    final response = await http.post(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(bodyJson),
+    log("[ProjectMemberService] addMember() called but backend has no dedicated endpoint.");
+    log("  To add member, call ProjectService.update() with updated memberIds list.");
+    log("  projectId=$projectId, userId=$userId, role=$role");
+    throw UnimplementedError(
+      "Backend khong co endpoint rieng cho addMember. "
+      "Vui long goi ProjectService.update() de cap nhat danh sach thanh vien.",
     );
-
-    log("ADD MEMBER STATUS: ${response.statusCode}");
-    log("ADD MEMBER RESPONSE: ${response.body}");
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return ProjectMemberModel.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception("Cannot add project member");
-    }
   }
 
-  /// UPDATE MEMBER
+  /// UPDATE MEMBER ROLE
+  /// Backend KHONG co endpoint rieng.
+  /// De doi vai tro: goi ProjectService.update() voi leaderId moi.
   static Future<ProjectMemberModel> updateMember({
     required int id,
     required int userId,
     required String role,
   }) async {
-    final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/project-members/updateProjectMember/$id");
-
-    final response = await http.put(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode({
-        'userId': userId,
-        'role': role,
-      }),
+    log("[ProjectMemberService] updateMember() called but backend has no dedicated endpoint.");
+    log("  To change role, call ProjectService.update() with updated leaderId.");
+    log("  id=$id, userId=$userId, role=$role");
+    throw UnimplementedError(
+      "Backend khong co endpoint rieng cho updateMember. "
+      "Vui long goi ProjectService.update() de cap nhat vai tro.",
     );
-
-    log("UPDATE MEMBER STATUS: ${response.statusCode}");
-
-    if (response.statusCode == 200) {
-      return ProjectMemberModel.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception("Cannot update project member");
-    }
   }
 
   /// DELETE MEMBER
+  /// Backend KHONG co endpoint rieng.
+  /// De xoa member: goi ProjectService.update() voi danh sach memberIds da loai bo.
   static Future<void> deleteMember(int id) async {
-    final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/project-members/$id");
-
-    final response = await http.delete(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
+    log("[ProjectMemberService] deleteMember() called but backend has no dedicated endpoint.");
+    log("  To delete member, call ProjectService.update() with updated memberIds list.");
+    log("  memberId=$id");
+    throw UnimplementedError(
+      "Backend khong co endpoint rieng cho deleteMember. "
+      "Vui long goi ProjectService.update() de loai bo thanh vien.",
     );
-
-    log("DELETE MEMBER STATUS: ${response.statusCode}");
-
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception("Cannot delete project member");
-    }
   }
 
   /// REMOVE MEMBER FROM PROJECT by userId
+  /// Backend KHONG co endpoint rieng.
   static Future<void> removeMember({
     required int projectId,
     required int userId,
   }) async {
-    // First get all members of this project
-    final members = await getByProject(projectId);
-    
-    // Find the member with matching userId
-    final memberToRemove = members.where((m) => m.userId == userId).firstOrNull;
-    
-    if (memberToRemove != null) {
-      await deleteMember(memberToRemove.id);
-    }
+    log("[ProjectMemberService] removeMember() called but backend has no dedicated endpoint.");
+    log("  To remove member, call ProjectService.update() with updated memberIds list.");
+    log("  projectId=$projectId, userId=$userId");
+    throw UnimplementedError(
+      "Backend khong co endpoint rieng cho removeMember. "
+      "Vui long goi ProjectService.update() de loai bo thanh vien.",
+    );
   }
 
-  /// GET PROJECT WITH MEMBERS (returns single Map)
+  /// GET PROJECT WITH MEMBERS
+  /// Backend: Dung ProjectService.getById()
   static Future<Map<String, dynamic>> getProjectWithMembers(int projectId) async {
-    final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/project-members/findProject/$projectId");
+    log("[ProjectMemberService] getProjectWithMembers() called - projectId=$projectId");
 
-    final response = await http.get(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-    );
+    try {
+      final project = await ProjectService.getById(projectId);
 
-    log("GET PROJECT WITH MEMBERS $projectId STATUS: ${response.statusCode}");
-    log("GET PROJECT WITH MEMBERS RESPONSE: ${response.body}");
+      // Chuyen ProjectModel thanh Map
+      final members = await getByProject(projectId);
 
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
-      
-      // Xử lý khi response là Array (có thể empty hoặc có phần tử)
-      if (decoded is List) {
-        if (decoded.isEmpty) {
-          return {}; // Trả về empty map nếu không có data
-        }
-        // Nếu là array với 1 phần tử, lấy phần tử đầu tiên
-        if (decoded.first is Map) {
-          return Map<String, dynamic>.from(decoded.first);
-        }
-      }
-      
-      // Xử lý khi response là Map
-      if (decoded is Map) {
-        return Map<String, dynamic>.from(decoded);
-      }
-      
-      return {};
-    } else {
-      throw Exception("Cannot get project members");
+      return {
+        'project': {
+          'id': project.id,
+          'title': project.title,
+          'departmentId': project.departmentId,
+          'status': project.status.name,
+          'leaderId': project.leaderId,
+          'leaderName': project.leaderName,
+          'mentorId': project.mentorId,
+          'mentorName': project.mentorName,
+          'memberIds': project.memberIds,
+          'memberNames': project.memberNames,
+        },
+        'members': members.map((m) => {
+          'id': m.id,
+          'userId': m.userId,
+          'userName': m.userName,
+          'userEmail': m.userEmail,
+          'role': m.role.name,
+        }).toList(),
+      };
+    } catch (e) {
+      log("[ProjectMemberService] getProjectWithMembers() FAILED: $e");
+      rethrow;
     }
   }
 
   /// GET MEMBERS BY PROJECT (returns List<Map>) - Legacy
+  /// Backend: Dung ProjectService.getById()
   static Future<List<Map<String, dynamic>>> getMembers(int projectId) async {
-    final token = await AuthService.getToken();
-    final url = Uri.parse("$_baseUrl/project-members/findProject/$projectId");
+    log("[ProjectMemberService] getMembers() called - projectId=$projectId");
 
-    final response = await http.get(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-    );
+    try {
+      final project = await ProjectService.getById(projectId);
 
-    log("GET MEMBERS $projectId STATUS: ${response.statusCode}");
+      final List<Map<String, dynamic>> members = [];
 
-    if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-    } else {
-      throw Exception("Cannot get project members");
+      // Leader
+      if (project.leaderId != 0) {
+        members.add({
+          'id': 0,
+          'userId': project.leaderId,
+          'userName': project.leaderName,
+          'userEmail': null,
+          'role': 'PROJECT_LEAD',
+        });
+      }
+
+      // Mentor
+      if (project.mentorId != null) {
+        members.add({
+          'id': 0,
+          'userId': project.mentorId,
+          'userName': project.mentorName,
+          'userEmail': null,
+          'role': 'PROJECT_MENTOR',
+        });
+      }
+
+      // Members
+      if (project.memberIds != null && project.memberNames != null) {
+        for (int i = 0; i < project.memberIds!.length; i++) {
+          members.add({
+            'id': 0,
+            'userId': project.memberIds![i],
+            'userName': i < project.memberNames!.length
+                ? project.memberNames![i]
+                : null,
+            'userEmail': null,
+            'role': 'PROJECT_MEMBER',
+          });
+        }
+      }
+
+      return members;
+    } catch (e) {
+      log("[ProjectMemberService] getMembers() FAILED: $e");
+      rethrow;
     }
   }
 
   /// ADD MULTIPLE MEMBERS
+  /// Backend KHONG co endpoint rieng.
   static Future<List<ProjectMemberModel>> addMultipleMembers({
     required int projectId,
     required List<Map<String, dynamic>> members,
   }) async {
-    final List<ProjectMemberModel> results = [];
-
-    for (final member in members) {
-      try {
-        final result = await addMember(
-          projectId: projectId,
-          userId: member['userId'],
-          role: member['role'],
-        );
-        results.add(result);
-      } catch (e) {
-        log("Error adding member: $e");
-      }
-    }
-
-    return results;
+    log("[ProjectMemberService] addMultipleMembers() called but backend has no dedicated endpoint.");
+    log("  To add multiple members, call ProjectService.update() with full updated memberIds list.");
+    throw UnimplementedError(
+      "Backend khong co endpoint rieng cho addMultipleMembers. "
+      "Vui long goi ProjectService.update() de cap nhat danh sach thanh vien.",
+    );
   }
 
-  /// GET USERS FOR PROJECT (NEW API)
-  /// Endpoint: /api/users/for-project?departmentId=xxx&keyword=xxx&excludeUserIds=xxx&page=0&size=100
+  /// ================================================================
+  /// GET USERS FOR PROJECT
+  /// Endpoint: GET /api/users/for-project?departmentId=xxx&keyword=xxx&excludeUserIds=xxx&page=0&size=100
+  /// Backend: Co endpoint nay trong UserController
+  /// ================================================================
+
+  /// CHECK IF USER HAS ANY PROJECTS
+  /// Với mỗi project, gọi GET /api/projects/get/{id} để lấy memberIds đầy đủ
+  /// (Endpoint /api/projects search trả về memberIds = [] luôn)
+  /// Returns: List<PmProjectListItem> - danh sách project mà user tham gia
+  static Future<List<PmProjectListItem>> checkUserProjects({
+    required int departmentId,
+    required int userId,
+  }) async {
+    try {
+      final token = await AuthService.getToken();
+      // Lấy danh sách project IDs của department
+      final uri = Uri.parse("$baseUrl/projects").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      log("[ProjectMemberService] checkUserProjects - status: ${response.statusCode}, url: $uri");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> content = data['data'] ?? data['content'] ?? [];
+
+        log("[ProjectMemberService] checkUserProjects - total projects in dept $departmentId: ${content.length}");
+
+        final List<PmProjectListItem> userProjects = [];
+
+        for (final item in content) {
+          final status = (item['status'] as String?)?.toUpperCase() ?? '';
+          // Chỉ lấy project KHÔNG phải COMPLETED (backend sẽ block các project này)
+          if (status == 'COMPLETED' || status == 'INACTIVE') {
+            continue;
+          }
+
+          // Gọi GET /api/projects/get/{id} để lấy thông tin đầy đủ (bao gồm memberIds)
+          final projectId = item['id'] as int?;
+          if (projectId == null) continue;
+
+          final projectDetailUri = Uri.parse("$baseUrl/projects/get/$projectId");
+          final projectDetailResponse = await http.get(
+            projectDetailUri,
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+            },
+          );
+
+          if (projectDetailResponse.statusCode != 200) continue;
+
+          final projectDetail = jsonDecode(projectDetailResponse.body);
+
+          // Kiểm tra user có trong project không (leader, mentor, hoặc member)
+          final leaderId = projectDetail['leaderId'] as int?;
+          final mentorId = projectDetail['mentorId'] as int?;
+          final memberIds = projectDetail['memberIds'] != null
+              ? List<int>.from(projectDetail['memberIds'])
+              : <int>[];
+
+          final bool isInProject = leaderId == userId || mentorId == userId || memberIds.contains(userId);
+          log("[ProjectMemberService] checkUserProjects - userId=$userId, project=${item['title']}, status=$status, isInProject=$isInProject");
+
+          if (isInProject) {
+            userProjects.add(PmProjectListItem.fromJson(projectDetail));
+          }
+        }
+
+        log("[ProjectMemberService] checkUserProjects - found ${userProjects.length} projects for user $userId");
+        return userProjects;
+      }
+
+      return [];
+    } catch (e) {
+      log("[ProjectMemberService] checkUserProjects ERROR: $e");
+      return [];
+    }
+  }
+
+  /// QUICK CHECK: User có đang tham gia project active nào không
+  /// @deprecated Dùng isUserInAnyProject thay thế (kiểm tra tất cả trạng thái)
+  static Future<bool> isUserInActiveProject({
+    required int departmentId,
+    required int userId,
+  }) async {
+    final projects = await checkUserProjects(
+      departmentId: departmentId,
+      userId: userId,
+    );
+    return projects.isNotEmpty;
+  }
+
+  /// QUICK CHECK: User có đang thuộc bất kỳ project nào không (không phân biệt trạng thái)
+  static Future<bool> isUserInAnyProject({
+    required int departmentId,
+    required int userId,
+  }) async {
+    return checkUserInAnyProject(
+      departmentId: departmentId,
+      userId: userId,
+    );
+  }
+
+  /// CHECK USER IN ANY PROJECT — không filter status, lấy tất cả project
+  static Future<bool> checkUserInAnyProject({
+    required int departmentId,
+    required int userId,
+  }) async {
+    try {
+      final token = await AuthService.getToken();
+      final uri = Uri.parse("$baseUrl/projects").replace(
+        queryParameters: {
+          'departmentId': departmentId.toString(),
+          'page': '0',
+          'size': '100',
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> content = data['data'] ?? data['content'] ?? [];
+
+        for (final item in content) {
+          final projectId = item['id'] as int?;
+          if (projectId == null) continue;
+
+          final projectDetailUri = Uri.parse("$baseUrl/projects/get/$projectId");
+          final projectDetailResponse = await http.get(
+            projectDetailUri,
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+            },
+          );
+
+          if (projectDetailResponse.statusCode != 200) continue;
+
+          final projectDetail = jsonDecode(projectDetailResponse.body);
+
+          final leaderId = projectDetail['leaderId'] as int?;
+          final mentorId = projectDetail['mentorId'] as int?;
+          final memberIds = projectDetail['memberIds'] != null
+              ? List<int>.from(projectDetail['memberIds'])
+              : <int>[];
+
+          if (leaderId == userId || mentorId == userId || memberIds.contains(userId)) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (e) {
+      log("[ProjectMemberService] checkUserInAnyProject ERROR: $e");
+      return false;
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getUsersForProject({
     required int departmentId,
     String? keyword,
@@ -241,13 +448,14 @@ class ProjectMemberService {
     return result['users'] as List<Map<String, dynamic>>;
   }
 
-  /// GET USERS FOR PROJECT với phân trang (trả về đủ thông tin page/total)
-  /// Dùng cho UI "Chọn thành viên" có search + pagination
+  /// GET USERS FOR PROJECT voi phan trang
+  /// Endpoint: GET /api/users/for-project?departmentId=xxx&keyword=xxx&excludeUserIds=xxx&page=0&size=10
+  /// Backend: Co endpoint nay trong UserController (co @PreAuthorize)
   static Future<Map<String, dynamic>> getUsersForProjectPaginated({
     required int departmentId,
     String? keyword,
     List<int>? excludeUserIds,
-    String? role, // Filter by role: ADMIN, PROJECT_MANAGER, MENTOR, USER
+    String? role,
     int page = 0,
     int size = 10,
   }) async {
@@ -267,10 +475,11 @@ class ProjectMemberService {
       if (role != null && role.isNotEmpty) {
         queryParams['role'] = role;
       }
-      final uri = Uri.parse("$baseUrl/users/for-project").replace(queryParameters: queryParams);
+      final uri = Uri.parse("$baseUrl/users/for-project").replace(
+        queryParameters: queryParams,
+      );
 
-      log("========== GET USERS FOR PROJECT (PAGINATED) ==========");
-      log("URL: $uri");
+      log("[ProjectMemberService] GET USERS FOR PROJECT - URL: $uri");
 
       final response = await http.get(
         uri,
@@ -280,15 +489,23 @@ class ProjectMemberService {
         },
       );
 
-      log("GET USERS FOR PROJECT STATUS: ${response.statusCode}");
+      log("[ProjectMemberService] GET USERS FOR PROJECT STATUS: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is! Map) {
-          return {'users': <Map<String, dynamic>>[], 'page': 0, 'size': size, 'totalElements': 0, 'totalPages': 0};
+          return {
+            'users': <Map<String, dynamic>>[],
+            'page': 0,
+            'size': size,
+            'totalElements': 0,
+            'totalPages': 0,
+          };
         }
         final usersList = decoded['content'] ?? decoded['data'];
-        final list = usersList != null ? List<Map<String, dynamic>>.from(usersList) : <Map<String, dynamic>>[];
+        final list = usersList != null
+            ? List<Map<String, dynamic>>.from(usersList)
+            : <Map<String, dynamic>>[];
         return {
           'users': list,
           'page': decoded['page'] ?? page,
@@ -297,20 +514,32 @@ class ProjectMemberService {
           'totalPages': decoded['totalPages'] ?? 0,
         };
       }
-      return {'users': <Map<String, dynamic>>[], 'page': 0, 'size': size, 'totalElements': 0, 'totalPages': 0};
+      return {
+        'users': <Map<String, dynamic>>[],
+        'page': 0,
+        'size': size,
+        'totalElements': 0,
+        'totalPages': 0,
+      };
     } catch (e) {
-      log("GET USERS FOR PROJECT ERROR: $e");
-      return {'users': <Map<String, dynamic>>[], 'page': 0, 'size': 10, 'totalElements': 0, 'totalPages': 0};
+      log("[ProjectMemberService] GET USERS FOR PROJECT ERROR: $e");
+      return {
+        'users': <Map<String, dynamic>>[],
+        'page': 0,
+        'size': 10,
+        'totalElements': 0,
+        'totalPages': 0,
+      };
     }
   }
 
-  /// Legacy: GET SELECTABLE USERS (giữ lại để tương thích ngược nếu cần)
+  /// Legacy: GET SELECTABLE USERS
   @Deprecated('Use getUsersForProject instead')
   static Future<List<Map<String, dynamic>>> getSelectableUsers({
     required String context,
   }) async {
     return getUsersForProject(
-      departmentId: 1, // Sẽ được cập nhật sau
+      departmentId: 1,
       keyword: null,
     );
   }

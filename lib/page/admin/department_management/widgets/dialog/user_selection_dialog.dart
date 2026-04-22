@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:smet/model/user_model.dart';
+import 'package:smet/service/common/global_notification_service.dart';
 
 enum UserSelectionType {
-  manager,      // Chỉ Project Manager
-  members,      // Mentor và User
-  all,          // Tất cả
+  manager, // Chỉ Project Manager
+  members, // Mentor và User
+  projectLead, // Chỉ User (cho project)
+  projectMentor, // Chỉ Mentor (cho project)
+  all, // Tất cả
 }
 
 class UserSelectionDialog extends StatefulWidget {
@@ -14,7 +18,15 @@ class UserSelectionDialog extends StatefulWidget {
   final List<UserModel> users;
   final bool isMultiSelect;
   final List<UserModel> preSelectedUsers;
-  final int? excludeDepartmentId; // ID phòng ban cần loại trừ (người đã có phòng ban khác)
+  final int? excludeDepartmentId;
+  /// ID of the department whose PM is being managed.
+  /// PMs of this department should NOT be shown as "assigned"
+  /// (workaround for backend not clearing departmentId on PM unassign).
+  final int? currentDepartmentId;
+  final bool allowAssigned;
+  final Future<List<UserModel>> Function(String keyword)?
+  onSearch; // Cho phép filter assigned
+  final void Function(UserModel assignedUser)? onAssignedUserSelected;
 
   const UserSelectionDialog({
     super.key,
@@ -25,6 +37,10 @@ class UserSelectionDialog extends StatefulWidget {
     this.isMultiSelect = false,
     this.preSelectedUsers = const [],
     this.excludeDepartmentId,
+    this.currentDepartmentId,
+    this.allowAssigned = false,
+    this.onSearch,
+    this.onAssignedUserSelected,
   });
 
   static Future<UserModel?> selectManager({
@@ -33,17 +49,27 @@ class UserSelectionDialog extends StatefulWidget {
     required List<UserModel> managers,
     UserModel? currentManager,
     int? excludeDepartmentId,
+    /// ID of the department whose PM is being managed.
+    /// PMs of this department should NOT be shown as "assigned".
+    int? currentDepartmentId,
+    Future<List<UserModel>> Function(String keyword)? onSearch,
+    void Function(UserModel assignedUser)? onAssignedUserSelected,
   }) async {
     return showDialog<UserModel>(
       context: context,
-      builder: (context) => UserSelectionDialog(
-        primaryColor: primaryColor,
-        title: 'Chọn người quản lý',
-        selectionType: UserSelectionType.manager,
-        users: managers,
-        preSelectedUsers: currentManager != null ? [currentManager] : [],
-        excludeDepartmentId: excludeDepartmentId,
-      ),
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Chọn người quản lý',
+            selectionType: UserSelectionType.manager,
+            users: managers,
+            preSelectedUsers: currentManager != null ? [currentManager] : [],
+            excludeDepartmentId: excludeDepartmentId,
+            currentDepartmentId: currentDepartmentId,
+            allowAssigned: true,
+            onSearch: onSearch,
+            onAssignedUserSelected: onAssignedUserSelected,
+          ),
     );
   }
 
@@ -53,18 +79,60 @@ class UserSelectionDialog extends StatefulWidget {
     required List<UserModel> members,
     List<UserModel>? preSelectedMembers,
     int? excludeDepartmentId,
+    Future<List<UserModel>> Function(String keyword)? onSearch,
   }) async {
     return showDialog<List<UserModel>>(
       context: context,
-      builder: (context) => UserSelectionDialog(
-        primaryColor: primaryColor,
-        title: 'Thêm thành viên',
-        selectionType: UserSelectionType.members,
-        users: members,
-        isMultiSelect: true,
-        preSelectedUsers: preSelectedMembers ?? [],
-        excludeDepartmentId: excludeDepartmentId,
-      ),
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Thêm thành viên',
+            selectionType: UserSelectionType.members,
+            users: members,
+            isMultiSelect: true,
+            preSelectedUsers: preSelectedMembers ?? [],
+            excludeDepartmentId: excludeDepartmentId,
+            allowAssigned: true,
+            onSearch: onSearch,
+          ),
+    );
+  }
+
+  static Future<UserModel?> selectProjectLead({
+    required BuildContext context,
+    required Color primaryColor,
+    required List<UserModel> leads,
+    UserModel? currentLead,
+  }) async {
+    return showDialog<UserModel>(
+      context: context,
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Chọn trưởng nhóm',
+            selectionType: UserSelectionType.projectLead,
+            users: leads,
+            preSelectedUsers: currentLead != null ? [currentLead] : [],
+          ),
+    );
+  }
+
+  static Future<UserModel?> selectProjectMentor({
+    required BuildContext context,
+    required Color primaryColor,
+    required List<UserModel> mentors,
+    UserModel? currentMentor,
+  }) async {
+    return showDialog<UserModel>(
+      context: context,
+      builder:
+          (context) => UserSelectionDialog(
+            primaryColor: primaryColor,
+            title: 'Chọn người hướng dẫn',
+            selectionType: UserSelectionType.projectMentor,
+            users: mentors,
+            preSelectedUsers: currentMentor != null ? [currentMentor] : [],
+          ),
     );
   }
 
@@ -76,18 +144,48 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late String _roleFilter;
+  String _assignedFilter = 'unassigned'; // 'all' | 'assigned' | 'unassigned'
   List<UserModel> _selectedUsers = [];
+  List<UserModel> _users = [];
+  Timer? _searchDebounce;
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _selectedUsers = List.from(widget.preSelectedUsers);
-    // Khởi tạo _roleFilter theo option đầu tiên (không dùng ALL)
+    _users = List.from(widget.users);
+    _initRoleFilter();
+  }
+
+  @override
+  void didUpdateWidget(covariant UserSelectionDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.users != widget.users) {
+      _users = List.from(widget.users);
+    }
+    if (oldWidget.selectionType != widget.selectionType) {
+      _initRoleFilter();
+      _assignedFilter = 'unassigned';
+      _searchQuery = '';
+      _searchController.clear();
+    }
+  }
+
+  void _initRoleFilter() {
     switch (widget.selectionType) {
       case UserSelectionType.manager:
         _roleFilter = 'PROJECT_MANAGER';
+        _assignedFilter = 'all'; // PM: hien thi tat ca, ke ca PM dang co phong ban
         break;
       case UserSelectionType.members:
+        _roleFilter = 'MENTOR';
+        _assignedFilter = 'unassigned'; // Mac dinh chi hien nguoi chua co phong ban
+        break;
+      case UserSelectionType.projectLead:
+        _roleFilter = 'USER';
+        break;
+      case UserSelectionType.projectMentor:
         _roleFilter = 'MENTOR';
         break;
       case UserSelectionType.all:
@@ -98,31 +196,76 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   List<UserModel> get _filteredUsers {
-    return widget.users.where((user) {
-      // Search filter
-      final searchLower = _searchQuery.toLowerCase();
-      final matchesSearch = searchLower.isEmpty ||
-          user.fullName.toLowerCase().contains(searchLower) ||
-          user.email.toLowerCase().contains(searchLower) ||
-          (user.userName?.toLowerCase().contains(searchLower) ?? false);
+    return _users.where((user) {
+      // Ẩn user inactive
+      if (!user.isActive) return false;
 
       // Role filter
       final matchesRole = _roleFilter == 'ALL' || user.role.name == _roleFilter;
 
-      // Department filter: exclude users from other departments (unless pre-selected)
-      final isPreSelected = widget.preSelectedUsers.any((u) => u.id == user.id);
-      final matchesDepartment = widget.excludeDepartmentId == null ||
-          user.departmentId == null ||
-          user.departmentId == widget.excludeDepartmentId ||
-          isPreSelected;
+      // Department filter: khi cho phép assigned (chọn user từ phòng ban khác),
+      // hiện tất cả user, không lọc theo department
+      bool matchesDepartment = true;
+      if (!widget.allowAssigned &&
+          widget.selectionType != UserSelectionType.manager) {
+        final isPreSelected = widget.preSelectedUsers.any(
+          (u) => u.id == user.id,
+        );
+        matchesDepartment =
+            widget.excludeDepartmentId == null ||
+            user.departmentId == null ||
+            user.departmentId == widget.excludeDepartmentId ||
+            isPreSelected;
+      }
 
-      return matchesSearch && matchesRole && matchesDepartment;
+      // Assigned filter: chỉ áp dụng khi cho phép lọc theo assigned
+      // PM của department hiện tại KHÔNG bị coi là "đã gán"
+      // (workaround: backend không clear departmentId khi gỡ PM)
+      bool matchesAssigned = true;
+      if (widget.allowAssigned) {
+        final isAssigned = user.departmentId != null &&
+            user.departmentId != widget.currentDepartmentId;
+        if (_assignedFilter == 'assigned') {
+          matchesAssigned = isAssigned;
+        } else if (_assignedFilter == 'unassigned') {
+          matchesAssigned = !isAssigned;
+        }
+      }
+
+      return matchesRole && matchesDepartment && matchesAssigned;
     }).toList();
+  }
+
+  Future<void> _performSearch(String keyword) async {
+    if (widget.onSearch == null) return;
+    // Khi keyword rong -> reload all users
+    if (keyword.isEmpty) {
+      setState(() {
+        _users = List.from(widget.users);
+        _isSearching = false;
+      });
+      return;
+    }
+    setState(() => _isSearching = true);
+    try {
+      final results = await widget.onSearch!(keyword);
+      if (mounted) {
+        setState(() {
+          _users = results;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSearching = false);
+      }
+    }
   }
 
   List<Map<String, String>> get _roleOptions {
@@ -136,6 +279,14 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
           {'value': 'MENTOR', 'label': 'Người hướng dẫn'},
           {'value': 'USER', 'label': 'Nhân viên'},
         ];
+      case UserSelectionType.projectLead:
+        return [
+          {'value': 'USER', 'label': 'Nhân viên'},
+        ];
+      case UserSelectionType.projectMentor:
+        return [
+          {'value': 'MENTOR', 'label': 'Người hướng dẫn'},
+        ];
       case UserSelectionType.all:
         return [
           {'value': 'ALL', 'label': 'Tất cả vai trò'},
@@ -148,14 +299,31 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   }
 
   void _toggleUser(UserModel user) {
+    final isCurrentlySelected = _selectedUsers.any((u) => u.id == user.id);
+
+    if (isCurrentlySelected) {
+      setState(() {
+        _selectedUsers.removeWhere((u) => u.id == user.id);
+      });
+      return;
+    }
+
+    // Neu la PM da co phong ban khac -> khong cho chon, hien warning
+    // (PM của department hiện tại không bị chặn vì backend không clear departmentId)
+    if (widget.selectionType == UserSelectionType.manager &&
+        user.departmentId != null &&
+        user.departmentId != widget.currentDepartmentId) {
+      GlobalNotificationService.show(
+        context: context,
+        message: 'PM "${user.fullName}" đã có phòng ban "${user.department}"',
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
     setState(() {
       if (widget.isMultiSelect) {
-        final exists = _selectedUsers.any((u) => u.id == user.id);
-        if (exists) {
-          _selectedUsers.removeWhere((u) => u.id == user.id);
-        } else {
-          _selectedUsers.add(user);
-        }
+        _selectedUsers.add(user);
       } else {
         _selectedUsers = [user];
       }
@@ -209,7 +377,9 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              widget.isMultiSelect ? Icons.group_add_outlined : Icons.person_add_outlined,
+              widget.isMultiSelect
+                  ? Icons.group_add_outlined
+                  : Icons.person_add_outlined,
               color: widget.primaryColor,
               size: 22,
             ),
@@ -232,10 +402,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                   widget.isMultiSelect
                       ? 'Chọn nhiều thành viên'
                       : 'Chọn một người',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[500],
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                 ),
               ],
             ),
@@ -252,72 +419,175 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   Widget _buildSearchAndFilter() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFBFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: 'Tìm kiếm theo tên, email...',
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                  prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, size: 18, color: Colors.grey[400]),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFBFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() => _searchQuery = value);
+                      _searchDebounce?.cancel();
+                      _searchDebounce = Timer(
+                        const Duration(milliseconds: 400),
+                        () => _performSearch(value),
+                      );
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Tìm kiếm theo tên, email...',
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                      prefixIcon:
+                          _isSearching
+                              ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                              : Icon(
+                                Icons.search,
+                                color: Colors.grey[400],
+                                size: 20,
+                              ),
+                      suffixIcon:
+                          _searchQuery.isNotEmpty
+                              ? IconButton(
+                                icon: Icon(
+                                  Icons.clear,
+                                  size: 18,
+                                  color: Colors.grey[400],
+                                ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                              : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFBFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _roleFilter,
-                  isExpanded: true,
-                  icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[400]),
-                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                  items: _roleOptions
-                      .map((item) => DropdownMenuItem(
-                            value: item['value'],
-                            child: Text(
-                              item['label']!,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _roleFilter = value);
-                    }
-                  },
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFBFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _roleFilter,
+                      isExpanded: true,
+                      icon: Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.grey[400],
+                      ),
+                      style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                      items:
+                          _roleOptions
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item['value'],
+                                  child: Text(
+                                    item['label']!,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _roleFilter = value;
+                            _assignedFilter =
+                                'all'; // Reset assigned filter khi đổi role
+                          });
+                        }
+                      },
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
+          if (widget.allowAssigned &&
+              widget.selectionType == UserSelectionType.manager) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  'Lọc theo:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _buildAssignedChip('Tất cả', 'all'),
+                const SizedBox(width: 8),
+                _buildAssignedChip('Đã gán', 'assigned'),
+                const SizedBox(width: 8),
+                _buildAssignedChip('Chưa gán', 'unassigned'),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildAssignedChip(String label, String value) {
+    final isSelected = _assignedFilter == value;
+    return InkWell(
+      onTap: () => setState(() => _assignedFilter = value),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? widget.primaryColor.withValues(alpha: 0.12)
+                  : const Color(0xFFFAFBFC),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color:
+                isSelected
+                    ? widget.primaryColor.withValues(alpha: 0.4)
+                    : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            color: isSelected ? widget.primaryColor : Colors.grey[600],
+          ),
+        ),
       ),
     );
   }
@@ -347,12 +617,13 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       );
     }
 
-    return Container(
+    return SizedBox(
       height: 350,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: filteredUsers.length,
-        separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade100),
+        separatorBuilder:
+            (_, __) => Divider(height: 1, color: Colors.grey.shade100),
         itemBuilder: (context, index) {
           final user = filteredUsers[index];
           final isSelected = _isSelected(user);
@@ -363,6 +634,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
             isMultiSelect: widget.isMultiSelect,
             primaryColor: widget.primaryColor,
             onTap: () => _toggleUser(user),
+            currentDepartmentId: widget.currentDepartmentId,
           );
         },
       ),
@@ -386,10 +658,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
             widget.isMultiSelect
                 ? 'Đã chọn: ${_selectedUsers.length} người'
                 : (totalFiltered > 0 ? 'Có $totalFiltered người' : ''),
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
           Row(
             children: [
@@ -398,7 +667,10 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF6B7280),
                   side: const BorderSide(color: Color(0xFFE5E7EB)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -407,22 +679,33 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: _selectedUsers.isEmpty
-                    ? null
-                    : () => Navigator.pop(
+                onPressed:
+                    widget.isMultiSelect
+                        ? (_selectedUsers.isNotEmpty
+                            ? () => Navigator.pop(context, _selectedUsers)
+                            : null)
+                        : () => Navigator.pop(
                           context,
-                          widget.isMultiSelect ? _selectedUsers : _selectedUsers.firstOrNull,
+                          _selectedUsers.isNotEmpty
+                              ? _selectedUsers.first
+                              : null,
                         ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: widget.primaryColor,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey[200],
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(widget.isMultiSelect ? 'Xác nhận (${_selectedUsers.length})' : 'Xác nhận'),
+                child: Text(
+                  widget.isMultiSelect
+                      ? 'Xác nhận (${_selectedUsers.length})'
+                      : 'Xác nhận',
+                ),
               ),
             ],
           ),
@@ -432,12 +715,15 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
   }
 }
 
-class _UserListTile extends StatelessWidget {
+class _UserListTile extends StatefulWidget {
   final UserModel user;
   final bool isSelected;
   final bool isMultiSelect;
   final Color primaryColor;
   final VoidCallback onTap;
+  /// ID of the department whose PM is being managed.
+  /// Badge "Đã gán" is hidden for PMs of this department.
+  final int? currentDepartmentId;
 
   const _UserListTile({
     required this.user,
@@ -445,163 +731,219 @@ class _UserListTile extends StatelessWidget {
     required this.isMultiSelect,
     required this.primaryColor,
     required this.onTap,
+    this.currentDepartmentId,
   });
 
   @override
+  State<_UserListTile> createState() => _UserListTileState();
+}
+
+class _UserListTileState extends State<_UserListTile> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    final isSelected = widget.isSelected;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: isSelected ? primaryColor.withValues(alpha: 0.05) : Colors.transparent,
-        child: Row(
-          children: [
-            if (isMultiSelect)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? primaryColor : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected ? primaryColor : Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
+        duration: const Duration(milliseconds: 120),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? widget.primaryColor.withValues(alpha: 0.06)
+                  : _isHovered
+                  ? const Color(0xFFF8F9FB)
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border:
+              isSelected
+                  ? Border.all(
+                    color: widget.primaryColor.withValues(alpha: 0.2),
+                    width: 1,
+                  )
+                  : null,
+        ),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                _buildSelectionIndicator(),
+                const SizedBox(width: 12),
+                _UserAvatar(
+                  user: widget.user,
+                  primaryColor: widget.primaryColor,
                 ),
-                child: isSelected
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : null,
-              )
-            else
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? primaryColor : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected ? primaryColor : Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: isSelected
-                    ? const Icon(Icons.check, size: 14, color: Colors.white)
-                    : null,
-              ),
-            _UserAvatar(user: user, primaryColor: primaryColor),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: Text(
-                          user.fullName,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF111827),
-                            fontSize: 14,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.user.fullName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF111827),
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          _RoleBadge(role: widget.user.role),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      _RoleBadge(role: user.role),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _buildInfoChip(
+                            icon: Icons.alternate_email_outlined,
+                            text: widget.user.email,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          _buildInfoChip(
+                            icon: Icons.apartment_outlined,
+                            text:
+                                widget.user.department?.isNotEmpty == true
+                                    ? widget.user.department!
+                                    : 'Chưa phân phòng',
+                            color:
+                                widget.user.department?.isNotEmpty == true
+                                    ? const Color(0xFF374151)
+                                    : const Color(0xFF9CA3AF),
+                          ),
+                          const SizedBox(width: 6),
+                          if (widget.user.departmentId != null &&
+                              widget.user.departmentId != widget.currentDepartmentId)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 10,
+                                    color: const Color(0xFF10B981),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Đã gán',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: const Color(0xFF10B981),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user.email,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF6366F1),
-                      fontSize: 12,
+                ),
+                if (!widget.isMultiSelect && isSelected)
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: widget.primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 16,
+                      color: Colors.white,
                     ),
                   ),
-                  if (user.department != null && user.department!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.apartment,
-                          size: 12,
-                          color: Color(0xFF6366F1),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            user.department!,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF6366F1),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.apartment_outlined,
-                          size: 12,
-                          color: Color(0xFF6366F1),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Chưa có',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF6366F1),
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (user.userName != null && user.userName!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${user.userName}',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF6366F1),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              ],
             ),
-            if (!isMultiSelect && isSelected)
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check,
-                  size: 16,
-                  color: primaryColor,
-                ),
-              ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSelectionIndicator() {
+    final isSelected = widget.isSelected;
+    final color = isSelected ? widget.primaryColor : const Color(0xFFD1D5DB);
+
+    if (widget.isMultiSelect) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: isSelected ? widget.primaryColor : Colors.transparent,
+          border: Border.all(color: color, width: 1.5),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child:
+            isSelected
+                ? const Icon(Icons.check, size: 15, color: Colors.white)
+                : null,
+      );
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: isSelected ? widget.primaryColor : Colors.transparent,
+        border: Border.all(color: color, width: 1.5),
+        shape: BoxShape.circle,
+      ),
+      child:
+          isSelected
+              ? const Icon(Icons.check, size: 13, color: Colors.white)
+              : null,
+    );
+  }
+
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -612,34 +954,42 @@ class _UserAvatar extends StatelessWidget {
 
   const _UserAvatar({required this.user, required this.primaryColor});
 
+  Color get _avatarColor {
+    switch (user.role) {
+      case UserRole.ADMIN:
+        return const Color(0xFF6366F1);
+      case UserRole.PROJECT_MANAGER:
+        return const Color(0xFF10B981);
+      case UserRole.MENTOR:
+        return const Color(0xFFF59E0B);
+      case UserRole.USER:
+        return primaryColor;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final color = _avatarColor;
+    final initials =
+        '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
+        '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}';
+
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            primaryColor.withValues(alpha: 0.15),
-            primaryColor.withValues(alpha: 0.05),
-          ],
-        ),
+        color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: primaryColor.withValues(alpha: 0.2),
-          width: 1.5,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
       ),
       child: Center(
         child: Text(
-          '${user.firstName.isNotEmpty ? user.firstName[0] : ''}'
-          '${(user.lastName ?? '').isNotEmpty ? user.lastName![0] : ''}',
+          initials.toUpperCase(),
           style: TextStyle(
-            color: primaryColor,
+            color: color,
             fontSize: 14,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
           ),
         ),
       ),

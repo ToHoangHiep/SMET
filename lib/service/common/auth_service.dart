@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer';
+import 'package:smet/model/user_model.dart';
 import 'package:smet/service/common/base_url.dart';
 import 'package:smet/service/common/two_factor_service.dart';
 
@@ -20,6 +21,12 @@ class RequirePasswordChangeException implements Exception {
 }
 
 class AuthService {
+  /// Cached user — set sau khi getMe() được gọi thành công
+  static UserModel? _cachedUser;
+
+  /// Get cached user (sync, trả về null nếu chưa được cache)
+  static UserModel? get currentUserCached => _cachedUser;
+
   /// LOGIN - trả về Map chứa:
   /// - accessToken: nếu login thành công (không có 2FA)
   /// - twoFactorRequired: true + email + rememberMe: nếu cần xác thực 2FA
@@ -32,10 +39,7 @@ class AuthService {
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "email": email,
-        "password": password,
-      }),
+      body: jsonEncode({"email": email, "password": password}),
     );
 
     log("LOGIN STATUS: ${response.statusCode}");
@@ -114,7 +118,8 @@ class AuthService {
       try {
         final body = jsonDecode(response.body);
         throw RequirePasswordChangeException(
-          message: body["message"] ?? "You must change password before continuing",
+          message:
+              body["message"] ?? "You must change password before continuing",
           requirePasswordChange: body["requirePasswordChange"] ?? true,
         );
       } catch (e) {
@@ -127,6 +132,13 @@ class AuthService {
     } else {
       throw Exception("Cannot get user info");
     }
+  }
+
+  /// GET CURRENT USER (typed UserModel)
+  static Future<UserModel> getCurrentUser() async {
+    final data = await getMe();
+    _cachedUser = UserModel.fromJson(data);
+    return _cachedUser!;
   }
 
   /// SAVE TOKEN
@@ -147,12 +159,33 @@ class AuthService {
     return token != null;
   }
 
-  /// LOGOUT
+  /// LOGOUT - gọi API backend rồi xóa local token
   static Future<void> logout() async {
-    print("LOGOUT CALLED");
+    log("LOGOUT CALLED");
+    final token = await getToken();
+
+    // Gọi API logout phía server để invalidate token
+    if (token != null) {
+      try {
+        final url = Uri.parse("$baseUrl/auth/logout");
+        await http.post(
+          url,
+          headers: {
+            "Authorization": "Bearer $token",
+            "Content-Type": "application/json",
+          },
+        );
+        log("LOGOUT API SUCCESS");
+      } catch (e) {
+        log("LOGOUT API FAILED: $e — vẫn xóa local token");
+      }
+    }
+
+    // Xóa token local
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("token");
-    print("TOKEN REMOVED");
+    _cachedUser = null;
+    log("TOKEN REMOVED");
   }
 
   /// CHANGE PASSWORD (First Login - cần old password tạm thời)
@@ -192,6 +225,87 @@ class AuthService {
       } catch (e) {
         if (e is Exception) rethrow;
         throw Exception("Failed to change password");
+      }
+    }
+  }
+
+  /// FORGOT PASSWORD - gui email dat lai mat khau
+  /// POST /api/users/forgot-password
+  /// Luon tra ve void, backend da handle email enumeration
+  static Future<void> forgotPassword(String email) async {
+    final url = Uri.parse("$baseUrl/users/forgot-password?email=$email");
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+    );
+
+    log("FORGOT PASSWORD STATUS: ${response.statusCode}");
+
+    if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body["message"] ?? "Failed to send reset email");
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception("Failed to send reset email");
+      }
+    }
+  }
+
+  /// RESET PASSWORD - dat lai mat khau bang token
+  /// POST /api/users/reset-password (backend: @RequestParam)
+  static Future<void> resetPassword(String token, String newPassword) async {
+    final uri = Uri.parse("$baseUrl/users/reset-password").replace(
+      queryParameters: {
+        'token': token,
+        'newPassword': newPassword,
+      },
+    );
+
+    final response = await http.post(
+      uri,
+      headers: {"Content-Type": "application/json"},
+    );
+
+    log("RESET PASSWORD STATUS: ${response.statusCode}");
+    log("RESET PASSWORD BODY: ${response.body}");
+
+    if (response.statusCode == 200) {
+      return;
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body["message"] ?? "Failed to reset password");
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception("Failed to reset password");
+      }
+    }
+  }
+
+  /// VERIFY EMAIL - xac thuc email bang token
+  /// GET /api/users/verify-email
+  static Future<void> verifyEmail(String token) async {
+    final url = Uri.parse("$baseUrl/users/verify-email?token=$token");
+
+    final response = await http.get(
+      url,
+      headers: {"Content-Type": "application/json"},
+    );
+
+    log("VERIFY EMAIL STATUS: ${response.statusCode}");
+    log("VERIFY EMAIL BODY: ${response.body}");
+
+    if (response.statusCode == 200) {
+      return;
+    } else {
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body["message"] ?? "Failed to verify email");
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception("Failed to verify email");
       }
     }
   }

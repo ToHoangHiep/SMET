@@ -25,3 +25,7 @@ ios/.symlinks/
 
 .idea/
 *.iml
+
+.agent/
+.cursor/
+.PLAN.md
