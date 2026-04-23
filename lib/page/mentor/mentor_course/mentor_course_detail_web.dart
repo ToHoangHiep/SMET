@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/page/shared/widgets/rich_text_editor.dart';
 import 'package:smet/model/course_model.dart';
-import 'package:smet/model/learning_path_model.dart' as lp_model;
+import 'package:smet/model/department_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/mentor/lesson_service.dart';
@@ -14,6 +14,7 @@ import 'dart:ui_web' as ui;
 import 'package:smet/service/mentor/lesson_content_service.dart';
 import 'package:smet/service/mentor/quiz_service.dart';
 import 'package:smet/service/common/global_notification_service.dart';
+import 'package:smet/service/common/auth_service.dart';
 
 /// Mentor Course Detail / Edit - Web Layout
 /// UI mềm mại, phong cách Coursera cho phần cấu trúc khóa học.
@@ -61,6 +62,12 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
   int _deadlineDays = 20;
   DateTime? _fixedDeadline;
 
+  /// Level: 1=Beginner, 2=Intermediate, 3=Advanced
+  int _selectedLevel = 1;
+  int _initialLevel = 1;
+  DepartmentModel? _department;
+  bool _loadingDepartment = false;
+
   String? _initialDescription;
   DeadlineType _initialDeadlineType = DeadlineType.RELATIVE;
   int _initialDeadlineDays = 20;
@@ -97,6 +104,33 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     super.dispose();
   }
 
+  Future<void> _loadDepartment() async {
+    setState(() => _loadingDepartment = true);
+    try {
+      final userData = await AuthService.getMe();
+      final userDeptId = userData['departmentId'] as int?;
+      final userDeptName = userData['departmentName'] as String?;
+      if (userDeptId != null && userDeptName != null) {
+        setState(() {
+          _department = DepartmentModel(
+            id: userDeptId,
+            name: userDeptName,
+            code: userData['departmentCode']?.toString() ?? '',
+            isActive: true,
+          );
+          _loadingDepartment = false;
+        });
+        return;
+      }
+    } catch (e) {
+      log("Could not get current user from auth/me: $e");
+    }
+    setState(() {
+      _department = null;
+      _loadingDepartment = false;
+    });
+  }
+
   Future<void> _loadCourse() async {
     setState(() {
       _isLoading = true;
@@ -108,7 +142,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
         Long(int.parse(widget.courseId!)),
       );
       _titleController.text = course.title;
-      _deadlineType = _parseDeadlineType(course.deadlineType) ?? DeadlineType.RELATIVE;
+      _deadlineType = _parseDeadlineType(course.deadlineType);
       _deadlineDays = course.defaultDeadlineDays ?? 20;
       _deadlineDaysController.text = _deadlineDays.toString();
       _fixedDeadline = course.fixedDeadline;
@@ -117,6 +151,22 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       _initialDeadlineType = _deadlineType;
       _initialDeadlineDays = _deadlineDays;
       _initialFixedDeadline = _fixedDeadline;
+
+      // Load level
+      _selectedLevel = course.level ?? 1;
+      _initialLevel = _selectedLevel;
+
+      // Load department from course data
+      if (course.departmentId != null && course.departmentName != null) {
+        _department = DepartmentModel(
+          id: course.departmentId!,
+          name: course.departmentName!,
+          code: course.departmentCode ?? '',
+          isActive: true,
+        );
+      } else {
+        _loadDepartment();
+      }
 
       // Init Quill with course description
       if (course.description != null && course.description!.isNotEmpty) {
@@ -181,6 +231,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             ? _deadlineType.name : null,
         fixedDeadline: _fixedDeadline?.toIso8601String() != _initialFixedDeadline?.toIso8601String()
             ? _fixedDeadline?.toIso8601String() : null,
+        level: _selectedLevel != _initialLevel ? _selectedLevel : null,
       );
       await _courseService.updateCourse(_course!.id, request);
       if (mounted) {
@@ -281,7 +332,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     if (_modules.isEmpty) {
       GlobalNotificationService.show(
         context: context,
-        message: 'Không thể xuất bản: Khóa học phải có ít nhất 1 module.',
+        message: 'Không thể gửi phê duyệt: Khóa học phải có ít nhất 1 module.',
         type: NotificationType.error,
       );
       return;
@@ -291,7 +342,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
       final names = emptyModule.map((m) => '"${m.title}"').join(', ');
       GlobalNotificationService.show(
         context: context,
-        message: 'Không thể xuất bản: Module $names chưa có bài học nào.',
+        message: 'Không thể gửi phê duyệt: Module $names chưa có bài học nào.',
         type: NotificationType.error,
       );
       return;
@@ -299,9 +350,9 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     // === END VALIDATION ===
 
     try {
-      await _courseService.publishCourse(_course!.id);
+      await _courseService.submitCourse(_course!.id);
       if (!mounted) return;
-      GlobalNotificationService.show(context: context, message: 'Xuất bản thành công', type: NotificationType.success);
+      GlobalNotificationService.show(context: context, message: 'Đã gửi phê duyệt thành công', type: NotificationType.success);
       context.go('/mentor/courses?refresh=${DateTime.now().millisecondsSinceEpoch}');
     } catch (e) {
       if (mounted) GlobalNotificationService.show(context: context, message: 'Lỗi: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}', type: NotificationType.error);
@@ -634,6 +685,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     final titleController = TextEditingController();
     final contentController = TextEditingController();
     final videoController = TextEditingController();
+    final durationController = TextEditingController();
     String lessonType = 'TEXT';
     final formKey = GlobalKey<FormState>();
     final lessonNumber = module.lessonCount + 1;
@@ -642,146 +694,162 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(color: _primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.play_circle_filled, color: _primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "Bài học: ${module.title}",
-                  style: const TextStyle(fontSize: 16),
-                  overflow: TextOverflow.ellipsis,
+        builder: (context, setStateDialog) {
+          int? durationMinutes;
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: _primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.play_circle_filled, color: _primary, size: 20),
                 ),
-              ),
-            ],
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: titleController,
-                    decoration: _field("Tên bài học", icon: Icons.title),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? "Vui lòng nhập tên bài học" : null,
-                    onChanged: (value) {
-                      setStateDialog(() {
-                        previewText = value.trim().isEmpty
-                          ? 'Bài $lessonNumber'
-                          : 'Bài $lessonNumber - $value';
-                      });
-                    },
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Bài học: ${module.title}",
+                    style: const TextStyle(fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _primary.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _primary.withValues(alpha: 0.2)),
+                ),
+              ],
+            ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: titleController,
+                      decoration: _field("Tên bài học", icon: Icons.title),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? "Vui lòng nhập tên bài học" : null,
+                      onChanged: (value) {
+                        setStateDialog(() {
+                          previewText = value.trim().isEmpty
+                            ? 'Bài $lessonNumber'
+                            : 'Bài $lessonNumber - $value';
+                        });
+                      },
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.preview_rounded, size: 15, color: _primary),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            previewText,
-                            style: TextStyle(fontSize: 12, color: _primary, fontWeight: FontWeight.w500),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  LessonTypeSelector(
-                    selectedType: lessonType,
-                    onTypeChanged: (v) => setStateDialog(() => lessonType = v),
-                    primaryColor: _primary,
-                  ),
-                  const SizedBox(height: 16),
-                  if (lessonType == 'TEXT' || lessonType == 'LINK')
-                    RichTextEditorWidget(
-                      initialContent: contentController.text,
-                      hintText: lessonType == 'LINK' ? 'Link tài liệu (.pdf, .doc, .docx)' : 'Nhập nội dung bài học...',
-                      primaryColor: _primary,
-                      maxHeight: 160,
-                      onContentChanged: (v) => contentController.text = v,
-                    ),
-                  if (lessonType == 'VIDEO')
+                    const SizedBox(height: 10),
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5F6FA),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _cardBorder),
+                        color: _primary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _primary.withValues(alpha: 0.2)),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Icon(Icons.videocam_outlined, color: _primary, size: 20),
-                              const SizedBox(width: 8),
-                              Text("Link video", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textDark)),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: videoController,
-                            style: const TextStyle(fontSize: 14),
-                            decoration: InputDecoration(
-                              hintText: "Dán link YouTube embed...",
-                              hintStyle: TextStyle(color: _textLight),
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.only(left: 12, right: 8),
-                                child: Icon(Icons.link_rounded, color: _textLight, size: 18),
-                              ),
-                              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: _primary, width: 1.5),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          Icon(Icons.preview_rounded, size: 15, color: _primary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              previewText,
+                              style: TextStyle(fontSize: 12, color: _primary, fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
                     ),
-                ],
+                    const SizedBox(height: 16),
+                    LessonTypeSelector(
+                      selectedType: lessonType,
+                      onTypeChanged: (v) => setStateDialog(() => lessonType = v),
+                      primaryColor: _primary,
+                    ),
+                    const SizedBox(height: 16),
+                    // Duration input
+                    TextFormField(
+                      controller: durationController,
+                      keyboardType: TextInputType.number,
+                      decoration: _field("Thời lượng (phút)", icon: Icons.timer_outlined),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return "Vui lòng nhập thời lượng";
+                        final n = int.tryParse(v.trim());
+                        if (n == null || n < 1) return "Thời lượng phải >= 1 phút";
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    if (lessonType == 'TEXT' || lessonType == 'LINK')
+                      RichTextEditorWidget(
+                        initialContent: contentController.text,
+                        hintText: lessonType == 'LINK' ? 'Link tài liệu (.pdf, .doc, .docx)' : 'Nhập nội dung bài học...',
+                        primaryColor: _primary,
+                        maxHeight: 160,
+                        onContentChanged: (v) => contentController.text = v,
+                      ),
+                    if (lessonType == 'VIDEO')
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F6FA),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.videocam_outlined, color: _primary, size: 20),
+                                const SizedBox(width: 8),
+                                Text("Link video", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textDark)),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              controller: videoController,
+                              style: const TextStyle(fontSize: 14),
+                              decoration: InputDecoration(
+                                hintText: "Dán link YouTube embed...",
+                                hintStyle: TextStyle(color: _textLight),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.only(left: 12, right: 8),
+                                  child: Icon(Icons.link_rounded, color: _textLight, size: 18),
+                                ),
+                                prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: _primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy bỏ", style: TextStyle(color: _textMedium))),
-            ElevatedButton(
-              onPressed: () { if (formKey.currentState!.validate()) Navigator.pop(context, true); },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primary, foregroundColor: Colors.white,
-                elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy bỏ", style: TextStyle(color: _textMedium))),
+              ElevatedButton(
+                onPressed: () { if (formKey.currentState!.validate()) Navigator.pop(context, true); },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary, foregroundColor: Colors.white,
+                  elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Thêm"),
               ),
-              child: const Text("Thêm"),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
 
@@ -794,6 +862,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           contentType: lessonType,
           content: lessonType != 'VIDEO' ? contentController.text : null,
           videoUrl: lessonType == 'VIDEO' ? videoController.text : null,
+          durationMinutes: int.tryParse(durationController.text.trim()),
         );
         final lesson = await _lessonService.createLesson(request);
         String contentValue = lessonType == 'VIDEO' ? videoController.text.trim() : contentController.text.trim();
@@ -815,6 +884,9 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
     final primaryContentData = lesson.firstContent;
     final contentController = TextEditingController(text: primaryContentData?.content ?? '');
     final videoController = TextEditingController(text: primaryContentData?.videoUrl ?? '');
+    final durationController = TextEditingController(
+      text: lesson.durationMinutes?.toString() ?? '',
+    );
     String lessonType = primaryContentData?.type.name ?? 'TEXT';
     final formKey = GlobalKey<FormState>();
 
@@ -850,6 +922,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                     selectedType: lessonType,
                     onTypeChanged: (v) => setStateDialog(() => lessonType = v),
                     primaryColor: _primary,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: durationController,
+                    keyboardType: TextInputType.number,
+                    decoration: _field("Thời lượng (phút)", icon: Icons.timer_outlined),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return "Vui lòng nhập thời lượng";
+                      final n = int.tryParse(v.trim());
+                      if (n == null || n < 1) return "Thời lượng phải >= 1 phút";
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
                   if (lessonType == 'TEXT' || lessonType == 'LINK')
@@ -893,6 +977,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
           contentType: lessonType,
           content: lessonType != 'VIDEO' ? contentController.text.trim() : null,
           videoUrl: lessonType == 'VIDEO' ? videoController.text.trim() : null,
+          durationMinutes: int.tryParse(durationController.text.trim()),
         );
         await _lessonService.updateLesson(lesson.id, request);
         String contentValue = lessonType == 'VIDEO' ? videoController.text.trim() : contentController.text.trim();
@@ -1208,7 +1293,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                   OutlinedButton.icon(
                     onPressed: _publishCourse,
                     icon: const Icon(Icons.publish, size: 18),
-                    label: const Text("Xuất bản"),
+                    label: const Text("Gửi phê duyệt"),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _success,
                       side: const BorderSide(color: _success),
@@ -1328,6 +1413,18 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildSectionHeader("Phòng ban", Icons.business_outlined),
+                  const SizedBox(height: 14),
+                  _buildDepartmentBadge(),
+                  const SizedBox(height: 24),
+                  _dividerGradient(),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader("Cấp độ", Icons.signal_cellular_alt_outlined),
+                  const SizedBox(height: 14),
+                  _buildLevelSelector(),
+                  const SizedBox(height: 24),
+                  _dividerGradient(),
+                  const SizedBox(height: 24),
                   _buildSectionHeader("Hạn nộp bài", Icons.timer_outlined),
                   const SizedBox(height: 16),
                   _buildDeadlineSection(),
@@ -1474,7 +1571,7 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
                     child: Text(
                       _course!.courseStatus == CourseStatus.ARCHIVED
                           ? 'Khóa học đã lưu trữ. Không thể chỉnh sửa cấu trúc.'
-                          : 'Khóa học đã xuất bản. Không thể chỉnh sửa module, bài học và quiz.',
+                          : 'Khóa học đã được phê duyệt. Không thể chỉnh sửa module, bài học và quiz.',
                       style: const TextStyle(fontSize: 13, color: _warning),
                     ),
                   ),
@@ -1675,6 +1772,126 @@ class _MentorCourseDetailWebState extends State<MentorCourseDetailWeb>
             textAlign: TextAlign.center,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDepartmentBadge() {
+    if (_loadingDepartment) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _cardBorder),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
+            ),
+            const SizedBox(width: 12),
+            Text("Đang xác định phòng ban...", style: TextStyle(fontSize: 15, color: _textMedium)),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.business, color: _primary, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _department?.name ?? "Không xác định được",
+                  style: TextStyle(
+                    fontSize: 15, color: _department != null ? _textDark : _textMedium, fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (_department != null)
+                  Text(_department!.code, style: TextStyle(fontSize: 11, color: _textLight)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _success.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 12, color: _success),
+                const SizedBox(width: 4),
+                Text("Auto", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _success)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLevelSelector() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _LevelOption(
+                label: "Sơ cấp", sublabel: "Level 1", icon: Icons.star_border,
+                isSelected: _selectedLevel == 1,
+                color: const Color(0xFF22C55E),
+                onTap: _canEdit ? () => setState(() => _selectedLevel = 1) : () {},
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _LevelOption(
+                label: "Trung cấp", sublabel: "Level 2", icon: Icons.star_half,
+                isSelected: _selectedLevel == 2,
+                color: const Color(0xFFF59E0B),
+                onTap: _canEdit ? () => setState(() => _selectedLevel = 2) : () {},
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _LevelOption(
+                label: "Cao cấp", sublabel: "Level 3", icon: Icons.star,
+                isSelected: _selectedLevel == 3,
+                color: const Color(0xFFEF4444),
+                onTap: _canEdit ? () => setState(() => _selectedLevel = 3) : () {},
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _dividerGradient() {
+    return Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [Colors.transparent, _cardBorder, Colors.transparent]),
       ),
     );
   }
@@ -1890,6 +2107,60 @@ class _DatePickerButton extends StatelessWidget {
                 onTap: () => onPicked(DateTime(1900)),
                 child: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LevelOption extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final IconData icon;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _LevelOption({
+    required this.label, required this.sublabel, required this.icon,
+    required this.isSelected, required this.color, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.1) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? color : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 22, color: isSelected ? color : const Color(0xFF94A3B8)),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600,
+                color: isSelected ? color : const Color(0xFF64748B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              sublabel,
+              style: TextStyle(
+                fontSize: 10,
+                color: isSelected ? color.withValues(alpha: 0.7) : const Color(0xFF94A3B8),
+              ),
+            ),
           ],
         ),
       ),

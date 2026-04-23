@@ -43,6 +43,9 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
   DepartmentModel? _selectedDepartment;
   bool _loadingDepartments = false;
 
+  /// Level: 1=Beginner, 2=Intermediate, 3=Advanced
+  int _selectedLevel = 1;
+
   DeadlineType _deadlineType = DeadlineType.RELATIVE;
   int _defaultDeadlineDays = 20;
   DateTime? _fixedDeadline;
@@ -94,6 +97,45 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
     });
   }
 
+  Widget _buildLevelSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: _LevelOption(
+            label: "Sơ cấp",
+            sublabel: "Level 1",
+            icon: Icons.star_border,
+            isSelected: _selectedLevel == 1,
+            color: const Color(0xFF22C55E),
+            onTap: () => setState(() => _selectedLevel = 1),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _LevelOption(
+            label: "Trung cấp",
+            sublabel: "Level 2",
+            icon: Icons.star_half,
+            isSelected: _selectedLevel == 2,
+            color: const Color(0xFFF59E0B),
+            onTap: () => setState(() => _selectedLevel = 2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _LevelOption(
+            label: "Cao cấp",
+            sublabel: "Level 3",
+            icon: Icons.star,
+            isSelected: _selectedLevel == 3,
+            color: const Color(0xFFEF4444),
+            onTap: () => setState(() => _selectedLevel = 3),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _saveCourse() async {
     if (_titleController.text.trim().isEmpty) {
       GlobalNotificationService.show(
@@ -120,6 +162,7 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
                 ? _defaultDeadlineDays
                 : null,
         fixedDeadline: fixedDeadlineStr,
+        level: _selectedLevel,
       );
       log(
         "Creating course: title=${request.title}, deadlineType=${request.deadlineType}",
@@ -382,6 +425,15 @@ class _MentorCreateCourseWebState extends State<MentorCreateCourseWeb>
                   _fieldLabelRow("Phòng ban", Icons.business_outlined),
                   const SizedBox(height: 10),
                   _buildDepartmentBadge(),
+
+                  const SizedBox(height: 24),
+                  _dividerGradient(),
+                  const SizedBox(height: 24),
+
+                  // Level selector
+                  _fieldLabelRow("Cấp độ", Icons.signal_cellular_alt_outlined),
+                  const SizedBox(height: 10),
+                  _buildLevelSelector(),
 
                   const SizedBox(height: 24),
                   _dividerGradient(),
@@ -1210,6 +1262,65 @@ class _DatePickerButton extends StatelessWidget {
                 onTap: () => onPicked(DateTime(1900)),
                 child: Icon(Icons.clear, size: 18, color: Colors.grey[400]),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LevelOption extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final IconData icon;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _LevelOption({
+    required this.label,
+    required this.sublabel,
+    required this.icon,
+    required this.isSelected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.1) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? color : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 22, color: isSelected ? color : const Color(0xFF94A3B8)),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? color : const Color(0xFF64748B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              sublabel,
+              style: TextStyle(
+                fontSize: 10,
+                color: isSelected ? color.withValues(alpha: 0.7) : const Color(0xFF94A3B8),
+              ),
+            ),
           ],
         ),
       ),

@@ -243,7 +243,7 @@ class _QuizWebView extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               isResetProgress
-                  ? 'Bạn cần học lại bài học'
+                  ? 'Bạn không thể tiếp tục bài kiểm tra này'
                   : (controller.error ?? 'Đã xảy ra lỗi'),
               style: const TextStyle(
                 fontSize: 17,
@@ -255,7 +255,7 @@ class _QuizWebView extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               isResetProgress
-                  ? 'Bạn đã hết lượt thi và tiến trình đã được reset. Vui lòng học lại các bài học trước khi làm bài kiểm tra.'
+                  ? 'Bài quiz đã được cập nhật bởi mentor hoặc bạn đã hết lượt thi. Tiến trình đã được reset — vui lòng học lại các bài học trước khi làm bài kiểm tra.'
                   : 'Vui lòng thử lại sau.',
               style: TextStyle(
                 fontSize: 14,
@@ -1402,8 +1402,12 @@ class QuizInternalController extends ChangeNotifier {
           errorMsg.contains('must complete') ||
           errorMsg.contains('progress reset') ||
           errorMsg.contains('access denied') ||
-          errorMsg.contains('prerequisites not completed')) {
-        // User bị reset progress → cần học lại bài
+          errorMsg.contains('prerequisites not completed') ||
+          errorMsg.contains('quiz updated') ||
+          errorMsg.contains('attempt exhausted') ||
+          errorMsg.contains('exhausted') ||
+          errorMsg.contains('quizzes have been modified')) {
+        // Quiz was updated by mentor → attempt invalidated → user must restart
         _error = 'RESET_PROGRESS';
       } else {
         _error = 'Không thể tải bài quiz: $e';

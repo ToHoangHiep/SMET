@@ -2,11 +2,12 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smet/model/course_model.dart';
+import 'package:smet/model/department_model.dart';
 import 'package:smet/service/mentor/course_service.dart';
 import 'package:smet/service/mentor/module_service.dart';
 import 'package:smet/service/mentor/lesson_service.dart';
 import 'package:smet/service/mentor/quiz_service.dart';
-import 'package:smet/model/learning_path_model.dart' as lp_model;
+import 'package:smet/service/common/auth_service.dart';
 
 /// Mentor Course Detail / Edit - Mobile Layout
 class MentorCourseDetailMobile extends StatefulWidget {
@@ -40,6 +41,12 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
   int _deadlineDays = 20;
   DateTime? _fixedDeadline;
 
+  /// Level: 1=Beginner, 2=Intermediate, 3=Advanced
+  int _selectedLevel = 1;
+  int _initialLevel = 1;
+  DepartmentModel? _department;
+  bool _loadingDepartment = false;
+
   List<ModuleResponse> _modules = [];
 
   bool get _canEdit =>
@@ -69,6 +76,33 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     super.dispose();
   }
 
+  Future<void> _loadDepartment() async {
+    setState(() => _loadingDepartment = true);
+    try {
+      final userData = await AuthService.getMe();
+      final userDeptId = userData['departmentId'] as int?;
+      final userDeptName = userData['departmentName'] as String?;
+      if (userDeptId != null && userDeptName != null) {
+        setState(() {
+          _department = DepartmentModel(
+            id: userDeptId,
+            name: userDeptName,
+            code: userData['departmentCode']?.toString() ?? '',
+            isActive: true,
+          );
+          _loadingDepartment = false;
+        });
+        return;
+      }
+    } catch (e) {
+      log("Could not get current user from auth/me: $e");
+    }
+    setState(() {
+      _department = null;
+      _loadingDepartment = false;
+    });
+  }
+
   Future<void> _loadCourse() async {
     setState(() {
       _isLoading = true;
@@ -83,10 +117,26 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         _course = course;
         _titleController.text = course.title;
         _descriptionController.text = course.description ?? '';
-        _deadlineType = _parseDeadlineType(course.deadlineType) ?? DeadlineType.RELATIVE;
+        _deadlineType = _parseDeadlineType(course.deadlineType);
         _deadlineDays = course.defaultDeadlineDays ?? 20;
         _deadlineDaysController.text = _deadlineDays.toString();
         _fixedDeadline = course.fixedDeadline;
+
+        // Load level
+        _selectedLevel = course.level ?? 1;
+        _initialLevel = _selectedLevel;
+
+        // Load department from course data
+        if (course.departmentId != null && course.departmentName != null) {
+          _department = DepartmentModel(
+            id: course.departmentId!,
+            name: course.departmentName!,
+            code: course.departmentCode ?? '',
+            isActive: true,
+          );
+        } else {
+          _loadDepartment();
+        }
       });
       await _loadModules();
       if (mounted) {
@@ -146,6 +196,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
         defaultDeadlineDays: _deadlineDays,
         deadlineType: _deadlineType.name,
         fixedDeadline: _fixedDeadline?.toIso8601String(),
+        level: _selectedLevel != _initialLevel ? _selectedLevel : null,
       );
       await _courseService.updateCourse(_course!.id, request);
       await _loadCourse();
@@ -173,7 +224,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     if (_modules.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Không thể xuất bản: Khóa học phải có ít nhất 1 module."),
+          content: Text("Không thể gửi phê duyệt: Khóa học phải có ít nhất 1 module."),
           backgroundColor: Color(0xFFEF4444),
         ),
       );
@@ -184,7 +235,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
       final names = emptyModule.map((m) => '"${m.title}"').join(', ');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Không thể xuất bản: Module $names chưa có bài học nào.'),
+          content: Text('Không thể gửi phê duyệt: Module $names chưa có bài học nào.'),
           backgroundColor: const Color(0xFFEF4444),
         ),
       );
@@ -193,12 +244,12 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     // === END VALIDATION ===
 
     try {
-      await _courseService.publishCourse(_course!.id);
+      await _courseService.submitCourse(_course!.id);
       await _loadCourse();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Xuất bản thành công"),
+            content: Text("Đã gửi phê duyệt thành công"),
             backgroundColor: Color(0xFF22C55E),
           ),
         );
@@ -212,14 +263,9 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     }
   }
 
-  DeadlineType? _parseDeadlineType(String? value) {
-    if (value == null) return null;
-    switch (value.toUpperCase()) {
-      case 'FIXED':
-        return DeadlineType.FIXED;
-      default:
-        return DeadlineType.RELATIVE;
-    }
+  DeadlineType _parseDeadlineType(String? value) {
+    if (value == null) return DeadlineType.RELATIVE;
+    return value.toUpperCase() == 'FIXED' ? DeadlineType.FIXED : DeadlineType.RELATIVE;
   }
 
   // ============================================
@@ -340,6 +386,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
     final contentController = TextEditingController();
     final videoController = TextEditingController();
     final titleController = TextEditingController();
+    final durationController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     final result = await showDialog<bool>(
@@ -390,6 +437,18 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                       DropdownMenuItem(value: 'LINK', child: Text("Tài liệu")),
                     ],
                     onChanged: (v) => setStateDialog(() => lessonType = v!),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: durationController,
+                    keyboardType: TextInputType.number,
+                    decoration: _field("Thời lượng (phút)", icon: Icons.timer_outlined),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return "Vui lòng nhập thời lượng";
+                      final n = int.tryParse(v.trim());
+                      if (n == null || n < 1) return "Thời lượng phải >= 1 phút";
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
                   if (lessonType == 'TEXT' || lessonType == 'LINK')
@@ -443,6 +502,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
           contentType: lessonType,
           content: lessonType != 'VIDEO' ? contentController.text : null,
           videoUrl: lessonType == 'VIDEO' ? videoController.text : null,
+          durationMinutes: int.tryParse(durationController.text.trim()),
         );
         await _lessonService.createLesson(request);
         await _loadCourse();
@@ -740,7 +800,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
               TextButton.icon(
                 onPressed: _publishCourse,
                 icon: const Icon(Icons.publish, size: 18),
-                label: const Text("Xuất bản", style: TextStyle(fontWeight: FontWeight.w600)),
+                label: const Text("Gửi phê duyệt", style: TextStyle(fontWeight: FontWeight.w600)),
                 style: TextButton.styleFrom(foregroundColor: const Color(0xFF22C55E)),
               ),
             Padding(
@@ -845,7 +905,7 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                       child: Text(
                         _course!.courseStatus == CourseStatus.ARCHIVED
                             ? 'Khóa học đã lưu trữ. Không thể chỉnh sửa cấu trúc.'
-                            : 'Khóa học đã xuất bản. Không thể chỉnh sửa module, bài học và quiz.',
+                            : 'Khóa học đã được phê duyệt. Không thể chỉnh sửa module, bài học và quiz.',
                         style: const TextStyle(fontSize: 12, color: Color(0xFFF59E0B)),
                       ),
                     ),
@@ -872,6 +932,30 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
                   decoration: _field("Mô tả khóa học", icon: Icons.description_outlined),
                   maxLines: 4,
                 ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Phòng ban
+          _buildCard(
+            header: _cardHeader("Phòng ban", Icons.business_outlined),
+            child: Column(
+              children: [
+                _buildDepartmentBadge(),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Cấp độ
+          _buildCard(
+            header: _cardHeader("Cấp độ", Icons.signal_cellular_alt_outlined),
+            child: Column(
+              children: [
+                _buildLevelSelector(),
               ],
             ),
           ),
@@ -1023,6 +1107,113 @@ class _MentorCourseDetailMobileState extends State<MentorCourseDetailMobile> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDepartmentBadge() {
+    if (_loadingDepartment) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
+            ),
+            const SizedBox(width: 12),
+            Text("Đang xác định phòng ban...", style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.business, color: _primary, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _department?.name ?? "Không xác định được",
+                  style: TextStyle(
+                    fontSize: 14, color: _department != null ? const Color(0xFF0F172A) : Colors.grey[600], fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (_department != null && _department!.code.isNotEmpty)
+                  Text(_department!.code, style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 12, color: const Color(0xFF22C55E)),
+                const SizedBox(width: 4),
+                Text("Auto", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF22C55E))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLevelSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: _LevelOption(
+            label: "Sơ cấp", sublabel: "L1", icon: Icons.star_border,
+            isSelected: _selectedLevel == 1,
+            color: const Color(0xFF22C55E),
+            onTap: _canEdit ? () => setState(() => _selectedLevel = 1) : () {},
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _LevelOption(
+            label: "Trung cấp", sublabel: "L2", icon: Icons.star_half,
+            isSelected: _selectedLevel == 2,
+            color: const Color(0xFFF59E0B),
+            onTap: _canEdit ? () => setState(() => _selectedLevel = 2) : () {},
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _LevelOption(
+            label: "Cao cấp", sublabel: "L3", icon: Icons.star,
+            isSelected: _selectedLevel == 3,
+            color: const Color(0xFFEF4444),
+            onTap: _canEdit ? () => setState(() => _selectedLevel = 3) : () {},
+          ),
+        ),
+      ],
     );
   }
 
@@ -1396,6 +1587,60 @@ class _DeadlineOption extends StatelessWidget {
             ],
           ),
         ),
+    );
+  }
+}
+
+class _LevelOption extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final IconData icon;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _LevelOption({
+    required this.label, required this.sublabel, required this.icon,
+    required this.isSelected, required this.color, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.1) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : const Color(0xFFE5E7EB),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 20, color: isSelected ? color : const Color(0xFF94A3B8)),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600,
+                color: isSelected ? color : const Color(0xFF64748B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              sublabel,
+              style: TextStyle(
+                fontSize: 9,
+                color: isSelected ? color.withValues(alpha: 0.7) : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

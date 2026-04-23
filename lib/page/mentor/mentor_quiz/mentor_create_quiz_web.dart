@@ -1,6 +1,8 @@
 import 'dart:developer' as dev;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smet/core/utils/quiz_csv_parser.dart';
 import 'package:smet/page/shared/widgets/shared_breadcrumb.dart';
 import 'package:smet/model/learning_path_model.dart';
 import 'package:smet/model/option_model.dart';
@@ -48,6 +50,8 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
   String? _loadError;
 
   final List<_EditableQuestion> _questions = [];
+
+  final QuizCsvParser _csvParser = QuizCsvParser();
 
   static const _primaryColor = Color(0xFF6366F1);
   static const _secondaryColor = Color(0xFF8B5CF6);
@@ -102,7 +106,7 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
 
             if (q.options != null) {
               for (final o in q.options!) {
-                final idx = o.content?.toLowerCase() == 'đúng' ? 0 : 1;
+                final idx = o.content.toLowerCase() == 'đúng' ? 0 : 1;
                 if (idx < editable.correctAnswers.length) {
                   editable.correctAnswers[idx] = o.isCorrect;
                 }
@@ -447,6 +451,159 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
     );
   }
 
+  Future<void> _importQuiz() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      if (file.bytes == null) {
+        _showError('Không đọc được file. Vui lòng thử lại.');
+        return;
+      }
+
+      final csvContent = String.fromCharCodes(file.bytes!);
+      final parsed = _csvParser.parse(csvContent);
+
+      if (parsed.questions.isEmpty) {
+        _showError('File không chứa câu hỏi nào.');
+        return;
+      }
+
+      if (_isEditMode) {
+        await _importToServer(parsed, file.name);
+      } else {
+        _showImportPreviewDialog(parsed, file.name);
+      }
+    } catch (e) {
+      _showError('Lỗi khi đọc file: $e');
+    }
+  }
+
+  Future<void> _importToServer(ParsedQuizData parsed, String fileName) async {
+    setState(() => _isSaving = true);
+
+    try {
+      await _quizService.importQuizToServer(
+        Long(int.parse(widget.quizId!)),
+        parsed,
+      );
+
+      if (!mounted) return;
+
+      GlobalNotificationService.show(
+        context: context,
+        message: 'Đã nhập ${parsed.questionCount} câu hỏi từ file',
+        type: NotificationType.success,
+      );
+
+      await _loadExistingQuiz();
+    } catch (e) {
+      _showError('Import thất bại: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _showImportPreviewDialog(ParsedQuizData data, String fileName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _ImportPreviewDialog(
+        data: data,
+        fileName: fileName,
+        primaryColor: _primaryColor,
+        secondaryColor: _secondaryColor,
+        successColor: _successColor,
+        errorColor: _errorColor,
+        textPrimary: _textPrimary,
+        textSecondary: _textSecondary,
+        onConfirm: () {
+          Navigator.of(ctx).pop();
+          _applyImportedQuestions(data);
+        },
+      ),
+    );
+  }
+
+  void _applyImportedQuestions(ParsedQuizData data) {
+    for (final q in _questions) {
+      q.dispose();
+    }
+    _questions.clear();
+
+    _titleController.text = data.title;
+    _durationController.text = data.timeLimitMinutes.toString();
+    _passingScoreController.text = data.passingScore.toString();
+    _maxAttemptsController.text = data.maxAttempts.toString();
+    _showAnswer = data.showAnswer;
+
+    for (final pq in data.questions) {
+      final editable = _EditableQuestion();
+      editable.questionController.text = pq.content;
+      editable.questionType = pq.type;
+
+      if (pq.type == 'TRUE_FALSE') {
+        editable.optionControllers.clear();
+        editable.optionControllers.add(TextEditingController(text: pq.options[0].content));
+        editable.optionControllers.add(TextEditingController(text: pq.options[1].content));
+        editable.correctAnswers.clear();
+        editable.optionIds.clear();
+        editable.correctAnswers.add(pq.options[0].isCorrect);
+        editable.correctAnswers.add(pq.options[1].isCorrect);
+        editable.optionIds.add(null);
+        editable.optionIds.add(null);
+      } else {
+        editable.optionControllers.clear();
+        editable.correctAnswers.clear();
+        editable.optionIds.clear();
+        for (final o in pq.options) {
+          editable.optionControllers.add(TextEditingController(text: o.content));
+          editable.correctAnswers.add(o.isCorrect);
+          editable.optionIds.add(null);
+        }
+      }
+
+      _questions.add(editable);
+    }
+
+    if (_questions.isEmpty) {
+      _addQuestion();
+    }
+
+    setState(() {});
+
+    GlobalNotificationService.show(
+      context: context,
+      message: 'Đã nhập ${data.questionCount} câu hỏi từ file',
+      type: NotificationType.success,
+    );
+  }
+
+  void _downloadTemplate() {
+    final template = _csvParser.generateTemplateCsv();
+    _showTemplateDialog(template);
+  }
+
+  void _showTemplateDialog(String template) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _TemplateDialog(
+        template: template,
+        primaryColor: _primaryColor,
+        textPrimary: _textPrimary,
+        textSecondary: _textSecondary,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -560,6 +717,8 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
                             ),
                           ),
                           _buildAddQuestionButton(),
+                          const SizedBox(height: 16),
+                          _buildImportSection(),
                         ],
                       ),
                     ),
@@ -1806,6 +1965,145 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
     );
   }
 
+  Widget _buildImportSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _accentColor.withOpacity(0.2),
+          width: 2,
+          strokeAlign: BorderSide.strokeAlignCenter,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isEditMode ? null : _importQuiz,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _accentColor.withOpacity(0.1),
+                              _primaryColor.withOpacity(0.1),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.upload_file_rounded,
+                          size: 20,
+                          color: _accentColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Nhập từ file',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _accentColor,
+                            ),
+                          ),
+                          Text(
+                            'Upload file CSV',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 50,
+            color: Colors.grey.shade200,
+          ),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _downloadTemplate,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _primaryColor.withOpacity(0.1),
+                              _secondaryColor.withOpacity(0.1),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.download_rounded,
+                          size: 20,
+                          color: _primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Tải mẫu CSV',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _primaryColor,
+                            ),
+                          ),
+                          Text(
+                            'Xem cấu trúc file',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDeleteButton({required VoidCallback onPressed}) {
     return Material(
       color: Colors.transparent,
@@ -1837,6 +2135,535 @@ class _MentorCreateQuizWebState extends State<MentorCreateQuizWeb>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImportPreviewDialog extends StatelessWidget {
+  final ParsedQuizData data;
+  final String fileName;
+  final Color primaryColor;
+  final Color secondaryColor;
+  final Color successColor;
+  final Color errorColor;
+  final Color textPrimary;
+  final Color textSecondary;
+  final VoidCallback onConfirm;
+
+  const _ImportPreviewDialog({
+    required this.data,
+    required this.fileName,
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.successColor,
+    required this.errorColor,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 640,
+        constraints: const BoxConstraints(maxHeight: 700),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryColor, secondaryColor],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.upload_file_rounded, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Xem trước quiz nhập từ file',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      Text(
+                        fileName,
+                        style: TextStyle(fontSize: 12, color: textSecondary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.close, color: textSecondary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryColor.withOpacity(0.06), secondaryColor.withOpacity(0.06)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    data.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      _statChip(
+                        Icons.timer_outlined,
+                        '${data.timeLimitMinutes} phút',
+                        primaryColor,
+                      ),
+                      _statChip(
+                        Icons.stars_rounded,
+                        '${data.passingScore}% đạt',
+                        const Color(0xFFF59E0B),
+                      ),
+                      _statChip(
+                        Icons.repeat_rounded,
+                        'Tối đa ${data.maxAttempts} lần',
+                        const Color(0xFF8B5CF6),
+                      ),
+                      _statChip(
+                        Icons.quiz_rounded,
+                        '${data.questionCount} câu',
+                        successColor,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (data.hasErrors) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: errorColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: errorColor.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, size: 18, color: errorColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cảnh báo (${data.errors.length})',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: errorColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...data.errors.take(5).map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              '• $e',
+                              style: TextStyle(fontSize: 12, color: errorColor),
+                            ),
+                          ),
+                        ),
+                    if (data.errors.length > 5)
+                      Text(
+                        '... và ${data.errors.length - 5} lỗi khác',
+                        style: TextStyle(fontSize: 12, color: textSecondary),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Danh sách câu hỏi',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...List.generate(
+                      data.questions.length,
+                      (i) => _buildQuestionPreview(i, data.questions[i]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: textSecondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  child: const Text('Hủy'),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryColor, secondaryColor],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onConfirm,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Nhập vào form',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statChip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionPreview(int index, ParsedQuestion q) {
+    final typeLabel = q.type == 'SINGLE_CHOICE'
+        ? 'Một đáp án'
+        : q.type == 'MULTIPLE_CHOICE'
+            ? 'Nhiều đáp án'
+            : 'Đúng / Sai';
+    final typeColor = q.type == 'SINGLE_CHOICE'
+        ? primaryColor
+        : q.type == 'MULTIPLE_CHOICE'
+            ? const Color(0xFF8B5CF6)
+            : const Color(0xFF06B6D4);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [primaryColor, secondaryColor]),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Center(
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  q.content,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: typeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  typeLabel,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: typeColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(
+            q.options.length,
+            (oi) {
+              final label = String.fromCharCode(65 + oi);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    SizedBox(width: 28),
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: q.options[oi].isCorrect ? successColor : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Center(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: q.options[oi].isCorrect ? Colors.white : Colors.grey.shade600,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        q.options[oi].content,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: q.options[oi].isCorrect ? successColor : textSecondary,
+                          fontWeight: q.options[oi].isCorrect ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateDialog extends StatelessWidget {
+  final String template;
+  final Color primaryColor;
+  final Color textPrimary;
+  final Color textSecondary;
+
+  const _TemplateDialog({
+    required this.template,
+    required this.primaryColor,
+    required this.textPrimary,
+    required this.textSecondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 680,
+        constraints: const BoxConstraints(maxHeight: 700),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryColor, const Color(0xFF8B5CF6)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.description_rounded, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    'Mẫu file CSV nhập quiz',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.close, color: textSecondary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Cấu trúc file CSV để nhập quiz. Copy nội dung bên dưới, điền dữ liệu và lưu thành file .csv.',
+              style: TextStyle(fontSize: 13, color: textSecondary),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 16, color: primaryColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Hướng dẫn',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '• Dòng 1: quiz_title,time_limit_minutes,passing_score,max_attempts,show_answer\n'
+                    '• Từ dòng 2: question_content,question_type,option_a,option_b,option_c,option_d,correct_option\n'
+                    '• question_type: SINGLE_CHOICE | MULTIPLE_CHOICE | TRUE_FALSE\n'
+                    '• correct_option: A, B, C, D cho đơn hoặc A,B cho nhiều đáp án đúng\n'
+                    '• TRUE_FALSE: option_a = Dung, option_b = Sai\n'
+                    '• Dòng bắt đầu bằng # sẽ được bỏ qua',
+                    style: TextStyle(fontSize: 12, color: textSecondary, height: 1.6),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 300),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: SelectableText(
+                  template,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Color(0xFFE2E8F0),
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: textSecondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  child: const Text('Đóng'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

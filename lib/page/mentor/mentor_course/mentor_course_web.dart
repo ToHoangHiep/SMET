@@ -91,6 +91,8 @@ class _MentorCourseWebState extends State<MentorCourseWeb>
       String? status;
       if (_selectedFilter == 'PUBLISHED') {
         status = 'PUBLISHED';
+      } else if (_selectedFilter == 'PENDING') {
+        status = 'PENDING';
       } else if (_selectedFilter == 'DRAFT') {
         status = 'DRAFT';
       } else if (_selectedFilter == 'ARCHIVED') {
@@ -270,6 +272,7 @@ class _MentorCourseWebState extends State<MentorCourseWeb>
               ),
               const SizedBox(width: 16),
               _filterChip("ALL"),
+              _filterChip("PENDING"),
               _filterChip("PUBLISHED"),
               _filterChip("DRAFT"),
               _filterChip("ARCHIVED"),
@@ -339,6 +342,7 @@ class _MentorCourseWebState extends State<MentorCourseWeb>
   String _filterLabel(String label) {
     switch (label) {
       case 'ALL': return 'Tất cả';
+      case 'PENDING': return 'Chờ duyệt';
       case 'PUBLISHED': return 'Đã xuất bản';
       case 'DRAFT': return 'Bản nháp';
       case 'ARCHIVED': return 'Đã lưu trữ';
@@ -823,6 +827,12 @@ class _CourseCardContentState extends State<_CourseCardContent> {
         bgColor = widget.success.withValues(alpha: 0.1);
         label = 'Đã xuất bản';
         icon = Icons.check_circle_outline;
+        break;
+      case 'PENDING':
+        color = widget.warning;
+        bgColor = widget.warning.withValues(alpha: 0.1);
+        label = 'Chờ duyệt';
+        icon = Icons.hourglass_top_rounded;
         break;
       case 'ARCHIVED':
         color = widget.textMedium;

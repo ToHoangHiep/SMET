@@ -8,6 +8,7 @@ import 'package:smet/page/admin/user_management/screen/user_management.dart';
 import 'package:smet/page/admin/course_preview/admin_course_preview_base.dart';
 import 'package:smet/page/admin/assignment/screen/assignment_management_page.dart';
 import 'package:smet/page/admin/dashboard/screen/admin_dashboard_page.dart';
+import 'package:smet/page/admin/course_approval/screen/course_approval_page.dart';
 import 'package:smet/page/admin/widgets/admin_shell.dart';
 import 'package:smet/page/first_login_password/first_login_password_page.dart';
 import 'package:smet/page/employee/course_catalog/screen/course_catalog_base.dart';
@@ -146,6 +147,7 @@ class AppPages {
       if (path.startsWith('/user_management') ||
           path.startsWith('/department_management') ||
           path.startsWith('/assignment_management') ||
+          path.startsWith('/course_approval') ||
           path.startsWith('/admin')) {
         if (user.role != UserRole.ADMIN) {
           return AuthGuardService.getRedirectPath(user.role);
@@ -484,6 +486,11 @@ class AppPages {
           GoRoute(
             path: '/assignment_management',
             builder: (context, state) => const AssignmentManagementPage(),
+          ),
+
+          GoRoute(
+            path: '/course_approval',
+            builder: (context, state) => const CourseApprovalPage(),
           ),
 
           // Admin Reports (wrapped in AdminShell for full sidebar)

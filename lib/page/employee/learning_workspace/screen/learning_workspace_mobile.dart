@@ -39,6 +39,29 @@ class LearningWorkspaceMobile extends StatelessWidget {
 
   bool get _isQuizMode => quizId != null && quizId!.isNotEmpty;
 
+  String _formatDuration(int seconds) {
+    if (seconds <= 0) return '';
+    if (seconds < 60) return '$seconds giây';
+    final minutes = seconds ~/ 60;
+    if (minutes < 60) return '$minutes phút';
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    if (remainingMinutes == 0) return '$hours giờ';
+    return '$hours giờ $remainingMinutes phút';
+  }
+
+  String? get _lessonDuration {
+    if (lessonContent == null) return null;
+    for (var module in course.modules) {
+      for (var lesson in module.lessons) {
+        if (lesson.id == lessonContent!.id && lesson.durationMinutes > 0) {
+          return _formatDuration(lesson.durationMinutes * 60);
+        }
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,6 +98,7 @@ class LearningWorkspaceMobile extends StatelessWidget {
                         lessonId: lessonContent!.id,
                         isCompleted: lessonContent!.isCompleted,
                         onMarkComplete: onMarkComplete,
+                        lessonDuration: _lessonDuration,
                       ),
                     const SizedBox(height: 20),
                     LessonTabs(

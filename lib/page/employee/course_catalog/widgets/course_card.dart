@@ -125,12 +125,12 @@ class _CourseCardState extends State<CourseCard> {
                 // --- TOP 16:9 BANNER ---
                 AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-                    child: Stack(
-                      children: [
-                        // Placeholder Banner Design (Elegant Corporate Tech)
-                        Container(
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                        child: // Placeholder Banner Design (Elegant Corporate Tech)
+                            Container(
                           width: double.infinity,
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
@@ -178,40 +178,40 @@ class _CourseCardState extends State<CourseCard> {
                             ],
                           ),
                         ),
-                        // Department Tag over image (Subtle)
-                        if (widget.departmentName != null &&
-                            widget.departmentName!.isNotEmpty)
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                widget.departmentName!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.2,
-                                ),
+                      ),
+                      // Department Tag over image (Subtle)
+                      if (widget.departmentName != null &&
+                          widget.departmentName!.isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              widget.departmentName!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ),
-                        // Status Badge
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: _StatusBadge(status: widget.status),
                         ),
-                      ],
-                    ),
+                      // Status Badge (outside ClipRRect so it's not clipped at rounded corners)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: _StatusBadge(status: widget.status),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -388,6 +388,11 @@ class _StatusBadge extends StatelessWidget {
         color = const Color(0xFF0F766E); // Teal 700
         bgColor = const Color(0xFFCCFBF1); // Teal 100
         label = 'Đã xuất bản';
+        break;
+      case 'PENDING':
+        color = const Color(0xFFB45309); // Amber 700
+        bgColor = const Color(0xFFFEF3C7); // Amber 100
+        label = 'Chờ duyệt';
         break;
       case 'DRAFT':
         color = const Color(0xFFB45309); // Amber 700

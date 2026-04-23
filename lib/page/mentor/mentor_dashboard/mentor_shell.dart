@@ -171,13 +171,10 @@ class _MentorShellState extends State<MentorShell> {
               onOpenPanel: () => context.go('/notifications'),
             ),
           ),
-          Positioned(
-            right: 20,
-            bottom: 20,
-            child: FloatingChatButton(
-              primaryColor: MentorShell.mentorPrimaryColor,
-              rolePrefix: 'mentor',
-            ),
+          // Floating chat button — already has its own Positioned inside
+          FloatingChatButton(
+            primaryColor: MentorShell.mentorPrimaryColor,
+            rolePrefix: 'mentor',
           ),
         ],
       ),

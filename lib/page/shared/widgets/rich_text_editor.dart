@@ -61,6 +61,32 @@ class _RichTextEditorWidgetState extends State<RichTextEditorWidget> {
   }
 
   @override
+  void didUpdateWidget(RichTextEditorWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.controller != oldWidget.controller) {
+      _controller.removeListener(_onTextChanged);
+      if (oldWidget.controller == null) {
+        _controller.dispose();
+      }
+      if (widget.controller != null) {
+        _controller = widget.controller!;
+      } else {
+        Document doc;
+        if (widget.initialContent != null && widget.initialContent!.isNotEmpty) {
+          doc = Document()..insert(0, widget.initialContent!);
+        } else {
+          doc = Document();
+        }
+        _controller = QuillController(
+          document: doc,
+          selection: const TextSelection.collapsed(offset: 0),
+        );
+      }
+      _controller.addListener(_onTextChanged);
+    }
+  }
+
+  @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
     if (widget.controller == null) {

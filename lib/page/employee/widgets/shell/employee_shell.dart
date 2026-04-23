@@ -152,15 +152,11 @@ class _EmployeeShellState extends State<EmployeeShell> {
               Expanded(child: widget.child),
             ],
           ),
-          // Floating chat button cho employee - xuất hiện xuyên suốt mọi trang
-          Positioned(
-            right: 20,
-            bottom: 20,
-            child: FloatingChatButton(
-              key: floatingChatKey,
-              primaryColor: EmployeeShell.employeePrimaryColor,
-              rolePrefix: 'employee',
-            ),
+          // Floating chat button — already has its own Positioned inside
+          FloatingChatButton(
+            key: floatingChatKey,
+            primaryColor: EmployeeShell.employeePrimaryColor,
+            rolePrefix: 'employee',
           ),
         ],
       ),

@@ -51,9 +51,13 @@ class LmsService {
       final modulesJson = courseData['modules'] as List<dynamic>? ?? [];
 
       // Goi quiz API cho tat ca module cung luc
-      final List<String?> moduleIds = modulesJson.map<String?>((m) => m['id']?.toString()).toList();
+      final List<String?> moduleIds =
+          modulesJson.map<String?>((m) => m['id']?.toString()).toList();
       final List<QuizInfo?> moduleQuizzes = await Future.wait(
-        moduleIds.map((id) => id != null ? QuizService.getQuizByModule(id) : Future.value(null)),
+        moduleIds.map(
+          (id) =>
+              id != null ? QuizService.getQuizByModule(id) : Future.value(null),
+        ),
       );
 
       final List<LearningModule> modules = [];
@@ -80,7 +84,9 @@ class LmsService {
         // Lay module progress tu API
         double moduleProgress = 0.0;
         try {
-          final progressUrl = Uri.parse("$baseUrl/lms/lessons/modules/$moduleId/progress");
+          final progressUrl = Uri.parse(
+            "$baseUrl/lms/lessons/modules/$moduleId/progress",
+          );
           final progressRes = await http.get(
             progressUrl,
             headers: {
@@ -104,25 +110,31 @@ class LmsService {
           quizPassed = history.any((h) => h.passed);
         }
 
-        modules.add(LearningModule(
-          id: moduleId,
-          title: m['title'] ?? '',
-          isLocked: m['isLocked'] == true || m['isLocked'] == 'true',
-          // Module completed = progress 100% VÀ quiz passed (nếu có quiz)
-          isCompleted: moduleProgress >= 1.0 && (quizId == null || quizPassed),
-          isExpanded: false,
-          lessons: lessons,
-          quizId: quizId,
-          quizPassed: quizPassed,
-          hasQuizAttempts: hasQuizAttempts,
-          progress: moduleProgress,
-        ));
+        modules.add(
+          LearningModule(
+            id: moduleId,
+            title: m['title'] ?? '',
+            isLocked: m['isLocked'] == true || m['isLocked'] == 'true',
+            // Module completed = progress 100% VÀ quiz passed (nếu có quiz)
+            isCompleted:
+                moduleProgress >= 1.0 && (quizId == null || quizPassed),
+            isExpanded: false,
+            lessons: lessons,
+            quizId: quizId,
+            quizPassed: quizPassed,
+            hasQuizAttempts: hasQuizAttempts,
+            progress: moduleProgress,
+          ),
+        );
       }
 
-      log("GET COURSE PROGRESS SUCCESS: courseId=$courseId, progress=$courseProgress%");
+      log(
+        "GET COURSE PROGRESS SUCCESS: courseId=$courseId, progress=$courseProgress%",
+      );
 
       // Parse enrollmentStatus từ backend — đã bao gồm quiz trong phép tính COMPLETED
-      final enrollmentStatus = courseData['enrollmentStatus']?.toString() ?? 'NOT_STARTED';
+      final enrollmentStatus =
+          courseData['enrollmentStatus']?.toString() ?? 'NOT_STARTED';
 
       return LearningCourse(
         id: courseId,
@@ -146,7 +158,8 @@ class LmsService {
     final contents = l['contents'] as List<dynamic>?;
     if (contents != null && contents.isNotEmpty) {
       final firstContent = contents.first as Map<String, dynamic>?;
-      final typeStr = (firstContent?['type']?.toString() ?? 'VIDEO').toUpperCase();
+      final typeStr =
+          (firstContent?['type']?.toString() ?? 'VIDEO').toUpperCase();
       if (typeStr == 'TEXT') {
         lessonType = LessonType.text;
       } else if (typeStr == 'LINK') {
@@ -203,7 +216,9 @@ class LmsService {
 
     // embed/ID
     if (contentValue.contains('/embed/')) {
-      String id = contentValue.substring(contentValue.lastIndexOf('/embed/') + 7);
+      String id = contentValue.substring(
+        contentValue.lastIndexOf('/embed/') + 7,
+      );
       log("YouTube video ID from embed: $id");
       return id;
     }
@@ -236,34 +251,57 @@ class LmsService {
         log("GET LESSON CONTENTS SUCCESS: count=${contentsJson.length}");
 
         // Lấy content đầu tiên hoặc tạo rỗng
-        final firstContent = contentsJson.isNotEmpty ? contentsJson.first as Map<String, dynamic> : null;
+        final firstContent =
+            contentsJson.isNotEmpty
+                ? contentsJson.first as Map<String, dynamic>
+                : null;
 
         return LessonContent(
           id: lessonId,
           title: firstContent?['title'] ?? 'Bài học',
           youtubeVideoId: _extractYouTubeId(firstContent),
-          thumbnailUrl: firstContent?['thumbnailUrl']?.toString() ?? firstContent?['thumbnail_url']?.toString(),
-          videoDurationSeconds: firstContent?['videoDurationSeconds'] ?? firstContent?['duration'] ?? 0,
+          thumbnailUrl:
+              firstContent?['thumbnailUrl']?.toString() ??
+              firstContent?['thumbnail_url']?.toString(),
+          videoDurationSeconds:
+              firstContent?['videoDurationSeconds'] ??
+              firstContent?['duration'] ??
+              0,
           currentPositionSeconds: firstContent?['currentPositionSeconds'] ?? 0,
           level: firstContent?['level'] ?? '',
           description: firstContent?['content'] ?? '',
           content: firstContent?['content']?.toString(),
           contentType: firstContent?['type']?.toString(),
-          keyTakeaways: (firstContent?['keyTakeaways'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-          resources: (firstContent?['resources'] as List<dynamic>?)?.map((r) => LessonResource(
-            id: r['id']?.toString() ?? '',
-            title: r['title'] ?? '',
-            type: r['type'] ?? 'link',
-            url: r['url']?.toString(),
-            fileSize: r['fileSize']?.toString(),
-          )).toList() ?? [],
+          keyTakeaways:
+              (firstContent?['keyTakeaways'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
+          resources:
+              (firstContent?['resources'] as List<dynamic>?)
+                  ?.map(
+                    (r) => LessonResource(
+                      id: r['id']?.toString() ?? '',
+                      title: r['title'] ?? '',
+                      type: r['type'] ?? 'link',
+                      url: r['url']?.toString(),
+                      fileSize: r['fileSize']?.toString(),
+                    ),
+                  )
+                  .toList() ??
+              [],
           discussions: [],
           transcript: firstContent?['transcript']?.toString(),
-          isCompleted: firstContent?['isCompleted'] ?? firstContent?['completed'] ?? false,
+          isCompleted:
+              firstContent?['isCompleted'] ??
+              firstContent?['completed'] ??
+              false,
         );
       }
 
-      log("GET LESSON CONTENTS FAILED: status=${response.statusCode}, body=${response.body}");
+      log(
+        "GET LESSON CONTENTS FAILED: status=${response.statusCode}, body=${response.body}",
+      );
       throw Exception("Không thể tải nội dung bài học");
     } catch (e) {
       log("LmsService.getLessonDetail failed: $e");
@@ -272,27 +310,29 @@ class LmsService {
   }
 
   // ============================================================
-  // UPDATE VIDEO PROGRESS — PUT /api/lms/lessons/{lessonId}/progress
+  // UPDATE VIDEO PROGRESS — POST /api/lms/lessons/{lessonId}/video-progress
+  // Backend expects: { watchedSeconds, totalSeconds }
+  // BE marks lesson complete when watchedSeconds >= totalSeconds * 0.8
   // ============================================================
 
   static Future<bool> updateVideoProgress(
     String lessonId,
-    String userId,
-    int position,
+    int watchedSeconds,
+    int totalSeconds,
   ) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/lessons/$lessonId/progress");
+      final url = Uri.parse("$baseUrl/lms/lessons/$lessonId/video-progress");
 
-      final response = await http.put(
+      final response = await http.post(
         url,
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
         },
         body: jsonEncode({
-          'userId': userId,
-          'position': position,
+          'watchedSeconds': watchedSeconds,
+          'totalSeconds': totalSeconds,
         }),
       );
 
@@ -329,7 +369,9 @@ class LmsService {
         },
       );
 
-      log("GET CHAT MESSAGES STATUS: ${response.statusCode}, lessonId=$lessonId");
+      log(
+        "GET CHAT MESSAGES STATUS: ${response.statusCode}, lessonId=$lessonId",
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -340,7 +382,9 @@ class LmsService {
           list = data;
         } else if (data is Map) {
           list = data['content'] ?? data['data'] ?? [];
-          totalCount = (data['totalElements'] ?? data['totalElements'] ?? list.length) as int;
+          totalCount =
+              (data['totalElements'] ?? data['totalElements'] ?? list.length)
+                  as int;
         } else {
           list = [];
         }
@@ -348,41 +392,51 @@ class LmsService {
         final currentUser = await AuthService.getCurrentUser();
         final currentUserId = currentUser.id;
 
-        final discussions = list.map((m) {
-          final senderId = m['senderId'] is int
-              ? m['senderId'] as int
-              : int.tryParse(m['senderId']?.toString() ?? '0') ?? 0;
-          final isCurrentUser = senderId == currentUserId;
+        final discussions =
+            list.map((m) {
+              final senderId =
+                  m['senderId'] is int
+                      ? m['senderId'] as int
+                      : int.tryParse(m['senderId']?.toString() ?? '0') ?? 0;
+              final isCurrentUser = senderId == currentUserId;
 
-          DateTime createdAt;
-          try {
-            createdAt = DateTime.parse(m['createdAt']?.toString() ?? '');
-          } catch (_) {
-            createdAt = DateTime.now();
-          }
+              DateTime createdAt;
+              try {
+                createdAt = DateTime.parse(m['createdAt']?.toString() ?? '');
+              } catch (_) {
+                createdAt = DateTime.now();
+              }
 
-          return Discussion(
-            id: m['id'] is int
-                ? m['id'] as int
-                : int.tryParse(m['id']?.toString() ?? '0') ?? 0,
-            senderId: senderId,
-            senderName: isCurrentUser
-                ? (currentUser.fullName.isNotEmpty
-                    ? currentUser.fullName
-                    : 'Bạn')
-                : (m['senderName']?.toString() ?? m['senderName'] ?? 'Người dùng'),
-            senderAvatarUrl:
-                isCurrentUser ? currentUser.avatarUrl : m['senderAvatarUrl'],
-            content: m['content']?.toString() ?? '',
-            createdAt: createdAt,
-            replyCount: 0,
-          );
-        }).toList();
+              return Discussion(
+                id:
+                    m['id'] is int
+                        ? m['id'] as int
+                        : int.tryParse(m['id']?.toString() ?? '0') ?? 0,
+                senderId: senderId,
+                senderName:
+                    isCurrentUser
+                        ? (currentUser.fullName.isNotEmpty
+                            ? currentUser.fullName
+                            : 'Bạn')
+                        : (m['senderName']?.toString() ??
+                            m['senderName'] ??
+                            'Người dùng'),
+                senderAvatarUrl:
+                    isCurrentUser
+                        ? currentUser.avatarUrl
+                        : m['senderAvatarUrl'],
+                content: m['content']?.toString() ?? '',
+                createdAt: createdAt,
+                replyCount: 0,
+              );
+            }).toList();
 
         return (discussions, totalCount);
       }
 
-      log("GET CHAT MESSAGES FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
+      log(
+        "GET CHAT MESSAGES FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}",
+      );
       return (<Discussion>[], 0);
     } catch (e) {
       log("LmsService.getChatMessages failed: $e");
@@ -418,7 +472,9 @@ class LmsService {
         }),
       );
 
-      log("SEND CHAT MESSAGE STATUS: ${response.statusCode}, lessonId=$lessonId");
+      log(
+        "SEND CHAT MESSAGE STATUS: ${response.statusCode}, lessonId=$lessonId",
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final currentUser = await AuthService.getCurrentUser();
@@ -434,7 +490,9 @@ class LmsService {
         );
       }
 
-      log("SEND CHAT MESSAGE FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
+      log(
+        "SEND CHAT MESSAGE FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}",
+      );
       return null;
     } catch (e) {
       log("LmsService.sendChatMessage failed: $e");
@@ -460,24 +518,27 @@ class LmsService {
     int requestedSize,
     int listLength,
   ) {
-    final totalElements = int.tryParse(headers['x-total-count'] ?? '')
-        ?? int.tryParse(headers['X-Total-Count'] ?? '')
-        ?? int.tryParse(headers['total-elements'] ?? '')
-        ?? int.tryParse(headers['Total-Count'] ?? '')
-        ?? (headers['content-range'] != null
+    final totalElements =
+        int.tryParse(headers['x-total-count'] ?? '') ??
+        int.tryParse(headers['X-Total-Count'] ?? '') ??
+        int.tryParse(headers['total-elements'] ?? '') ??
+        int.tryParse(headers['Total-Count'] ?? '') ??
+        (headers['content-range'] != null
             ? int.tryParse(headers['content-range']!.split('/').last)
-            : null)
-        ?? listLength;
+            : null) ??
+        listLength;
 
-    final totalPages = int.tryParse(headers['x-total-pages'] ?? '')
-        ?? int.tryParse(headers['X-Total-Pages'] ?? '')
-        ?? int.tryParse(headers['total-pages'] ?? '')
-        ?? int.tryParse(headers['Total-Pages'] ?? '')
-        ?? (totalElements > 0 ? (totalElements / requestedSize).ceil() : 1);
+    final totalPages =
+        int.tryParse(headers['x-total-pages'] ?? '') ??
+        int.tryParse(headers['X-Total-Pages'] ?? '') ??
+        int.tryParse(headers['total-pages'] ?? '') ??
+        int.tryParse(headers['Total-Pages'] ?? '') ??
+        (totalElements > 0 ? (totalElements / requestedSize).ceil() : 1);
 
-    final pageNumber = int.tryParse(headers['x-page-number'] ?? '')
-        ?? int.tryParse(headers['X-Page-Number'] ?? '')
-        ?? requestedPage;
+    final pageNumber =
+        int.tryParse(headers['x-page-number'] ?? '') ??
+        int.tryParse(headers['X-Page-Number'] ?? '') ??
+        requestedPage;
 
     return _PaginationMeta(
       totalElements: totalElements,
@@ -494,7 +555,9 @@ class LmsService {
     try {
       final token = await AuthService.getToken();
       // === DEBUG: log token và user ID từ frontend ===
-      log(">>> [DEBUG] getCourseDetail — token=${token != null ? token.substring(0, min(30, token.length)) + '...' : 'NULL'}");
+      log(
+        ">>> [DEBUG] getCourseDetail — token=${token != null ? token.substring(0, min(30, token.length)) + '...' : 'NULL'}",
+      );
       // Decode JWT payload để lấy user ID (base64 decode phần giữa)
       if (token != null) {
         final parts = token.split('.');
@@ -504,7 +567,9 @@ class LmsService {
             while (b64.length % 4 != 0) b64 += '=';
             final payload = utf8.decode(base64Decode(b64));
             final decoded = jsonDecode(payload);
-            log(">>> [DEBUG] JWT payload — userId=${decoded['userId'] ?? decoded['sub'] ?? decoded['id'] ?? 'UNKNOWN'}, email=${decoded['email'] ?? 'UNKNOWN'}");
+            log(
+              ">>> [DEBUG] JWT payload — userId=${decoded['userId'] ?? decoded['sub'] ?? decoded['id'] ?? 'UNKNOWN'}, email=${decoded['email'] ?? 'UNKNOWN'}",
+            );
           } catch (_) {
             log(">>> [DEBUG] JWT decode failed");
           }
@@ -526,13 +591,19 @@ class LmsService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         // DEBUG: log raw enrolled field from backend
-        log(">>> API RESPONSE: enrolled=${data['enrolled']}, enrollmentStatus=${data['enrollmentStatus']}, progress=${data['progress']}");
+        log(
+          ">>> API RESPONSE: enrolled=${data['enrolled']}, enrollmentStatus=${data['enrollmentStatus']}, progress=${data['progress']}",
+        );
         return _parseCourseDetail(data, courseId);
       } else {
-        log("GET COURSE DETAIL FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
+        log(
+          "GET COURSE DETAIL FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}",
+        );
         // Neu 200 nhung body co enrolled: true → van lay duoc data
         // Neu khong phai 200 → throw de fallback xu ly
-        throw Exception("[$response.statusCode] Khong the tai chi tiet khoa hoc");
+        throw Exception(
+          "[$response.statusCode] Khong the tai chi tiet khoa hoc",
+        );
       }
     } catch (e) {
       log("LmsService.getCourseDetail failed: $e");
@@ -549,7 +620,9 @@ class LmsService {
     try {
       final token = await AuthService.getToken();
       // === DEBUG: log token và user ID trước khi enroll ===
-      log(">>> [DEBUG] enrollCourse — token=${token != null ? token.substring(0, min(30, token.length)) + '...' : 'NULL'}");
+      log(
+        ">>> [DEBUG] enrollCourse — token=${token != null ? token.substring(0, min(30, token.length)) + '...' : 'NULL'}",
+      );
       if (token != null) {
         final parts = token.split('.');
         if (parts.length >= 2) {
@@ -558,7 +631,9 @@ class LmsService {
             while (b64.length % 4 != 0) b64 += '=';
             final payload = utf8.decode(base64Decode(b64));
             final decoded = jsonDecode(payload);
-            log(">>> [DEBUG] enrollCourse JWT — userId=${decoded['userId'] ?? decoded['sub'] ?? decoded['id'] ?? 'UNKNOWN'}");
+            log(
+              ">>> [DEBUG] enrollCourse JWT — userId=${decoded['userId'] ?? decoded['sub'] ?? decoded['id'] ?? 'UNKNOWN'}",
+            );
           } catch (_) {
             log(">>> [DEBUG] enrollCourse JWT decode failed");
           }
@@ -577,7 +652,9 @@ class LmsService {
 
       // 200/201 = enrolled successfully, 400 with "Already enrolled" = already enrolled (OK)
       if (response.statusCode == 200 || response.statusCode == 201) {
-        log(">>> [DEBUG] enrollCourse SUCCESS — courseId=$courseId, status=${response.statusCode}, body=${response.body}");
+        log(
+          ">>> [DEBUG] enrollCourse SUCCESS — courseId=$courseId, status=${response.statusCode}, body=${response.body}",
+        );
         return true;
       }
       if (response.statusCode == 400) {
@@ -585,11 +662,15 @@ class LmsService {
         log(">>> [DEBUG] enrollCourse 400 — courseId=$courseId, body=$body");
         if (body.contains('Already enrolled') ||
             body.contains('already enrolled')) {
-          log(">>> [DEBUG] enrollCourse — 'Already enrolled' detected, treating as success");
+          log(
+            ">>> [DEBUG] enrollCourse — 'Already enrolled' detected, treating as success",
+          );
           return true; // Already enrolled — treat as success
         }
       }
-      log("ENROLL COURSE FAILED: courseId=$courseId, status=${response.statusCode}, body=${response.body}");
+      log(
+        "ENROLL COURSE FAILED: courseId=$courseId, status=${response.statusCode}, body=${response.body}",
+      );
       return false;
     } catch (e) {
       log("LmsService.enrollCourse using fallback: $e");
@@ -611,7 +692,9 @@ class LmsService {
         },
       );
 
-      log("LEAVE COURSE RESPONSE: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
+      log(
+        "LEAVE COURSE RESPONSE: status=${response.statusCode}, courseId=$courseId, body=${response.body}",
+      );
       return response.statusCode == 200;
     } catch (e) {
       log("LmsService.leaveCourse failed: $e");
@@ -623,9 +706,7 @@ class LmsService {
   static Future<bool> isEnrolled(String courseId) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse(
-        "$baseUrl/lms/courses/$courseId/enrollment",
-      );
+      final url = Uri.parse("$baseUrl/lms/courses/$courseId/enrollment");
 
       log("IS ENROLLED REQUEST: courseId=$courseId, url=$url");
 
@@ -637,13 +718,17 @@ class LmsService {
         },
       );
 
-      log("IS ENROLLED RESPONSE: status=${response.statusCode}, body=${response.body}, courseId=$courseId");
+      log(
+        "IS ENROLLED RESPONSE: status=${response.statusCode}, body=${response.body}, courseId=$courseId",
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data is Map && data['enrolled'] == true;
       }
-      log("IS ENROLLED FAILED: status=${response.statusCode}, courseId=$courseId");
+      log(
+        "IS ENROLLED FAILED: status=${response.statusCode}, courseId=$courseId",
+      );
       return false;
     } catch (e) {
       log("LmsService.isEnrolled: $e");
@@ -674,25 +759,39 @@ class LmsService {
         final data = jsonDecode(response.body);
 
         List<EnrolledCourse> parseCourses(List<dynamic> list) {
-          return list.map((c) => _parseEnrolledCourse(c as Map<String, dynamic>)).toList();
+          return list
+              .map((c) => _parseEnrolledCourse(c as Map<String, dynamic>))
+              .toList();
         }
 
         List<EnrolledCourse> courses;
         if (data is List) {
           courses = parseCourses(data);
         } else if (data is Map) {
-          final Map<String, dynamic> typedData = Map<String, dynamic>.from(data);
+          final Map<String, dynamic> typedData = Map<String, dynamic>.from(
+            data,
+          );
           final parsed = PageResponse.fromJson(typedData, _parseEnrolledCourse);
           courses = parsed.content;
         } else {
-          log("GET MY COURSES PARSE ERROR: unexpected response type, data=$data");
+          log(
+            "GET MY COURSES PARSE ERROR: unexpected response type, data=$data",
+          );
           return PageResponse(
-            content: [], totalElements: 0, totalPages: 0,
-            number: 0, size: size, first: true, last: true,
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            number: 0,
+            size: size,
+            first: true,
+            last: true,
           );
         }
 
-        final totalElements = data is Map ? (data['totalElements'] ?? courses.length) : courses.length;
+        final totalElements =
+            data is Map
+                ? (data['totalElements'] ?? courses.length)
+                : courses.length;
         final tp = data is Map ? (data['totalPages'] ?? 1) : 1;
 
         return PageResponse(
@@ -707,14 +806,24 @@ class LmsService {
       }
       log("GET MY COURSES FAILED: status=${response.statusCode}, page=$page");
       return PageResponse(
-        content: [], totalElements: 0, totalPages: 0,
-        number: 0, size: size, first: true, last: true,
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: size,
+        first: true,
+        last: true,
       );
     } catch (e) {
       log("LmsService.getMyCourses: $e");
       return PageResponse(
-        content: [], totalElements: 0, totalPages: 0,
-        number: 0, size: size, first: true, last: true,
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: size,
+        first: true,
+        last: true,
       );
     }
   }
@@ -768,13 +877,16 @@ class LmsService {
 
         // Trường hợp 1: backend trả Map với field "data" chứa list
         if (data is Map) {
-          final Map<String, dynamic> typedData = Map<String, dynamic>.from(data);
+          final Map<String, dynamic> typedData = Map<String, dynamic>.from(
+            data,
+          );
 
           // Nếu field "data" bên trong Map là List (backend trả {data: [...]})
           if (typedData['data'] is List) {
             final rawList = typedData['data'] as List<dynamic>;
             final totalElements = rawList.length;
-            final totalPages = totalElements > 0 ? (totalElements / size).ceil() : 1;
+            final totalPages =
+                totalElements > 0 ? (totalElements / size).ceil() : 1;
             int parseInt(dynamic v) {
               if (v == null) return 0;
               if (v is int) return v;
@@ -782,20 +894,27 @@ class LmsService {
               if (v is String) return int.tryParse(v) ?? 0;
               return 0;
             }
+
             return PageResponse(
-              content: rawList
-                  .map((e) => _parseCatalogCourse(e as Map<String, dynamic>))
-                  .toList(),
-              totalElements: typedData.containsKey('totalElements')
-                  ? parseInt(typedData['totalElements'])
-                  : totalElements,
-              totalPages: typedData.containsKey('totalPages')
-                  ? parseInt(typedData['totalPages'])
-                  : totalPages,
+              content:
+                  rawList
+                      .map(
+                        (e) => _parseCatalogCourse(e as Map<String, dynamic>),
+                      )
+                      .toList(),
+              totalElements:
+                  typedData.containsKey('totalElements')
+                      ? parseInt(typedData['totalElements'])
+                      : totalElements,
+              totalPages:
+                  typedData.containsKey('totalPages')
+                      ? parseInt(typedData['totalPages'])
+                      : totalPages,
               number: parseInt(typedData['page'] ?? typedData['number']),
-              size: typedData.containsKey('size')
-                  ? parseInt(typedData['size'])
-                  : size,
+              size:
+                  typedData.containsKey('size')
+                      ? parseInt(typedData['size'])
+                      : size,
               first: typedData['first'] ?? (page == 0),
               last: typedData['last'] ?? (page >= totalPages - 1),
             );
@@ -804,14 +923,19 @@ class LmsService {
           // Ngược lại dùng fromJson bình thường
           return PageResponse.fromJson(typedData, _parseCatalogCourse);
 
-        // Trường hợp 2: backend trả List thuần (hoàn toàn không có metadata)
+          // Trường hợp 2: backend trả List thuần (hoàn toàn không có metadata)
         } else if (data is List) {
           final parsed = _parsePaginationFromHeaders(
-              response.headers, page, size, data.length);
+            response.headers,
+            page,
+            size,
+            data.length,
+          );
           return PageResponse(
-            content: data
-                .map((c) => _parseCatalogCourse(c as Map<String, dynamic>))
-                .toList(),
+            content:
+                data
+                    .map((c) => _parseCatalogCourse(c as Map<String, dynamic>))
+                    .toList(),
             totalElements: parsed.totalElements,
             totalPages: parsed.totalPages,
             number: page,
@@ -823,20 +947,37 @@ class LmsService {
 
         log("GET COURSES PARSE ERROR: unexpected response type");
         return PageResponse(
-          content: [], totalElements: 0, totalPages: 0,
-          number: 0, size: size, first: true, last: true,
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: size,
+          first: true,
+          last: true,
         );
       }
-      log("GET COURSES FAILED: status=${response.statusCode}, keyword=$keyword");
+      log(
+        "GET COURSES FAILED: status=${response.statusCode}, keyword=$keyword",
+      );
       return PageResponse(
-        content: [], totalElements: 0, totalPages: 0,
-        number: 0, size: size, first: true, last: true,
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: size,
+        first: true,
+        last: true,
       );
     } catch (e) {
       log("LmsService.getCourses: $e");
       return PageResponse(
-        content: [], totalElements: 0, totalPages: 0,
-        number: 0, size: size, first: true, last: true,
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: size,
+        first: true,
+        last: true,
       );
     }
   }
@@ -885,7 +1026,9 @@ class LmsService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return true;
       }
-      log("COMPLETE LESSON FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
+      log(
+        "COMPLETE LESSON FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}",
+      );
       return false;
     } catch (e) {
       log("LmsService.completeLesson failed: $e");
@@ -898,7 +1041,9 @@ class LmsService {
   static Future<bool> completeCourse(String courseId) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/enrollments/courses/$courseId/complete");
+      final url = Uri.parse(
+        "$baseUrl/lms/enrollments/courses/$courseId/complete",
+      );
 
       final response = await http.post(
         url,
@@ -914,7 +1059,9 @@ class LmsService {
         log("COMPLETE COURSE SUCCESS: courseId=$courseId");
         return true;
       }
-      log("COMPLETE COURSE FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
+      log(
+        "COMPLETE COURSE FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}",
+      );
       return false;
     } catch (e) {
       log("LmsService.completeCourse failed: $e");
@@ -948,27 +1095,42 @@ class LmsService {
           id: lessonId,
           title: first['title'] ?? 'Bài học',
           youtubeVideoId: _extractYouTubeId(first),
-          thumbnailUrl: first['thumbnailUrl']?.toString() ?? first['thumbnail_url']?.toString(),
-          videoDurationSeconds: first['videoDurationSeconds'] ?? first['duration'] ?? 0,
+          thumbnailUrl:
+              first['thumbnailUrl']?.toString() ??
+              first['thumbnail_url']?.toString(),
+          videoDurationSeconds:
+              first['videoDurationSeconds'] ?? first['duration'] ?? 0,
           currentPositionSeconds: first['currentPositionSeconds'] ?? 0,
           level: first['level'] ?? '',
           description: first['content'] ?? '',
           content: first['content']?.toString(),
           contentType: first['type']?.toString(),
-          keyTakeaways: (first['keyTakeaways'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-          resources: (first['resources'] as List<dynamic>?)?.map((r) => LessonResource(
-            id: r['id']?.toString() ?? '',
-            title: r['title'] ?? '',
-            type: r['type'] ?? 'link',
-            url: r['url']?.toString(),
-            fileSize: r['fileSize']?.toString(),
-          )).toList() ?? [],
+          keyTakeaways:
+              (first['keyTakeaways'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
+          resources:
+              (first['resources'] as List<dynamic>?)
+                  ?.map(
+                    (r) => LessonResource(
+                      id: r['id']?.toString() ?? '',
+                      title: r['title'] ?? '',
+                      type: r['type'] ?? 'link',
+                      url: r['url']?.toString(),
+                      fileSize: r['fileSize']?.toString(),
+                    ),
+                  )
+                  .toList() ??
+              [],
           discussions: [],
           transcript: first['transcript']?.toString(),
           isCompleted: first['isCompleted'] ?? first['completed'] ?? false,
         );
       }
-      log("GET LESSON CONTENT FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}");
+      log(
+        "GET LESSON CONTENT FAILED: status=${response.statusCode}, lessonId=$lessonId, body=${response.body}",
+      );
       return null;
     } catch (e) {
       log("LmsService.getLessonContent: $e");
@@ -981,7 +1143,9 @@ class LmsService {
   // ============================================================
 
   /// Lấy chứng chỉ của mình cho khóa — GET /api/lms/certificates/course/{courseId}
-  static Future<({CertificateInfo? cert, String? error})> getMyCertificate(String courseId) async {
+  static Future<({CertificateInfo? cert, String? error})> getMyCertificate(
+    String courseId,
+  ) async {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse("$baseUrl/lms/certificates/course/$courseId");
@@ -1002,13 +1166,18 @@ class LmsService {
             return (cert: null, error: 'Phản hồi không hợp lệ từ server');
           }
           final data = jsonDecode(bodyStr) as Map<String, dynamic>;
-          log("GET MY CERTIFICATE SUCCESS: courseId=$courseId, code=${data['verificationCode']}");
+          log(
+            "GET MY CERTIFICATE SUCCESS: courseId=$courseId, code=${data['verificationCode']}",
+          );
           return (cert: _parseCertificate(data), error: null);
         } catch (e) {
-          if (e is FormatException || e.toString().contains('Unexpected token')) {
+          if (e is FormatException ||
+              e.toString().contains('Unexpected token')) {
             final cert = _parseCertificateFallback(bodyStr);
             if (cert != null) {
-              log("GET MY CERTIFICATE: recovered via fallback parse, code=${cert.code}");
+              log(
+                "GET MY CERTIFICATE: recovered via fallback parse, code=${cert.code}",
+              );
               return (cert: cert, error: null);
             }
           }
@@ -1037,7 +1206,9 @@ class LmsService {
         }
       }
 
-      log("GET MY CERTIFICATE FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
+      log(
+        "GET MY CERTIFICATE FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}",
+      );
       return (cert: null, error: errorMsg);
     } catch (e) {
       log("LmsService.getMyCertificate: $e");
@@ -1060,7 +1231,8 @@ class LmsService {
 
       final remaining = (100 - progress).clamp(0, 100).toInt();
 
-      String hint = 'Vui lòng hoàn thành nốt $remaining% nội dung còn lại để nhận chứng chỉ.';
+      String hint =
+          'Vui lòng hoàn thành nốt $remaining% nội dung còn lại để nhận chứng chỉ.';
 
       // Kiểm tra course detail có modules không — nếu có thì user cần xem đủ nội dung
       if (course.moduleCount > 0 && course.modules.isNotEmpty) {
@@ -1069,7 +1241,8 @@ class LmsService {
           (sum, m) => sum + m.lessonCount,
         );
         if (totalLessons > 0) {
-          hint = 'Vui lòng hoàn thành nốt $remaining% nội dung còn lại '
+          hint =
+              'Vui lòng hoàn thành nốt $remaining% nội dung còn lại '
               '($totalLessons bài học) để nhận chứng chỉ.';
         }
       }
@@ -1109,7 +1282,9 @@ class LmsService {
           return null;
         }
       }
-      log("VERIFY CERTIFICATE FAILED: status=${response.statusCode}, code=$code, body=${response.body}");
+      log(
+        "VERIFY CERTIFICATE FAILED: status=${response.statusCode}, code=$code, body=${response.body}",
+      );
       return null;
     } catch (e) {
       log("LmsService.verifyCertificate: $e");
@@ -1145,7 +1320,9 @@ class LmsService {
   }
 
   /// Tải chứng chỉ PDF theo courseId — GET /api/lms/certificates/course/{courseId}/pdf
-  static Future<List<int>?> downloadCertificateByCourseId(String courseId) async {
+  static Future<List<int>?> downloadCertificateByCourseId(
+    String courseId,
+  ) async {
     try {
       final token = await AuthService.getToken();
       final url = Uri.parse("$baseUrl/lms/certificates/course/$courseId/pdf");
@@ -1163,7 +1340,9 @@ class LmsService {
       if (response.statusCode == 200) {
         return response.bodyBytes;
       }
-      log("DOWNLOAD CERTIFICATE BY COURSE ID FAILED: status=${response.statusCode}, body=${response.body}");
+      log(
+        "DOWNLOAD CERTIFICATE BY COURSE ID FAILED: status=${response.statusCode}, body=${response.body}",
+      );
       return null;
     } catch (e) {
       log("LmsService.downloadCertificateByCourseId failed: $e");
@@ -1193,11 +1372,14 @@ class LmsService {
       final enrollmentsResult = await getMyCourses(page: 0, size: 1000);
 
       // 2. Lọc chỉ lấy khóa đã hoàn thành
-      final completedCourses = enrollmentsResult.content
-          .where((e) => e.status == EnrollmentStatus.completed)
-          .toList();
+      final completedCourses =
+          enrollmentsResult.content
+              .where((e) => e.status == EnrollmentStatus.completed)
+              .toList();
 
-      log("GET ALL CERTIFICATES: ${completedCourses.length} completed courses found");
+      log(
+        "GET ALL CERTIFICATES: ${completedCourses.length} completed courses found",
+      );
 
       if (completedCourses.isEmpty) return [];
 
@@ -1211,9 +1393,13 @@ class LmsService {
         final result = results[i];
         if (result.cert != null) {
           certificates.add(result.cert!);
-          log("GET ALL CERTIFICATES: courseId=${completedCourses[i].id} → cert found, code=${result.cert!.code}");
+          log(
+            "GET ALL CERTIFICATES: courseId=${completedCourses[i].id} → cert found, code=${result.cert!.code}",
+          );
         } else {
-          log("GET ALL CERTIFICATES: courseId=${completedCourses[i].id} → no cert (${result.error})");
+          log(
+            "GET ALL CERTIFICATES: courseId=${completedCourses[i].id} → no cert (${result.error})",
+          );
         }
       }
 
@@ -1235,7 +1421,9 @@ class LmsService {
   }) async {
     try {
       final token = await AuthService.getToken();
-      final url = Uri.parse("$baseUrl/lms/certificates/my?page=$page&size=$size");
+      final url = Uri.parse(
+        "$baseUrl/lms/certificates/my?page=$page&size=$size",
+      );
 
       final response = await http.get(
         url,
@@ -1250,25 +1438,44 @@ class LmsService {
         if (!bodyStr.startsWith('{') && !bodyStr.startsWith('[')) {
           log("GET MY CERTIFICATES: non-JSON response: $bodyStr");
           return PageResponse(
-            content: [], totalElements: 0, totalPages: 0,
-            number: page, size: size, first: true, last: true,
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            number: page,
+            size: size,
+            first: true,
+            last: true,
           );
         }
         final data = jsonDecode(bodyStr) as Map<String, dynamic>;
         final result = PageResponse.fromJson(data, _parseCertificate);
-        log("GET MY CERTIFICATES SUCCESS: page=$page, total=${result.totalElements}");
+        log(
+          "GET MY CERTIFICATES SUCCESS: page=$page, total=${result.totalElements}",
+        );
         return result;
       }
-      log("GET MY CERTIFICATES FAILED: status=${response.statusCode}, body=${response.body}");
+      log(
+        "GET MY CERTIFICATES FAILED: status=${response.statusCode}, body=${response.body}",
+      );
       return PageResponse(
-        content: [], totalElements: 0, totalPages: 0,
-        number: page, size: size, first: true, last: true,
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: page,
+        size: size,
+        first: true,
+        last: true,
       );
     } catch (e) {
       log("LmsService.getMyCertificates: $e");
       return PageResponse(
-        content: [], totalElements: 0, totalPages: 0,
-        number: page, size: size, first: true, last: true,
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: page,
+        size: size,
+        first: true,
+        last: true,
       );
     }
   }
@@ -1293,10 +1500,14 @@ class LmsService {
 
       if (response.statusCode == 200) {
         final List<dynamic> list = jsonDecode(response.body);
-        log("GET LIVE SESSIONS SUCCESS: courseId=$courseId, count=${list.length}");
+        log(
+          "GET LIVE SESSIONS SUCCESS: courseId=$courseId, count=${list.length}",
+        );
         return list.map((s) => _parseLiveSession(s)).toList();
       }
-      log("GET LIVE SESSIONS FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}");
+      log(
+        "GET LIVE SESSIONS FAILED: status=${response.statusCode}, courseId=$courseId, body=${response.body}",
+      );
       return [];
     } catch (e) {
       log("LmsService.getLiveSessions: $e");
@@ -1343,7 +1554,9 @@ class LmsService {
       }
 
       if (response.statusCode == 403) {
-        throw Exception('Bạn chưa đăng ký khóa học này. Vui lòng đăng ký trước.');
+        throw Exception(
+          'Bạn chưa đăng ký khóa học này. Vui lòng đăng ký trước.',
+        );
       }
       if (response.statusCode == 400) {
         throw Exception(errorMsg);
@@ -1383,10 +1596,14 @@ class LmsService {
         final data = jsonDecode(response.body);
         final coursesCount = (data['courses'] as List?)?.length ?? 0;
         final pathsCount = (data['learningPaths'] as List?)?.length ?? 0;
-        log("SEARCH SUCCESS: keyword=$keyword, courses=$coursesCount, paths=$pathsCount");
+        log(
+          "SEARCH SUCCESS: keyword=$keyword, courses=$coursesCount, paths=$pathsCount",
+        );
         return _parseSearchResult(data);
       }
-      log("SEARCH FAILED: status=${response.statusCode}, keyword=$keyword, body=${response.body}");
+      log(
+        "SEARCH FAILED: status=${response.statusCode}, keyword=$keyword, body=${response.body}",
+      );
       return SearchResult(
         keyword: keyword,
         courses: [],
@@ -1433,8 +1650,11 @@ class LmsService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final content = (data['data'] ?? data['content']) as List<dynamic>? ?? [];
-        log("GET MY LEARNING PATHS SUCCESS: count=${content.length}, keyword=$keyword, page=$page");
+        final content =
+            (data['data'] ?? data['content']) as List<dynamic>? ?? [];
+        log(
+          "GET MY LEARNING PATHS SUCCESS: count=${content.length}, keyword=$keyword, page=$page",
+        );
 
         // ── Fetch enrollments to compute real progress ──────────────────────────
         final enrollmentsResult = await getMyCourses(page: 0, size: 1000);
@@ -1448,7 +1668,9 @@ class LmsService {
           return _enrichLearningPathInfo(base, enrollmentMap);
         }).toList();
       }
-      log("GET MY LEARNING PATHS FAILED: status=${response.statusCode}, keyword=$keyword, body=${response.body}");
+      log(
+        "GET MY LEARNING PATHS FAILED: status=${response.statusCode}, keyword=$keyword, body=${response.body}",
+      );
       return [];
     } catch (e) {
       log("LmsService.getMyLearningPaths: $e");
@@ -1463,9 +1685,10 @@ class LmsService {
     LearningPathInfo base,
     Map<String, EnrolledCourse> enrollmentMap,
   ) {
-    final enrolledCourses = base.courses.where((c) {
-      return enrollmentMap.containsKey(c.courseId.value.toString());
-    }).toList();
+    final enrolledCourses =
+        base.courses.where((c) {
+          return enrollmentMap.containsKey(c.courseId.value.toString());
+        }).toList();
 
     if (enrolledCourses.isEmpty) {
       // Không có khóa nào được enroll → giữ nguyên (0%) từ API
@@ -1507,7 +1730,9 @@ class LmsService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final coursesCount = (data['courses'] as List?)?.length ?? 0;
-        log("GET LEARNING PATH DETAIL SUCCESS: id=$id, title=${data['title']}, courses=$coursesCount");
+        log(
+          "GET LEARNING PATH DETAIL SUCCESS: id=$id, title=${data['title']}, courses=$coursesCount",
+        );
 
         // ── Fetch enrollments to resolve real isCompleted per course ────────────
         final enrollmentsResult = await getMyCourses(page: 0, size: 1000);
@@ -1519,7 +1744,9 @@ class LmsService {
         final detail = _parseLearningPathDetail(data, enrollmentMap);
         return detail;
       }
-      log("GET LEARNING PATH DETAIL FAILED: status=${response.statusCode}, id=$id, body=${response.body}");
+      log(
+        "GET LEARNING PATH DETAIL FAILED: status=${response.statusCode}, id=$id, body=${response.body}",
+      );
       return null;
     } catch (e) {
       log("LmsService.getLearningPathDetail: $e");
@@ -1535,9 +1762,9 @@ class LmsService {
     Map<String, dynamic> data,
     String courseId,
   ) {
-      // DEBUG
-      log(">>> _parseCourseDetail input: enrolled=${data['enrolled']}");
-      return CourseDetail(
+    // DEBUG
+    log(">>> _parseCourseDetail input: enrolled=${data['enrolled']}");
+    return CourseDetail(
       id: data['id']?.toString() ?? courseId,
       title: data['title'] ?? 'Khóa học',
       description: data['description'] ?? '',
@@ -1619,7 +1846,9 @@ class LmsService {
       status: EnrollmentStatus.fromString(c['status']?.toString()),
       certificateAvailable: c['certificateAvailable'] == true,
       deadline: _parseDateTime(c['deadline']),
-      deadlineStatus: DeadlineStatus.fromString(c['deadlineStatus']?.toString()),
+      deadlineStatus: DeadlineStatus.fromString(
+        c['deadlineStatus']?.toString(),
+      ),
     );
   }
 
@@ -1646,8 +1875,7 @@ class LmsService {
       courseName: data['courseTitle'] ?? data['courseName'] ?? '',
       userName: data['userName'] ?? '',
       departmentName: data['departmentName'] ?? '',
-      issuedAt:
-          DateTime.tryParse(data['issuedAt'] ?? '') ?? DateTime.now(),
+      issuedAt: DateTime.tryParse(data['issuedAt'] ?? '') ?? DateTime.now(),
       expiresAt: null,
       courseId: data['courseId']?.toString(),
       certificateUrl: data['certificateUrl']?.toString(),
@@ -1679,9 +1907,10 @@ class LmsService {
         courseName: courseTitle ?? '',
         userName: userName ?? '',
         departmentName: departmentName ?? '',
-        issuedAt: issuedAtStr != null
-            ? DateTime.tryParse(issuedAtStr) ?? DateTime.now()
-            : DateTime.now(),
+        issuedAt:
+            issuedAtStr != null
+                ? DateTime.tryParse(issuedAtStr) ?? DateTime.now()
+                : DateTime.now(),
         expiresAt: null,
         courseId: courseId,
         certificateUrl: certificateUrl,
@@ -1756,17 +1985,18 @@ class LmsService {
     }
 
     final coursesList = (lp['courses'] as List<dynamic>?) ?? [];
-    final courseItems = coursesList.map((c) {
-      final item = c as Map<String, dynamic>;
-      return lpm.CourseItemResponse(
-        relationId: lpm.Long(parseInt(item['relationId'])),
-        courseId: lpm.Long(parseInt(item['courseId'])),
-        courseTitle: item['courseTitle'] ?? '',
-        orderIndex: parseInt(item['orderIndex']),
-        mentorName: item['mentorName'],
-        moduleCount: parseInt(item['moduleCount']),
-      );
-    }).toList();
+    final courseItems =
+        coursesList.map((c) {
+          final item = c as Map<String, dynamic>;
+          return lpm.CourseItemResponse(
+            relationId: lpm.Long(parseInt(item['relationId'])),
+            courseId: lpm.Long(parseInt(item['courseId'])),
+            courseTitle: item['courseTitle'] ?? '',
+            orderIndex: parseInt(item['orderIndex']),
+            mentorName: item['mentorName'],
+            moduleCount: parseInt(item['moduleCount']),
+          );
+        }).toList();
 
     return LearningPathInfo(
       id: lp['id']?.toString() ?? '',
@@ -1790,9 +2020,11 @@ class LmsService {
           final courseIdStr = item['courseId']?.toString() ?? '';
           // Real completion: look up enrollment, fallback to backend isCompleted
           bool isCompleted = item['isCompleted'] ?? false;
-          if (courseIdStr.isNotEmpty && enrollmentMap.containsKey(courseIdStr)) {
+          if (courseIdStr.isNotEmpty &&
+              enrollmentMap.containsKey(courseIdStr)) {
             isCompleted =
-                enrollmentMap[courseIdStr]!.status == EnrollmentStatus.completed;
+                enrollmentMap[courseIdStr]!.status ==
+                EnrollmentStatus.completed;
           }
           return LearningPathCourseItem(
             id: courseIdStr,
@@ -1810,7 +2042,6 @@ class LmsService {
       courses: courses,
     );
   }
-
 }
 
 // ============================================================
@@ -1906,6 +2137,7 @@ class EnrolledCourse {
   final bool certificateAvailable;
   final DateTime? deadline;
   final DeadlineStatus deadlineStatus;
+
   /// Chỉ true khi tất cả quiz module đều đạt.
   /// Dùng để override hiển thị badge/nút thay vì dùng enrollment status.
   final bool allQuizPassed;

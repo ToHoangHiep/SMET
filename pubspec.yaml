@@ -41,6 +41,7 @@ dependencies:
   go_router: ^13.0.0
 
   file_picker: ^10.1.0
+  excel: ^4.0.6
   image_picker: ^1.0.7
   data_table_2: ^2.5.18
   fl_chart: ^0.69.0
