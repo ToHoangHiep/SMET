@@ -3,6 +3,7 @@
 // video_player_web.dart is used on web via conditional import
 // ─────────────────────────────────────────────────────────────
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
@@ -13,16 +14,24 @@ class YouTubePlayerView extends StatefulWidget {
   final String videoId;
   final String? thumbnailUrl;
   final int videoDurationSeconds;
+  final int currentPositionSeconds;
   final VoidCallback? onPlay;
   final VoidCallback? onVideoComplete;
+  /// Callback: (currentSeconds, totalSeconds)
+  final void Function(int currentSeconds, int totalSeconds)? onProgress;
+  /// Callback: fires frequently (~1s) with current playback position.
+  final void Function(int currentSeconds, int totalSeconds)? onTimeUpdate;
 
   const YouTubePlayerView({
     super.key,
     required this.videoId,
     this.thumbnailUrl,
     this.videoDurationSeconds = 0,
+    this.currentPositionSeconds = 0,
     this.onPlay,
     this.onVideoComplete,
+    this.onProgress,
+    this.onTimeUpdate,
   });
 
   @override
@@ -32,6 +41,9 @@ class YouTubePlayerView extends StatefulWidget {
 class _YouTubePlayerViewState extends State<YouTubePlayerView> {
   YoutubePlayerController? _controller;
   bool _playbackStarted = false;
+  bool _hasSeekedToPosition = false;
+  int _totalSeconds = 0;
+  Timer? _timeUpdateTimer;
 
   @override
   void initState() {
@@ -53,15 +65,33 @@ class _YouTubePlayerViewState extends State<YouTubePlayerView> {
     );
 
     _controller!.stream.listen((value) {
+      _totalSeconds = value.metaData.duration.inSeconds;
+
       final state = value.playerState;
       switch (state) {
         case PlayerState.playing:
+          _startTimeUpdateTimer();
           if (!_playbackStarted) {
             _playbackStarted = true;
             widget.onPlay?.call();
           }
+          // Seek to saved position on first play using cueVideoById
+          // cueVideoById prepares the video at startSeconds WITHOUT auto-playing
+          // so user presses play → video starts from saved position
+          if (!_hasSeekedToPosition && widget.currentPositionSeconds > 0) {
+            _hasSeekedToPosition = true;
+            _controller!.cueVideoById(
+              videoId: widget.videoId,
+              startSeconds: widget.currentPositionSeconds.toDouble(),
+            );
+          }
+          break;
+        case PlayerState.paused:
+          _stopTimeUpdateTimer();
+          _reportCurrentTime();
           break;
         case PlayerState.ended:
+          _stopTimeUpdateTimer();
           widget.onVideoComplete?.call();
           break;
         default:
@@ -76,6 +106,7 @@ class _YouTubePlayerViewState extends State<YouTubePlayerView> {
     if (oldWidget.videoId != widget.videoId) {
       _controller?.close();
       _playbackStarted = false;
+      _hasSeekedToPosition = false;
       if (widget.videoId.isNotEmpty) {
         _initController();
       }
@@ -84,8 +115,27 @@ class _YouTubePlayerViewState extends State<YouTubePlayerView> {
 
   @override
   void dispose() {
+    _stopTimeUpdateTimer();
     _controller?.close();
     super.dispose();
+  }
+
+  void _startTimeUpdateTimer() {
+    _stopTimeUpdateTimer();
+    _timeUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _reportCurrentTime();
+    });
+  }
+
+  void _stopTimeUpdateTimer() {
+    _timeUpdateTimer?.cancel();
+    _timeUpdateTimer = null;
+  }
+
+  Future<void> _reportCurrentTime() async {
+    if (_controller == null || _totalSeconds <= 0) return;
+    final current = (await _controller!.currentTime).toInt();
+    widget.onTimeUpdate?.call(current, _totalSeconds);
   }
 
   @override

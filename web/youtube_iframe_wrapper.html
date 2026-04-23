@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #player { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <!-- YouTube IFrame API must be loaded from youtube.com -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <div id="player"></div>
+  <script>
+    var player = null;
+    var _pendingVideoId = null;
+    var _pendingStartSeconds = 0;
+    var _lastReportedState = -1; // -1=unknown, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
+
+    // YouTube IFrame API calls this when it's ready (no script onload needed)
+    function onYouTubeIframeAPIReady() {
+      // Wait for Flutter to send loadVideo command before creating player
+    }
+
+    function _createPlayer() {
+      if (player) return;
+      player = new YT.Player('player', {
+        videoId: _pendingVideoId || '',
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          rel: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          enablejsapi: 1
+        },
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange,
+          onError: onPlayerError
+        }
+      });
+    }
+
+    function _sendMessage(eventName, extra) {
+      try {
+        var msg = { event: eventName };
+        if (extra) Object.assign(msg, extra);
+        window.parent.postMessage(JSON.stringify(msg), '*');
+      } catch (e) {}
+    }
+
+    function onPlayerReady(event) {
+      _sendMessage('ytReady', {
+        videoId: _pendingVideoId,
+        duration: player.getDuration()
+      });
+
+      // Apply pending start position
+      if (_pendingStartSeconds > 0) {
+        var duration = player.getDuration();
+        if (duration > 0 && _pendingStartSeconds < duration) {
+          player.seekTo(_pendingStartSeconds, true);
+        }
+      }
+    }
+
+    function onPlayerStateChange(event) {
+      var state = event.data;
+      var currentTime = player && player.getCurrentTime ? player.getCurrentTime() : 0;
+      var duration = player && player.getDuration ? player.getDuration() : 0;
+
+      _sendMessage('playerState', { state: state, currentTime: currentTime });
+
+      if (state === 1 && _lastReportedState !== 1) {
+        _lastReportedState = 1;
+        _sendMessage('playbackStarted', { currentTime: currentTime, duration: duration });
+        _startProgressPolling();
+      }
+
+      if (state === 2 && _lastReportedState === 1) {
+        _lastReportedState = 2;
+        _sendMessage('paused', { currentTime: currentTime, duration: duration });
+      }
+
+      if (state === 0 && _lastReportedState !== 0) {
+        _lastReportedState = 0;
+        _sendMessage('videoEnded', { currentTime: 0, duration: duration });
+      }
+
+      if (state === 5) {
+        _lastReportedState = -1;
+      }
+    }
+
+    function onPlayerError(event) {
+      _sendMessage('playerError', { errorCode: event.data });
+    }
+
+    var _progressIntervalId = null;
+    function _startProgressPolling() {
+      if (_progressIntervalId) return;
+      _progressIntervalId = setInterval(function() {
+        if (!player || !player.getCurrentTime) return;
+        try {
+          var state = player.getPlayerState();
+          if (state !== 1) {
+            clearInterval(_progressIntervalId);
+            _progressIntervalId = null;
+            return;
+          }
+          _sendMessage('progress', {
+            currentTime: player.getCurrentTime(),
+            duration: player.getDuration ? player.getDuration() : 0
+          });
+        } catch (e) {}
+      }, 1000);
+    }
+
+    // Listen for commands from Flutter
+    window.addEventListener('message', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+
+        if (data.command === 'loadVideo') {
+          _pendingVideoId = data.videoId;
+          _pendingStartSeconds = data.startSeconds || 0;
+          _lastReportedState = -1;
+
+          if (player) {
+            // Player already created, just load new video
+            player.loadVideoById({
+              videoId: _pendingVideoId,
+              startSeconds: _pendingStartSeconds
+            });
+          }
+          // If player not yet created, it will be created with pendingVideoId
+        } else if (data.command === 'seekTo') {
+          if (player && player.seekTo) {
+            player.seekTo(data.seconds, true);
+          }
+        } else if (data.command === 'getCurrentTime') {
+          if (player && player.getCurrentTime) {
+            _sendMessage('currentTimeResponse', {
+              currentTime: player.getCurrentTime(),
+              duration: player.getDuration ? player.getDuration() : 0
+            });
+          }
+        }
+      } catch (err) {}
+    });
+
+    // Watch for YouTube IFrame API readiness and create player once available
+    function _waitForYTApi() {
+      if (typeof YT !== 'undefined' && YT.Player) {
+        if (!player && _pendingVideoId) {
+          _createPlayer();
+        }
+      } else {
+        setTimeout(_waitForYTApi, 50);
+      }
+    }
+    _waitForYTApi();
+  </script>
+</body>
+</html>

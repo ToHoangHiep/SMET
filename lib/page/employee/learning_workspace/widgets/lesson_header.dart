@@ -6,6 +6,7 @@ class LessonHeader extends StatelessWidget {
   final String lessonId;
   final bool isCompleted;
   final VoidCallback onMarkComplete;
+  final String? lessonDuration; // e.g. "10 phút"
 
   const LessonHeader({
     super.key,
@@ -14,6 +15,7 @@ class LessonHeader extends StatelessWidget {
     required this.lessonId,
     this.isCompleted = false,
     required this.onMarkComplete,
+    this.lessonDuration,
   });
 
   Color _levelColor(String level) {
@@ -156,6 +158,14 @@ class LessonHeader extends StatelessWidget {
                   level,
                   levelColor,
                 ),
+                if (lessonDuration != null && lessonDuration!.isNotEmpty) ...[
+                  const SizedBox(width: 20),
+                  _buildMetaItem(
+                    Icons.schedule_outlined,
+                    lessonDuration!,
+                    const Color(0xFF6366F1),
+                  ),
+                ],
               ],
             ),
           ),

@@ -102,6 +102,12 @@ class _AdminShellState extends State<AdminShell> {
                       tooltip: 'Gán khóa học',
                     ),
                     SidebarMenuItem(
+                      icon: Icons.verified_outlined,
+                      title: 'Phê duyệt khóa học',
+                      route: '/course_approval',
+                      tooltip: 'Phê duyệt khóa học',
+                    ),
+                    SidebarMenuItem(
                       icon: Icons.description_rounded,
                       title: 'Báo cáo',
                       route: '/admin/reports',

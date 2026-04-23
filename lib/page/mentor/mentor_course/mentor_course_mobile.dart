@@ -70,6 +70,8 @@ class _MentorCourseMobileState extends State<MentorCourseMobile>
       String? status;
       if (_selectedFilter == 'PUBLISHED') {
         status = 'PUBLISHED';
+      } else if (_selectedFilter == 'PENDING') {
+        status = 'PENDING';
       } else if (_selectedFilter == 'DRAFT') {
         status = 'DRAFT';
       } else if (_selectedFilter == 'ARCHIVED') {
@@ -639,6 +641,10 @@ class _MobileCourseCardState extends State<_MobileCourseCard> {
       case 'PUBLISHED':
         color = widget.success; bgColor = widget.success.withValues(alpha: 0.1);
         label = 'Đã xuất bản'; icon = Icons.check_circle_outline;
+        break;
+      case 'PENDING':
+        color = widget.warning; bgColor = widget.warning.withValues(alpha: 0.1);
+        label = 'Chờ duyệt'; icon = Icons.hourglass_top_rounded;
         break;
       case 'ARCHIVED':
         color = widget.textMedium; bgColor = widget.textMedium.withValues(alpha: 0.1);

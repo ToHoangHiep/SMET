@@ -10,7 +10,6 @@ import 'package:smet/page/employee/learning_workspace/widgets/lesson_tabs.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/quiz_lesson_view.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/resources_sidebar.dart';
 import 'package:smet/page/employee/learning_workspace/widgets/video_player.dart';
-import 'package:smet/page/chat/widgets/floating_chat_button.dart';
 import 'package:smet/service/common/global_notification_service.dart';
 import 'package:smet/service/employee/lms_service.dart';
 import 'package:smet/service/common/auth_service.dart';
@@ -41,6 +40,8 @@ class LearningWorkspacePage extends StatefulWidget {
 
 class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     with SingleTickerProviderStateMixin {
+  static int _debugSetStateCount = 0;
+
   LearningCourse? _course;
   LessonContent? _lessonContent;
   String? _currentQuizId;
@@ -55,6 +56,12 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
 
   Future<void> _onQuizResetSuccess() async {
     await _loadCourseOnly();
+  }
+
+  Future<void> _sendVideoProgress(String lessonId, int watchedSeconds, int totalSeconds) async {
+    if (watchedSeconds <= 0 || totalSeconds <= 0) return;
+    // Fire-and-forget: don't block UI
+    LmsService.updateVideoProgress(lessonId, watchedSeconds, totalSeconds);
   }
 
   @override
@@ -120,6 +127,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
 
   Future<void> _loadData() async {
     _fadeController.reset();
+    debugPrint('[DEBUG setState #${++_debugSetStateCount}] _loadData START');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -139,6 +147,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
       }
 
       if (widget.quizId != null) {
+        debugPrint('[DEBUG setState #${++_debugSetStateCount}] _loadData QUIZ mode');
         setState(() {
           _course = course;
           _lessonContent = null;
@@ -190,6 +199,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
         }
       }
 
+      debugPrint('[DEBUG setState #${++_debugSetStateCount}] _loadData FINAL');
       setState(() {
         _course = course;
         _lessonContent = lessonContent;
@@ -197,6 +207,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
         _discussionCount = fetchedCount;
         _isLoading = false;
       });
+      _loadLessonDuration();
       _fadeController.forward();
     } catch (e) {
       debugPrint('Error loading learning workspace: $e');
@@ -273,6 +284,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
       if (widget.learningPathId != null) {
         pathDetail = await LmsService.getLearningPathDetail(widget.learningPathId!);
       }
+      debugPrint('[DEBUG setState #${++_debugSetStateCount}] _loadCourseOnly');
       setState(() {
         _course = course;
         if (pathDetail != null) {
@@ -407,6 +419,9 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
           debugPrint('Video completed');
           _showVideoCompleteDialog();
         },
+        onProgress: (currentSeconds, totalSeconds) {
+          _sendVideoProgress(_lessonContent!.id, currentSeconds, totalSeconds);
+        },
       );
     }
 
@@ -496,6 +511,31 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     );
   }
 
+  String? _formatDuration(int seconds) {
+    if (seconds <= 0) return '';
+    if (seconds < 60) return '$seconds giây';
+    final minutes = seconds ~/ 60;
+    if (minutes < 60) return '$minutes phút';
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    if (remainingMinutes == 0) return '$hours giờ';
+    return '$hours giờ $remainingMinutes phút';
+  }
+
+  String? _lessonDurationMinutes;
+
+  void _loadLessonDuration() {
+    if (_course == null || _lessonContent == null) return;
+    for (var module in _course!.modules) {
+      for (var lesson in module.lessons) {
+        if (lesson.id == _lessonContent!.id) {
+          _lessonDurationMinutes = _formatDuration(lesson.durationMinutes * 60);
+          return;
+        }
+      }
+    }
+  }
+
   Widget buildLessonHeader() {
     if (_lessonContent == null && !_isQuizMode) return const SizedBox.shrink();
 
@@ -509,6 +549,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
       lessonId: _lessonContent!.id,
       isCompleted: _lessonContent!.isCompleted,
       onMarkComplete: _onMarkComplete,
+      lessonDuration: _lessonDurationMinutes,
     );
   }
 
@@ -571,8 +612,11 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
     );
   }
 
+  static int _debugLwpBuild = 0;
+
   @override
   Widget build(BuildContext context) {
+    debugPrint('[DEBUG LearningWorkspacePage build #${++_debugLwpBuild}]');
     if (_isLoading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -632,14 +676,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
                       ],
                       isQuizMode: _isQuizMode,
                     ),
-                    Positioned(
-                      right: 20,
-                      bottom: 20,
-                      child: FloatingChatButton(
-                        primaryColor: const Color(0xFF137FEC),
-                        rolePrefix: 'employee',
-                      ),
-                    ),
+                    // FloatingChatButton is inside EmployeeShell already
                   ],
                 );
               } else {
@@ -659,14 +696,7 @@ class _LearningWorkspacePageState extends State<LearningWorkspacePage>
                       onLogout: _handleLogout,
                       onQuizResetSuccess: _onQuizResetSuccess,
                     ),
-                    Positioned(
-                      right: 20,
-                      bottom: 20,
-                      child: FloatingChatButton(
-                        primaryColor: const Color(0xFF137FEC),
-                        rolePrefix: 'employee',
-                      ),
-                    ),
+                    // FloatingChatButton is inside EmployeeShell already
                   ],
                 );
               }

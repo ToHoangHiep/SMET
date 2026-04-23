@@ -1,28 +1,32 @@
 // ─────────────────────────────────────────────────────────────
-// Web implementation: YouTube IFrame via HtmlElementView
-// Uses registerViewFactory + JS interop — NO webview_flutter
+// Web implementation: YouTube IFrame via youtube_player_iframe package.
+// Uses the package's built-in player which handles CanvasKit compatibility.
 // ─────────────────────────────────────────────────────────────
 
-import 'dart:ui_web' as ui_web;
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:web/web.dart' as web;
-import 'dart:js_interop';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 class YouTubePlayerView extends StatefulWidget {
   final String videoId;
   final String? thumbnailUrl;
   final int videoDurationSeconds;
+  final int currentPositionSeconds;
   final VoidCallback? onPlay;
   final VoidCallback? onVideoComplete;
+  final void Function(int currentSeconds, int totalSeconds)? onProgress;
+  final void Function(int currentSeconds, int totalSeconds)? onTimeUpdate;
 
   const YouTubePlayerView({
     super.key,
     required this.videoId,
     this.thumbnailUrl,
     this.videoDurationSeconds = 0,
+    this.currentPositionSeconds = 0,
     this.onPlay,
     this.onVideoComplete,
+    this.onProgress,
+    this.onTimeUpdate,
   });
 
   @override
@@ -30,106 +34,109 @@ class YouTubePlayerView extends StatefulWidget {
 }
 
 class _YouTubePlayerViewState extends State<YouTubePlayerView> {
-  bool _isPlaying = false;
+  YoutubePlayerController? _controller;
+  bool _playbackStarted = false;
+  bool _hasSeekedToPosition = false;
+  int _totalSeconds = 0;
+  Timer? _timeUpdateTimer;
   bool _hasEnded = false;
-  bool _isReady = false;
-  bool _factoryRegistered = false;
 
-  /// Mỗi lần mount cần viewType khác nhau. Nếu dùng chung theo videoId,
-  /// callback factory vẫn giữ State cũ (đã dispose) → load / setState sai → spinner vô hạn.
-  static int _viewSeq = 0;
-  late final String _viewType =
-      'youtube-iframe-${widget.videoId}-${_viewSeq++}';
-
-  void _parsePlayerState(String data) {
-    // State: 0=ended, 1=playing, 2=paused, 3=buffering, -1=unstarted
-    if (data.contains('"playerState":1')) {
-      if (!_isPlaying) {
-        _isPlaying = true;
-        widget.onPlay?.call();
-      }
-    } else if (data.contains('"playerState":0')) {
-      if (!_hasEnded) {
-        _hasEnded = true;
-        widget.onVideoComplete?.call();
-      }
+  @override
+  void initState() {
+    super.initState();
+    if (widget.videoId.isNotEmpty) {
+      _initController();
     }
   }
 
-  void _setupPostMessageListener() {
-    web.window.addEventListener(
-      'message',
-      ((web.Event event) {
-        final msg = (event as web.MessageEvent);
-        if (msg.data == null) return;
-        try {
-          final data = msg.data.toString();
-          if (data.contains('"event":"infoDelivery"') ||
-              data.contains('"playerState"')) {
-            _parsePlayerState(data);
-          }
-        } catch (_) {}
-      }).toJS,
+  void _initController() {
+    _controller = YoutubePlayerController.fromVideoId(
+      videoId: widget.videoId,
+      autoPlay: false,
+      params: const YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        enableCaption: true,
+      ),
     );
-  }
 
-  void _markReady() {
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() => _isReady = true);
+    _controller!.stream.listen((value) {
+      _totalSeconds = value.metaData.duration.inSeconds;
+
+      final state = value.playerState;
+      switch (state) {
+        case PlayerState.playing:
+          _startTimeUpdateTimer();
+          if (!_playbackStarted) {
+            _playbackStarted = true;
+            widget.onPlay?.call();
+          }
+          if (!_hasSeekedToPosition && widget.currentPositionSeconds > 0) {
+            _hasSeekedToPosition = true;
+            _controller!.seekTo(seconds: widget.currentPositionSeconds.toDouble());
+          }
+          break;
+        case PlayerState.paused:
+          _stopTimeUpdateTimer();
+          _reportCurrentTime();
+          break;
+        case PlayerState.ended:
+          _stopTimeUpdateTimer();
+          if (!_hasEnded) {
+            _hasEnded = true;
+            widget.onVideoComplete?.call();
+          }
+          break;
+        default:
+          break;
       }
     });
   }
 
-  void _registerFactoryOnce(int width, int height) {
-    if (_factoryRegistered) return;
-    _factoryRegistered = true;
+  @override
+  void didUpdateWidget(covariant YouTubePlayerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoId != widget.videoId) {
+      _controller?.close();
+      _playbackStarted = false;
+      _hasSeekedToPosition = false;
+      _hasEnded = false;
+      _totalSeconds = 0;
+      _stopTimeUpdateTimer();
+      if (widget.videoId.isNotEmpty) {
+        _initController();
+      }
+    }
+  }
 
-    final videoId = widget.videoId;
-    final embedUrl = Uri.parse(
-      'https://www.youtube.com/embed/$videoId'
-      '?enablejsapi=1'
-      '&playsinline=1'
-      '&controls=1'
-      '&rel=0'
-      '&modestbranding=1'
-      '&widget_referrer=${Uri.encodeComponent('smet-app')}',
-    ).toString();
+  @override
+  void dispose() {
+    _stopTimeUpdateTimer();
+    _controller?.close();
+    super.dispose();
+  }
 
-    // ignore: undefined_prefixed_name
-    ui_web.platformViewRegistry.registerViewFactory(
-      _viewType,
-      (int viewId) {
-        final iframe =
-            web.document.createElement('iframe') as web.HTMLIFrameElement;
+  void _startTimeUpdateTimer() {
+    _stopTimeUpdateTimer();
+    _timeUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _reportCurrentTime();
+    });
+  }
 
-        iframe.width = '$width';
-        iframe.height = '$height';
-        iframe.style.width = '${width}px';
-        iframe.style.height = '${height}px';
-        iframe.style.border = 'none';
-        iframe.style.position = 'absolute';
-        iframe.style.top = '0';
-        iframe.style.left = '0';
-        iframe.allow =
-            'accelerometer; autoplay; clipboard-write; '
-            'encrypted-media; gyroscope; picture-in-picture; web-share';
-        iframe.setAttribute('allowfullscreen', 'true');
+  void _stopTimeUpdateTimer() {
+    _timeUpdateTimer?.cancel();
+    _timeUpdateTimer = null;
+  }
 
-        // Gắn listener TRƯỚC khi gán src — tránh iframe cache load xong trước khi listen.
-        iframe.addEventListener(
-          'load',
-          ((web.Event e) {
-            _setupPostMessageListener();
-            _markReady();
-          }).toJS,
-        );
+  Future<void> _reportCurrentTime() async {
+    if (_controller == null || _totalSeconds <= 0) return;
+    final current = (await _controller!.currentTime).toInt();
+    widget.onTimeUpdate?.call(current, _totalSeconds);
 
-        iframe.src = embedUrl;
-
-        return iframe;
-      },
-    );
+    // Throttle onProgress to every 10 seconds
+    if (current > 0 && current % 10 == 0) {
+      widget.onProgress?.call(current, _totalSeconds);
+    }
   }
 
   @override
@@ -138,62 +145,38 @@ class _YouTubePlayerViewState extends State<YouTubePlayerView> {
       return _buildNoVideo();
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth.toInt();
-        final height = constraints.maxHeight.toInt();
+    if (_controller == null) {
+      return Container(
+        color: const Color(0xFF1E293B),
+        child: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF137FEC)),
+        ),
+      );
+    }
 
-        if (width > 0 && height > 0) {
-          _registerFactoryOnce(width, height);
-
-          return SizedBox(
-            width: width.toDouble(),
-            height: height.toDouble(),
-            child: Stack(
-              children: [
-                HtmlElementView(viewType: _viewType),
-                if (!_isReady)
-                  Container(
-                    color: const Color(0xFF1E293B),
-                    child: const Center(
-                      child:
-                          CircularProgressIndicator(color: Color(0xFF137FEC)),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }
-
-        return AspectRatio(
-          aspectRatio: 16 / 9,
-          child: _buildNoVideo(),
-        );
-      },
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: YoutubePlayer(controller: _controller!),
     );
   }
 
   Widget _buildNoVideo() {
     String? imageUrl = widget.thumbnailUrl;
-    if (imageUrl == null || imageUrl.isEmpty) {
-      if (widget.videoId.isNotEmpty) {
-        imageUrl = 'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg';
-      }
+    if ((imageUrl == null || imageUrl.isEmpty) && widget.videoId.isNotEmpty) {
+      imageUrl = 'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg';
     }
 
     return Stack(
       fit: StackFit.expand,
       children: [
         if (imageUrl != null)
-          Image.network(imageUrl, fit: BoxFit.cover)
+          Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildPlaceholder(),
+          )
         else
-          Container(
-            color: const Color(0xFF1E293B),
-            child: const Center(
-              child: Icon(Icons.play_circle_outline,
-                  size: 80, color: Colors.white54),
-            ),
-          ),
+          _buildPlaceholder(),
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -226,6 +209,15 @@ class _YouTubePlayerViewState extends State<YouTubePlayerView> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: const Color(0xFF1E293B),
+      child: const Center(
+        child: Icon(Icons.play_circle_outline, size: 80, color: Colors.white54),
+      ),
     );
   }
 }

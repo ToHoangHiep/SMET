@@ -276,11 +276,12 @@ class MentorCourseService {
   }
 
   // ============================================
-  // PUBLISH COURSE
-  // Backend: PUT /api/lms/courses/{id}/publish
+  // SUBMIT COURSE (Mentor submits for review)
+  // Backend: PUT /api/lms/courses/{id}/submit
+  // Flow: DRAFT -> PENDING
   // ============================================
-  Future<CourseResponse> publishCourse(Long courseId) async {
-    log("[MentorCourseService] publishCourse() called — courseId=${courseId.value}");
+  Future<CourseResponse> submitCourse(Long courseId) async {
+    log("[MentorCourseService] submitCourse() called — courseId=${courseId.value}");
 
     try {
       _logStep("Getting auth token...");
@@ -289,11 +290,11 @@ class MentorCourseService {
         throw Exception("No auth token found. Please login again.");
       }
 
-      final url = "$baseUrl/lms/courses/${courseId.value}/publish";
+      final url = "$baseUrl/lms/courses/${courseId.value}/submit";
       _logResult("URL", url);
 
       _logStep("Sending PUT request...");
-      _logRequest("PUBLISH COURSE", url, headers: _headers(token));
+      _logRequest("SUBMIT COURSE", url, headers: _headers(token));
       final res = await http.put(Uri.parse(url), headers: _headers(token));
       _logResponse(res);
 
@@ -304,7 +305,7 @@ class MentorCourseService {
           if (decoded == null) throw Exception("Empty response from server");
           final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
           final result = CourseResponse.fromJson(data);
-          _logResult("Course published", "id=${result.id.value}, published=${result.published}");
+          _logResult("Course submitted", "id=${result.id.value}, status=${result.status}");
           return result;
         } on FormatException catch (e) {
           log("  [ERROR] JSON parse failed: $e");
@@ -312,9 +313,9 @@ class MentorCourseService {
         }
       }
 
-      throw Exception("Publish course failed: HTTP ${res.statusCode}");
+      throw Exception("Submit course failed: HTTP ${res.statusCode} — ${res.body}");
     } catch (e) {
-      log("[MentorCourseService] publishCourse() FAILED: $e");
+      log("[MentorCourseService] submitCourse() FAILED: $e");
       rethrow;
     }
   }

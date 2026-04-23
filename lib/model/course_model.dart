@@ -18,6 +18,107 @@ class Long {
   String toString() => value.toString();
 }
 
+// ============================================
+// COURSE QUIZ RESPONSE (for admin approval preview)
+// Backend: GET /api/lms/quizzes/course/{courseId}
+// ============================================
+class CourseQuizResponse {
+  final Long id;
+  final String title;
+  final int? passingScore;
+  final int? timeLimitMinutes;
+  final int? maxAttempts;
+  final int? questionCount;
+  final bool? showAnswer;
+  final Long? moduleId;
+  final String? moduleTitle;
+  final List<CourseQuizQuestionResponse>? questions;
+
+  CourseQuizResponse({
+    required this.id,
+    required this.title,
+    this.passingScore,
+    this.timeLimitMinutes,
+    this.maxAttempts,
+    this.questionCount,
+    this.showAnswer,
+    this.moduleId,
+    this.moduleTitle,
+    this.questions,
+  });
+
+  factory CourseQuizResponse.fromJson(Map<String, dynamic> json) {
+    final rawQuestions = json['questions'];
+    return CourseQuizResponse(
+      id: Long(json['id']),
+      title: (json['title'] ?? '').toString(),
+      passingScore: _parseInt(json['passingScore']),
+      timeLimitMinutes: _parseInt(json['timeLimitMinutes']),
+      maxAttempts: json['maxAttempts'],
+      questionCount: json['questionCount'],
+      showAnswer: json['showAnswer'],
+      moduleId: json['moduleId'] != null ? Long(json['moduleId']) : null,
+      moduleTitle: json['moduleTitle']?.toString(),
+      questions: rawQuestions == null
+          ? null
+          : (rawQuestions as List)
+              .map((e) => CourseQuizQuestionResponse.fromJson(e as Map<String, dynamic>))
+              .toList(),
+    );
+  }
+}
+
+class CourseQuizQuestionResponse {
+  final Long id;
+  final String content;
+  final String? type;
+  final Long? lessonId;
+  final List<CourseQuizOptionResponse>? options;
+
+  CourseQuizQuestionResponse({
+    required this.id,
+    required this.content,
+    this.type,
+    this.lessonId,
+    this.options,
+  });
+
+  factory CourseQuizQuestionResponse.fromJson(Map<String, dynamic> json) {
+    final rawOptions = json['options'];
+    return CourseQuizQuestionResponse(
+      id: Long(json['id']),
+      content: (json['content'] ?? '').toString(),
+      type: json['type']?.toString(),
+      lessonId: json['lessonId'] != null ? Long(json['lessonId']) : null,
+      options: rawOptions == null
+          ? null
+          : (rawOptions as List)
+              .map((e) => CourseQuizOptionResponse.fromJson(e as Map<String, dynamic>))
+              .toList(),
+    );
+  }
+}
+
+class CourseQuizOptionResponse {
+  final Long id;
+  final String content;
+  final bool? isCorrect;
+
+  CourseQuizOptionResponse({
+    required this.id,
+    required this.content,
+    this.isCorrect,
+  });
+
+  factory CourseQuizOptionResponse.fromJson(Map<String, dynamic> json) {
+    return CourseQuizOptionResponse(
+      id: Long(json['id']),
+      content: (json['content'] ?? '').toString(),
+      isCorrect: json['isCorrect'],
+    );
+  }
+}
+
 int _parseInt(dynamic value) {
   if (value == null) return 0;
   if (value is int) return value;
@@ -69,7 +170,9 @@ class PageResponse<T> {
       content:
           rawList?.map((e) => fromJsonT(e as Map<String, dynamic>)).toList() ??
           [],
-      totalElements: _parseInt(json['totalElements'] ?? json['totalElements'] ?? 0),
+      totalElements: _parseInt(
+        json['totalElements'] ?? json['totalElements'] ?? 0,
+      ),
       totalPages: _parseInt(json['totalPages'] ?? 0),
       number: _parseInt(json['number'] ?? json['page'] ?? 0),
       size: _parseInt(json['size'] ?? 0),
@@ -113,6 +216,12 @@ class CourseResponse {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// Level 1=Beginner, 2=Intermediate, 3=Advanced
+  final int? level;
+
+  /// Total duration in minutes (sum of all lesson durations)
+  final int? durationMinutes;
+
   CourseResponse({
     required this.id,
     required this.title,
@@ -128,6 +237,8 @@ class CourseResponse {
     this.studentCount,
     this.createdAt,
     this.updatedAt,
+    this.level,
+    this.durationMinutes,
   });
 
   factory CourseResponse.fromJson(Map<String, dynamic> json) {
@@ -153,6 +264,8 @@ class CourseResponse {
       studentCount: json['studentCount'],
       createdAt: parseDate(json['createdAt']),
       updatedAt: parseDate(json['updatedAt']),
+      level: json['level'],
+      durationMinutes: json['durationMinutes'],
     );
   }
 
@@ -160,6 +273,8 @@ class CourseResponse {
     switch (status.toUpperCase()) {
       case 'DRAFT':
         return 'Bản nháp';
+      case 'PENDING':
+        return 'Chờ duyệt';
       case 'PUBLISHED':
         return 'Đã xuất bản';
       case 'ARCHIVED':
@@ -179,9 +294,78 @@ class CourseResponse {
         return CourseStatus.PUBLISHED;
       case 'ARCHIVED':
         return CourseStatus.ARCHIVED;
+      case 'PENDING':
+        return CourseStatus.PENDING;
       default:
         return CourseStatus.DRAFT;
     }
+  }
+}
+
+// ============================================
+// COURSE MODULE DETAIL (nested in CourseDetailResponse)
+// Backend: CourseDetailResponse.ModuleDetail
+// ============================================
+class CourseModuleDetail {
+  final Long id;
+  final String title;
+  final int? orderIndex;
+  final int? lessonCount;
+  final List<CourseLessonDetail>? lessons;
+
+  CourseModuleDetail({
+    required this.id,
+    required this.title,
+    this.orderIndex,
+    this.lessonCount,
+    this.lessons,
+  });
+
+  factory CourseModuleDetail.fromJson(Map<String, dynamic> json) {
+    final rawLessons = json['lessons'];
+    return CourseModuleDetail(
+      id: _parseLong(json['id']),
+      title: (json['title'] ?? '').toString(),
+      orderIndex: _parseInt(json['orderIndex']),
+      lessonCount: _parseInt(json['lessonCount']),
+      lessons: rawLessons == null
+          ? null
+          : (rawLessons as List)
+              .map((e) => CourseLessonDetail.fromJson(e as Map<String, dynamic>))
+              .toList(),
+    );
+  }
+}
+
+// ============================================
+// COURSE LESSON DETAIL (nested in CourseModuleDetail)
+// Backend: CourseDetailResponse.LessonDetail
+// ============================================
+class CourseLessonDetail {
+  final Long id;
+  final String title;
+  final int? orderIndex;
+  final List<LessonContentResponse>? contents;
+
+  CourseLessonDetail({
+    required this.id,
+    required this.title,
+    this.orderIndex,
+    this.contents,
+  });
+
+  factory CourseLessonDetail.fromJson(Map<String, dynamic> json) {
+    final rawContents = json['contents'];
+    return CourseLessonDetail(
+      id: _parseLong(json['id']),
+      title: (json['title'] ?? '').toString(),
+      orderIndex: _parseInt(json['orderIndex']),
+      contents: rawContents == null
+          ? null
+          : (rawContents as List)
+              .map((e) => LessonContentResponse.fromJson(e as Map<String, dynamic>))
+              .toList(),
+    );
   }
 }
 
@@ -197,6 +381,7 @@ class CourseDetailResponse {
   final String mentorName;
   final int? departmentId;
   final String? departmentName;
+  final String? departmentCode;
   final String status;
   final bool published;
   final String? imageUrl;
@@ -208,6 +393,15 @@ class CourseDetailResponse {
   final int? defaultDeadlineDays;
   final DateTime? fixedDeadline;
 
+  /// Level 1=Beginner, 2=Intermediate, 3=Advanced
+  final int? level;
+
+  /// Total duration in minutes
+  final int? durationMinutes;
+
+  /// Nested module details from backend
+  final List<CourseModuleDetail>? modules;
+
   CourseDetailResponse({
     required this.id,
     required this.title,
@@ -216,6 +410,7 @@ class CourseDetailResponse {
     required this.mentorName,
     this.departmentId,
     this.departmentName,
+    this.departmentCode,
     required this.status,
     this.published = false,
     this.imageUrl,
@@ -226,9 +421,16 @@ class CourseDetailResponse {
     this.deadlineType,
     this.defaultDeadlineDays,
     this.fixedDeadline,
+    this.level,
+    this.durationMinutes,
+    this.modules,
   });
 
-  int get lessonCount => moduleCount;
+  int get lessonCount {
+    final mods = modules;
+    if (mods == null) return moduleCount;
+    return mods.fold(0, (sum, m) => sum + (m.lessons?.length ?? 0));
+  }
 
   String get statusLabel {
     switch (status.toUpperCase()) {
@@ -251,6 +453,8 @@ class CourseDetailResponse {
         return CourseStatus.PUBLISHED;
       case 'ARCHIVED':
         return CourseStatus.ARCHIVED;
+      case 'PENDING':
+        return CourseStatus.PENDING;
       default:
         return CourseStatus.DRAFT;
     }
@@ -272,6 +476,7 @@ class CourseDetailResponse {
       mentorName: (json['mentorName'] ?? '').toString(),
       departmentId: json['departmentId'],
       departmentName: json['departmentName']?.toString(),
+      departmentCode: json['departmentCode']?.toString(),
       status: (json['status'] ?? '').toString(),
       published: json['published'] ?? json['isPublished'] ?? false,
       imageUrl: json['imageUrl']?.toString(),
@@ -282,7 +487,18 @@ class CourseDetailResponse {
       deadlineType: json['deadlineType']?.toString(),
       defaultDeadlineDays: json['defaultDeadlineDays'],
       fixedDeadline: parseDate(json['fixedDeadline']),
+      level: json['level'],
+      durationMinutes: json['durationMinutes'],
+      modules: _parseModules(json['modules']),
     );
+  }
+
+  static List<CourseModuleDetail>? _parseModules(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is! List) return null;
+    return raw
+        .map((e) => CourseModuleDetail.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }
 
@@ -299,6 +515,9 @@ class CreateCourseRequest {
   final String? fixedDeadline;
   final String? imageUrl;
 
+  /// Level 1=Beginner, 2=Intermediate, 3=Advanced
+  final int? level;
+
   CreateCourseRequest({
     required this.title,
     this.description,
@@ -307,6 +526,7 @@ class CreateCourseRequest {
     this.defaultDeadlineDays,
     this.fixedDeadline,
     this.imageUrl,
+    this.level,
   });
 
   Map<String, dynamic> toJson() => {
@@ -317,6 +537,7 @@ class CreateCourseRequest {
     if (defaultDeadlineDays != null) 'defaultDeadlineDays': defaultDeadlineDays,
     if (fixedDeadline != null) 'fixedDeadline': fixedDeadline,
     if (imageUrl != null) 'imageUrl': imageUrl,
+    if (level != null) 'level': level,
   };
 }
 
@@ -333,6 +554,9 @@ class UpdateCourseRequest {
   final String? imageUrl;
   final String? fixedDeadline;
 
+  /// Level 1=Beginner, 2=Intermediate, 3=Advanced
+  final int? level;
+
   UpdateCourseRequest({
     required this.title,
     this.description,
@@ -341,6 +565,7 @@ class UpdateCourseRequest {
     this.defaultDeadlineDays,
     this.imageUrl,
     this.fixedDeadline,
+    this.level,
   });
 
   Map<String, dynamic> toJson() => {
@@ -351,6 +576,7 @@ class UpdateCourseRequest {
     if (defaultDeadlineDays != null) 'defaultDeadlineDays': defaultDeadlineDays,
     if (imageUrl != null) 'imageUrl': imageUrl,
     if (fixedDeadline != null) 'fixedDeadline': fixedDeadline,
+    if (level != null) 'level': level,
   };
 }
 
@@ -409,6 +635,8 @@ class CourseModel {
     switch (status.toUpperCase()) {
       case 'DRAFT':
         return 'Bản nháp';
+      case 'PENDING':
+        return 'Chờ duyệt';
       case 'PUBLISHED':
         return 'Đã xuất bản';
       case 'ARCHIVED':
@@ -484,9 +712,11 @@ enum DeadlineType {
 
 // ============================================
 // COURSE STATUS HELPER
+// Backend: CourseStatus enum: DRAFT, PENDING, PUBLISHED, ARCHIVED
 // ============================================
 enum CourseStatus {
   DRAFT,
+  PENDING,
   PUBLISHED,
   ARCHIVED;
 
@@ -613,6 +843,9 @@ class LessonResponse {
   final List<LessonContentResponse> contents;
   final bool isCompleted;
 
+  /// Duration in minutes — returned by backend
+  final int? durationMinutes;
+
   // Deprecated fields - giữ lại để tương thích ngược
   // Sử dụng firstContent để lấy thông tin thay thế
   @Deprecated('Use contents instead')
@@ -630,6 +863,7 @@ class LessonResponse {
     required this.orderIndex,
     this.contents = const [],
     this.isCompleted = false,
+    this.durationMinutes,
     // Deprecated params - không parse từ JSON nữa
     this.contentType,
     this.content,
@@ -641,10 +875,11 @@ class LessonResponse {
     // Parse mảng contents từ backend
     final List<LessonContentResponse> parsedContents =
         (json['contents'] as List<dynamic>?)
-                ?.map((e) =>
-                    LessonContentResponse.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [];
+            ?.map(
+              (e) => LessonContentResponse.fromJson(e as Map<String, dynamic>),
+            )
+            .toList() ??
+        [];
 
     // Sắp xếp theo orderIndex
     parsedContents.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
@@ -655,6 +890,7 @@ class LessonResponse {
       orderIndex: _parseInt(json['orderIndex']),
       contents: parsedContents,
       isCompleted: json['isCompleted'] ?? false,
+      durationMinutes: json['durationMinutes'],
     );
   }
 
@@ -721,6 +957,7 @@ class CreateModuleRequest {
 // ============================================
 // CREATE LESSON REQUEST
 // Backend: POST /api/lms/lessons
+// durationMinutes is required (backend validates @Min(1))
 // ============================================
 class CreateLessonRequest {
   final String title;
@@ -730,6 +967,9 @@ class CreateLessonRequest {
   final String? content;
   final String? videoUrl;
 
+  /// Duration in minutes — REQUIRED by backend
+  final int? durationMinutes;
+
   CreateLessonRequest({
     required this.title,
     required this.orderIndex,
@@ -737,6 +977,7 @@ class CreateLessonRequest {
     required this.contentType,
     this.content,
     this.videoUrl,
+    this.durationMinutes,
   });
 
   Map<String, dynamic> toJson() => {
@@ -746,5 +987,6 @@ class CreateLessonRequest {
     'contentType': contentType,
     if (content != null) 'content': content,
     if (videoUrl != null) 'videoUrl': videoUrl,
+    if (durationMinutes != null) 'durationMinutes': durationMinutes,
   };
 }
