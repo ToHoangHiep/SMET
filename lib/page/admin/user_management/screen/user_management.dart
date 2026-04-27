@@ -197,10 +197,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
     Object? caught;
 
     try {
-      final res = await _apiService.downloadTemplate();
+      final bytes = await _apiService.downloadTemplate();
       if (!mounted) return;
 
-      final bytes = res.bodyBytes;
       final blob = html.Blob(
         [bytes],
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

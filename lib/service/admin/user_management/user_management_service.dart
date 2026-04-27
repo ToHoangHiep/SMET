@@ -1,53 +1,22 @@
-import 'dart:convert';
 import 'dart:developer';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smet/model/user_model.dart';
-import 'package:smet/service/common/base_url.dart';
+import 'package:smet/service/admin/user_management/user_management_rest_client.dart';
+import 'package:smet/service/network/app_api_exception.dart';
+import 'package:smet/service/network/app_dio.dart';
 
+/// Facade quản lý user (admin): gọi [UserManagementRestClient] + [Dio] dùng chung,
+/// xử lý multipart import ngoài Retrofit (generator 9.1.9).
 class UserManagementApi {
-  /// ================= TOKEN =================
-  Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString("token");
+  UserManagementApi({Dio? dio}) : _dio = dio ?? createAppDio() {
+    _rest = UserManagementRestClient(_dio);
   }
 
-  Map<String, String> _headers(String token) {
-    return {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer $token",
-    };
-  }
-
-  /// ================= LOG HELPER =================
-  void _logRequest(
-    String title,
-    String url, {
-    Map<String, String>? headers,
-    dynamic body,
-  }) {
-    log("========== $title REQUEST ==========");
-    log("URL: $url");
-
-    if (headers != null) {
-      log("HEADERS: $headers");
-    }
-
-    if (body != null) {
-      log("BODY: $body");
-    }
-  }
-
-  void _logResponse(http.Response res, {bool logBody = true}) {
-    log("STATUS: ${res.statusCode}");
-    if (logBody) {
-      log("RESPONSE: ${res.body}");
-    } else {
-      log("RESPONSE: <binary> ${res.bodyBytes.length} bytes (không log nội dung file)");
-    }
-    log("====================================");
-  }
+  final Dio _dio;
+  late final UserManagementRestClient _rest;
 
   /// Parse int từ response (backend có thể trả int, double, hoặc string).
   static int? _parseInt(dynamic value) {
@@ -58,8 +27,39 @@ class UserManagementApi {
     return null;
   }
 
+  Map<String, dynamic> _mapListUserJson(Map<String, dynamic> responseData) {
+    final List<dynamic> data = responseData['data'] ?? [];
+    final totalElements = _parseInt(responseData['totalElements']) ?? 0;
+    final totalPages = _parseInt(responseData['totalPages']) ?? 0;
+    final page = _parseInt(responseData['page']) ?? 0;
+    final size = _parseInt(responseData['size']) ?? 10;
+
+    return {
+      'users': data.map((e) => UserModel.fromJson(e as Map<String, dynamic>)).toList(),
+      'page': page,
+      'size': size,
+      'totalElements': totalElements,
+      'totalPages': totalPages,
+    };
+  }
+
+  Map<String, dynamic> _mapListUserJsonContentFirst(
+    Map<String, dynamic> data, {
+    required int fallbackPage,
+    required int fallbackSize,
+  }) {
+    final List<dynamic> content = data['content'] ?? data['data'] ?? [];
+
+    return {
+      'users': content.map((e) => UserModel.fromJson(e as Map<String, dynamic>)).toList(),
+      'page': data['page'] ?? fallbackPage,
+      'size': data['size'] ?? fallbackSize,
+      'totalElements': data['totalElements'] ?? 0,
+      'totalPages': data['totalPages'] ?? 0,
+    };
+  }
+
   /// ================= GET USERS =================
-  /// Backend hỗ trợ: pagination, search, filter (keyword, role, isActive, departmentId)
   Future<Map<String, dynamic>> getUsers({
     int page = 0,
     int size = 10,
@@ -69,55 +69,24 @@ class UserManagementApi {
     int? departmentId,
   }) async {
     try {
-      final token = await _getToken();
-      
-      // Build query params
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
+      final raw = await _rest.listUsers(
+        page: page,
+        size: size,
+        keyword: keyword,
+        role: role,
+        isActive: isActive,
+        departmentId: departmentId,
+      );
+      if (raw is! Map) {
+        throw AppApiException(message: 'Định dạng phản hồi danh sách user không hợp lệ.');
       }
-      if (role != null && role.isNotEmpty && role != 'ALL') {
-        queryParams['role'] = role;
-      }
-      if (isActive != null) {
-        queryParams['isActive'] = isActive.toString();
-      }
-      if (departmentId != null) {
-        queryParams['departmentId'] = departmentId.toString();
-      }
-      
-      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
-
-      _logRequest("GET USERS", uri.toString(), headers: _headers(token!));
-
-      final res = await http.get(uri, headers: _headers(token));
-
-      _logResponse(res);
-
-      if (res.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(res.body);
-        final List<dynamic> data = responseData['data'] ?? [];
-        // Parse số từ backend (có thể là int/double/string)
-        final totalElements = _parseInt(responseData['totalElements']) ?? 0;
-        final totalPages = _parseInt(responseData['totalPages']) ?? 0;
-        final page = _parseInt(responseData['page']) ?? 0;
-        final size = _parseInt(responseData['size']) ?? 10;
-
-        return {
-          'users': data.map((e) => UserModel.fromJson(e)).toList(),
-          'page': page,
-          'size': size,
-          'totalElements': totalElements,
-          'totalPages': totalPages,
-        };
-      }
-
-      throw Exception("Get users failed");
-    } catch (e) {
-      log("GET USERS ERROR: $e");
+      final responseData = Map<String, dynamic>.from(raw);
+      return _mapListUserJson(responseData);
+    } on DioException catch (e) {
+      log('GET USERS ERROR: $e');
+      throw AppApiException.fromDio(e);
+    } catch (e, st) {
+      log('GET USERS ERROR: $e', stackTrace: st);
       rethrow;
     }
   }
@@ -125,167 +94,81 @@ class UserManagementApi {
   /// ================= UPDATE USER =================
   Future<void> updateUser(UserModel user, {int? departmentId}) async {
     try {
-      final token = await _getToken();
-      final url = "$baseUrl/admin/users/${user.id}";
-
-      final body = {
-        "firstName": user.firstName,
-        "lastName": user.lastName,
-        "email": user.email,
-        "phone": user.phone,
-        "role": user.role.name.toUpperCase(),
-        "isActive": user.isActive,
+      final body = <String, dynamic>{
+        'firstName': user.firstName,
+        'lastName': user.lastName,
+        'email': user.email,
+        'phone': user.phone,
+        'role': user.role.name.toUpperCase(),
+        'isActive': user.isActive,
       };
 
       if (departmentId != null) {
-        body["departmentId"] = departmentId;
+        body['departmentId'] = departmentId;
       }
 
-      _logRequest(
-        "UPDATE USER",
-        url,
-        headers: _headers(token!),
-        body: jsonEncode(body),
-      );
-
-      final res = await http.patch(
-        Uri.parse(url),
-        headers: _headers(token),
-        body: jsonEncode(body),
-      );
-
-      _logResponse(res);
-
-      if (res.statusCode != 200) {
-        String msg = 'Cập nhật thất bại';
-        try {
-          final body = jsonDecode(res.body);
-          msg = body['message'] ?? msg;
-        } catch (_) {}
-        throw Exception(msg);
-      }
-    } catch (e) {
-      log("UPDATE USER ERROR: $e");
-      rethrow;
+      await _rest.updateUser(user.id, body);
+    } on DioException catch (e) {
+      log('UPDATE USER ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= TOGGLE ACTIVE =================
   Future<void> toggleUserActive(int id) async {
     if (id == 0) {
-      log("ERROR: USER ID IS INVALID");
-      throw Exception("User id is invalid");
+      log('ERROR: USER ID IS INVALID');
+      throw AppApiException(message: 'User id is invalid');
     }
 
     try {
-      final token = await _getToken();
-      final url = "$baseUrl/admin/toggleUserActive/$id";
-
-      _logRequest("TOGGLE USER ACTIVE", url, headers: _headers(token!));
-
-      final res = await http.put(Uri.parse(url), headers: _headers(token));
-
-      _logResponse(res);
-
-      if (res.statusCode != 200) {
-        throw Exception("Toggle active failed");
-      }
-    } catch (e) {
-      log("TOGGLE ACTIVE ERROR: $e");
-      log("USER ID: $id");
-      rethrow;
+      await _rest.toggleUserActive(id);
+    } on DioException catch (e) {
+      log('TOGGLE ACTIVE ERROR: $e');
+      log('USER ID: $id');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= IMPORT EXCEL =================
   Future<void> importExcelFile(PlatformFile file) async {
     try {
-      final token = await _getToken();
-      final url = "$baseUrl/admin/import";
-
-      log("========== IMPORT EXCEL REQUEST ==========");
-      log("URL: $url");
-      log("FILE NAME: ${file.name}");
-
-      final request = http.MultipartRequest("POST", Uri.parse(url));
-
-      request.headers["Authorization"] = "Bearer $token";
-
-      request.files.add(
-        http.MultipartFile.fromBytes("file", file.bytes!, filename: file.name),
-      );
-
-      final res = await request.send();
-      final body = await res.stream.bytesToString();
-
-      log("STATUS: ${res.statusCode}");
-      log("BODY: $body");
-      log("STATUS: ${res.statusCode}");
-      log("==========================================");
-
-      if (res.statusCode != 200) {
-        throw Exception("Import excel failed");
+      if (file.bytes == null) {
+        throw AppApiException(message: 'File không có dữ liệu (bytes rỗng).');
       }
-    } catch (e) {
-      log("IMPORT EXCEL ERROR: $e");
-      rethrow;
+
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(file.bytes!, filename: file.name),
+      });
+
+      await _dio.post<dynamic>('/admin/import', data: formData);
+    } on DioException catch (e) {
+      log('IMPORT EXCEL ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= DOWNLOAD TEMPLATE =================
-  Future<http.Response> downloadTemplate() async {
-    final token = await _getToken();
-    final url = "$baseUrl/admin/import/template";
-
-    _logRequest("DOWNLOAD TEMPLATE", url, headers: _headers(token!));
-
-    final res = await http.get(
-      Uri.parse(url),
-      headers: _headers(token),
-    );
-
-    _logResponse(res, logBody: false);
-
-    if (res.statusCode != 200) {
-      throw Exception("Download template failed");
+  Future<Uint8List> downloadTemplate() async {
+    try {
+      final bytes = await _rest.downloadImportTemplate();
+      return Uint8List.fromList(bytes);
+    } on DioException catch (e) {
+      throw AppApiException.fromDio(e);
     }
-
-    return res;
   }
 
   /// ================= CREATE USER =================
   Future<void> createUser(Map<String, dynamic> body) async {
     try {
-      final token = await _getToken();
-      final url = "$baseUrl/auth/register";
-
-      _logRequest(
-        "CREATE USER",
-        url,
-        headers: _headers(token!),
-        body: jsonEncode(body),
-      );
-
-      final res = await http.post(
-        Uri.parse(url),
-        headers: _headers(token),
-        body: jsonEncode(body),
-      );
-
-      _logResponse(res);
-
-      if (res.statusCode != 200) {
-        throw Exception("Create user failed: ${res.body}");
-      }
-    } catch (e) {
-      log("CREATE USER ERROR: $e");
-      rethrow;
+      await _rest.register(body);
+    } on DioException catch (e) {
+      log('CREATE USER ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= FIND USERS FOR DEPARTMENT =================
-  /// Backend: GET /api/admin/listUser?keyword=&role=&page=0&size=10
-  /// Dùng để lấy danh sách user theo department có phân trang
   Future<Map<String, dynamic>> findUsersForDepartment({
     String? keyword,
     String? role,
@@ -293,95 +176,29 @@ class UserManagementApi {
     int size = 10,
   }) async {
     try {
-      final token = await _getToken();
-
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
+      final raw = await _rest.listUsers(
+        page: page,
+        size: size,
+        keyword: keyword,
+        role: role,
+      );
+      if (raw is! Map) {
+        throw AppApiException(message: 'Định dạng phản hồi danh sách user không hợp lệ.');
       }
-      if (role != null && role.isNotEmpty) {
-        queryParams['role'] = role;
-      }
-
-      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
-
-      _logRequest("FIND USERS FOR DEPARTMENT", uri.toString(), headers: _headers(token!));
-
-      final res = await http.get(uri, headers: _headers(token));
-
-      _logResponse(res);
-
-      if (res.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(res.body);
-        final List<dynamic> content = data['content'] ?? data['data'] ?? [];
-
-        return {
-          'users': content.map((e) => UserModel.fromJson(e)).toList(),
-          'page': data['page'] ?? page,
-          'size': data['size'] ?? size,
-          'totalElements': data['totalElements'] ?? 0,
-          'totalPages': data['totalPages'] ?? 0,
-        };
-      }
-
-      throw Exception("Find users for department failed");
-    } catch (e) {
-      log("FIND USERS FOR DEPARTMENT ERROR: $e");
-      rethrow;
+      final data = Map<String, dynamic>.from(raw);
+      return _mapListUserJsonContentFirst(data, fallbackPage: page, fallbackSize: size);
+    } on DioException catch (e) {
+      log('FIND USERS FOR DEPARTMENT ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
-  /// ================= FIND USERS FOR DEPARTMENT ASSIGN =================
-  /// Backend: GET /api/admin/listUser?keyword=&role=&page=0&size=10
-  /// Dùng để assign user vào department
+  /// Cùng endpoint với [findUsersForDepartment] — giữ API public cho tương thích.
   Future<Map<String, dynamic>> findUsersForDepartmentAssign({
     String? keyword,
     String? role,
     int page = 0,
     int size = 10,
-  }) async {
-    try {
-      final token = await _getToken();
-
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (role != null && role.isNotEmpty) {
-        queryParams['role'] = role;
-      }
-
-      final uri = Uri.parse("$baseUrl/admin/listUser").replace(queryParameters: queryParams);
-
-      _logRequest("FIND USERS FOR DEPARTMENT ASSIGN", uri.toString(), headers: _headers(token!));
-
-      final res = await http.get(uri, headers: _headers(token));
-
-      _logResponse(res);
-
-      if (res.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(res.body);
-        final List<dynamic> content = data['content'] ?? data['data'] ?? [];
-
-        return {
-          'users': content.map((e) => UserModel.fromJson(e)).toList(),
-          'page': data['page'] ?? page,
-          'size': data['size'] ?? size,
-          'totalElements': data['totalElements'] ?? 0,
-          'totalPages': data['totalPages'] ?? 0,
-        };
-      }
-
-      throw Exception("Find users for department assign failed");
-    } catch (e) {
-      log("FIND USERS FOR DEPARTMENT ASSIGN ERROR: $e");
-      rethrow;
-    }
-  }
+  }) =>
+      findUsersForDepartment(keyword: keyword, role: role, page: page, size: size);
 }

@@ -13,147 +13,148 @@ class LoginWeb extends StatelessWidget {
           // Left Side - Background Image
           Expanded(
             flex: 5,
-            child: Container(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/loginImageleft.jpg'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.black.withOpacity(0.35),
-                      Colors.black.withOpacity(0.15),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Image.asset(
+                    'assets/loginImageleft.jpg',
+                    fit: BoxFit.fill,
                   ),
                 ),
-                child: Stack(
-                  children: [
-                    // Decorative circles
-                    Positioned(
-                      top: -50,
-                      left: -50,
-                      child: Container(
-                        width: 200,
-                        height: 200,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                      ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withOpacity(0.35),
+                        Colors.black.withOpacity(0.15),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    Positioned(
-                      bottom: -30,
-                      right: -30,
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                      ),
+                  ),
+                ),
+                // ch /ild:
+                // Decorative circles
+                Positioned(
+                  top: -50,
+                  left: -50,
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.1),
                     ),
-                    Positioned(
-                      top: 100,
-                      right: 50,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.08),
-                        ),
-                      ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -30,
+                  right: -30,
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.1),
                     ),
-                    // Content
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(48),
-                        child: Column(
+                  ),
+                ),
+                Positioned(
+                  top: 100,
+                  right: 50,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                ),
+                // Content
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(48),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Icon(
+                            Icons.school,
+                            size: 64,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        // Title với hiệu ứng text shadow
+                        Text(
+                          'SMETS',
+                          style: TextStyle(
+                            fontSize: 52,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.white,
+                            letterSpacing: 8,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withOpacity(0.3),
+                                offset: const Offset(2, 2),
+                                blurRadius: 8,
+                              ),
+                              Shadow(
+                                color: Colors.white.withOpacity(0.2),
+                                offset: const Offset(-1, -1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Subtitle với font nhẹ hơn
+                        Text(
+                          'Hệ thống Quản lý\nGiáo dục Thông minh',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.white.withOpacity(0.85),
+                            height: 1.6,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 48),
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: const Icon(
-                                Icons.school,
-                                size: 64,
-                                color: Colors.white,
-                              ),
+                            _buildFeatureChip(
+                              Icons.dashboard_outlined,
+                              'Dashboard',
                             ),
-                            const SizedBox(height: 32),
-                            // Title với hiệu ứng text shadow
-                            Text(
-                              'SMETS',
-                              style: TextStyle(
-                                fontSize: 52,
-                                fontWeight: FontWeight.w300,
-                                color: Colors.white,
-                                letterSpacing: 8,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    offset: const Offset(2, 2),
-                                    blurRadius: 8,
-                                  ),
-                                  Shadow(
-                                    color: Colors.white.withOpacity(0.2),
-                                    offset: const Offset(-1, -1),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            // Subtitle với font nhẹ hơn
-                            Text(
-                              'Hệ thống Quản lý\nGiáo dục Thông minh',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w300,
-                                color: Colors.white.withOpacity(0.85),
-                                height: 1.6,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 48),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildFeatureChip(
-                                  Icons.dashboard_outlined,
-                                  'Dashboard',
-                                ),
-                                const SizedBox(width: 12),
-                                _buildFeatureChip(
-                                  Icons.people_outline,
-                                  'Quản lý',
-                                ),
-                                const SizedBox(width: 12),
-                                _buildFeatureChip(
-                                  Icons.analytics_outlined,
-                                  'Thống kê',
-                                ),
-                              ],
+                            const SizedBox(width: 12),
+                            _buildFeatureChip(Icons.people_outline, 'Quản lý'),
+                            const SizedBox(width: 12),
+                            _buildFeatureChip(
+                              Icons.analytics_outlined,
+                              'Thống kê',
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
+
           // Right Side - Form
           Expanded(
             flex: 4,

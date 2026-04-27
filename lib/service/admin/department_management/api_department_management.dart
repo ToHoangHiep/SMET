@@ -1,48 +1,21 @@
-import 'dart:convert';
 import 'dart:developer';
-import 'package:http/http.dart' as http;
+
+import 'package:dio/dio.dart';
 import 'package:smet/model/department_model.dart';
-import 'package:smet/service/common/base_url.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smet/service/admin/department_management/department_rest_client.dart';
+import 'package:smet/service/network/app_api_exception.dart';
+import 'package:smet/service/network/app_dio.dart';
 
 class DepartmentService {
-  /// ================= LOG HELPER =================
-  void _logRequest(
-    String title,
-    String url, {
-    Map<String, String>? headers,
-    dynamic body,
-  }) {
-    log("========== $title REQUEST ==========");
-    log("URL: $url");
-
-    if (headers != null) {
-      log("HEADERS: $headers");
-    }
-
-    if (body != null) {
-      log("BODY: $body");
-    }
+  DepartmentService({Dio? dio}) : _dio = dio ?? createAppDio() {
+    _rest = DepartmentRestClient(_dio);
   }
 
-  void _logResponse(http.Response res) {
-    log("STATUS: ${res.statusCode}");
-    log("RESPONSE: ${res.body}");
-    log("====================================");
-  }
+  final Dio _dio;
+  late final DepartmentRestClient _rest;
 
-  /// ================= TOKEN =================
-  Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString("token");
-  }
-
-  Map<String, String> _headers(String token) {
-    return {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer $token",
-    };
-  }
+  static bool _isBadResponse(DioException e) =>
+      e.type == DioExceptionType.badResponse;
 
   /// ================= CREATE =================
   /// POST /api/departments/createDepartment
@@ -55,40 +28,25 @@ class DepartmentService {
     List<int>? userIds,
   }) async {
     try {
-      final url = "$baseUrl/departments/createDepartment";
-
-      final body = {
-        "name": name,
-        "code": code,
-        "isActive": isActive,
-        if (projectManagerId != null) "projectManagerId": projectManagerId,
-        if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
-        if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
+      final body = <String, dynamic>{
+        'name': name,
+        'code': code,
+        'isActive': isActive,
+        if (projectManagerId != null) 'projectManagerId': projectManagerId,
+        if (mentorIds != null && mentorIds.isNotEmpty) 'mentorIds': mentorIds,
+        if (userIds != null && userIds.isNotEmpty) 'userIds': userIds,
       };
 
-      _logRequest(
-        "CREATE DEPARTMENT",
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(body),
-      );
-
-      final token = await _getToken();
-      final response = await http.post(
-        Uri.parse(url),
-        headers: _headers(token!),
-        body: jsonEncode(body),
-      );
-      _logResponse(response);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return DepartmentModel.fromJson(jsonDecode(response.body));
+      final raw = await _rest.createDepartment(body);
+      if (raw is! Map<String, dynamic>) {
+        throw AppApiException(
+          message: 'Định dạng phản hồi tạo phòng ban không hợp lệ.',
+        );
       }
-
-      throw Exception("Create department failed: ${response.body}");
-    } catch (e) {
-      log("CREATE DEPARTMENT ERROR: $e");
-      rethrow;
+      return DepartmentModel.fromJson(raw);
+    } on DioException catch (e) {
+      log('CREATE DEPARTMENT ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
@@ -104,79 +62,58 @@ class DepartmentService {
     List<int>? userIds,
   }) async {
     try {
-      final url = "$baseUrl/departments/$id";
-
       final body = <String, dynamic>{
-        "name": name,
-        "code": code,
-        "isActive": isActive,
-        if (projectManagerId != null) "projectManagerId": projectManagerId,
-        if (mentorIds != null && mentorIds.isNotEmpty) "mentorIds": mentorIds,
-        if (userIds != null && userIds.isNotEmpty) "userIds": userIds,
+        'name': name,
+        'code': code,
+        'isActive': isActive,
+        if (projectManagerId != null) 'projectManagerId': projectManagerId,
+        if (mentorIds != null && mentorIds.isNotEmpty) 'mentorIds': mentorIds,
+        if (userIds != null && userIds.isNotEmpty) 'userIds': userIds,
       };
 
-      _logRequest(
-        "UPDATE DEPARTMENT",
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(body),
-      );
-
-      final token = await _getToken();
-      final response = await http.patch(
-        Uri.parse(url),
-        headers: _headers(token!),
-        body: jsonEncode(body),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return DepartmentModel.fromJson(jsonDecode(response.body));
+      final raw = await _rest.patchDepartment(id, body);
+      if (raw is! Map<String, dynamic>) {
+        log('UPDATE DEPARTMENT FAILED - unexpected body type');
+        return null;
       }
-
-      log("UPDATE DEPARTMENT FAILED - Status: ${response.statusCode}, Body: ${response.body}");
-      return null;
-    } catch (e) {
-      log("UPDATE DEPARTMENT ERROR: $e");
-      rethrow;
+      return DepartmentModel.fromJson(raw);
+    } on DioException catch (e) {
+      if (_isBadResponse(e)) {
+        log(
+          'UPDATE DEPARTMENT FAILED - Status: ${e.response?.statusCode}, '
+          'Body: ${e.response?.data}',
+        );
+        return null;
+      }
+      log('UPDATE DEPARTMENT ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= DELETE =================
-  /// DELETE /api/departments/{id}?force={true/false}
-  /// Nếu force = true: soft delete department + xử lý dependencies (users bị vô hiệu hóa, courses bị archived, projects bị inactive)
-  /// Nếu force = false (mặc định): chỉ deactive department rỗng, không có dependencies
+  /// DELETE /api/departments/{id}?force=true khi [force] == true
   Future<Map<String, dynamic>> deleteDepartment(int id, {bool force = false}) async {
     try {
-      final url = "$baseUrl/departments/$id${force ? '?force=true' : ''}";
-
-      _logRequest("DELETE DEPARTMENT (force=$force)", url);
-
-      final token = await _getToken();
-      final response = await http.delete(
-        Uri.parse(url),
-        headers: _headers(token!),
+      final raw = await _rest.deleteDepartment(
+        id,
+        force: force ? 'true' : null,
       );
 
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        // Backend trả về message mô tả kết quả
-        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      if (raw is Map) {
+        final m = Map<String, dynamic>.from(raw);
         return {
           'success': true,
-          'message': body['message'] ?? 'Xóa thành công',
+          'message': m['message'] ?? 'Xóa thành công',
         };
       }
-
-      // Parse error message từ response
-      final errorBody = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      throw Exception(errorBody['message'] ?? errorBody['error'] ?? 'Xóa thất bại');
-    } catch (e) {
-      log("DELETE DEPARTMENT ERROR: $e");
-      log("DEPARTMENT ID: $id, FORCE: $force");
-      rethrow;
+      return {
+        'success': true,
+        'message': 'Xóa thành công',
+      };
+    } on DioException catch (e) {
+      log('DELETE DEPARTMENT ERROR: $e');
+      log('DEPARTMENT ID: $id, FORCE: $force');
+      throw AppApiException.fromDio(e);
     }
   }
 
@@ -189,49 +126,32 @@ class DepartmentService {
     int size = 10,
   }) async {
     try {
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
+      final raw = await _rest.searchDepartments(
+        page: page,
+        size: size,
+        keyword: keyword,
+        isActive: active,
+      );
+
+      if (raw is! Map) {
+        throw AppApiException(message: 'Failed to load departments');
+      }
+
+      final data = Map<String, dynamic>.from(raw);
+      final List<dynamic> content = data['data'] ?? [];
+
+      log('TOTAL DEPARTMENTS: ${data['totalElements'] ?? content.length}');
+
+      return {
+        'departments': content
+            .map((e) => DepartmentModel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        'totalElements': data['totalElements'] ?? content.length,
+        'totalPages': data['totalPages'] ?? 1,
       };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (active != null) {
-        queryParams['isActive'] = active.toString();
-      }
-
-      final uri = Uri.parse("$baseUrl/departments").replace(
-        queryParameters: queryParams,
-      );
-
-      _logRequest("GET DEPARTMENTS", uri.toString());
-
-      final token = await _getToken();
-      final response = await http.get(
-        uri,
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        // Backend PageResponse: { data: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }
-        List content = data['data'] ?? [];
-
-        log("TOTAL DEPARTMENTS: ${data['totalElements'] ?? content.length}");
-
-        return {
-          'departments': content.map((e) => DepartmentModel.fromJson(e)).toList(),
-          'totalElements': data['totalElements'] ?? content.length,
-          'totalPages': data['totalPages'] ?? 1,
-        };
-      }
-
-      throw Exception("Failed to load departments");
-    } catch (e) {
-      log("GET DEPARTMENTS ERROR: $e");
-      rethrow;
+    } on DioException catch (e) {
+      log('GET DEPARTMENTS ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
@@ -239,75 +159,57 @@ class DepartmentService {
   /// GET /api/departments/findDepartment/{id}
   Future<DepartmentModel?> getDepartmentById(int id) async {
     try {
-      final url = "$baseUrl/departments/findDepartment/$id";
-
-      _logRequest("GET DEPARTMENT BY ID", url);
-
-      final token = await _getToken();
-      final response = await http.get(
-        Uri.parse(url),
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return DepartmentModel.fromJson(jsonDecode(response.body));
+      final raw = await _rest.getDepartmentById(id);
+      if (raw is! Map<String, dynamic>) {
+        return null;
       }
-
+      return DepartmentModel.fromJson(raw);
+    } on DioException catch (e) {
+      log('GET DEPARTMENT BY ID ERROR: $e');
       return null;
     } catch (e) {
-      log("GET DEPARTMENT BY ID ERROR: $e");
+      log('GET DEPARTMENT BY ID ERROR: $e');
       return null;
     }
   }
 
   /// ================= GET MEMBERS =================
   /// GET /api/departments/{id}/members
-  /// Backend trả về List<DepartmentMemberResponse> (không phân trang)
   Future<Map<String, dynamic>> getDepartmentMembers({
     required int departmentId,
   }) async {
     try {
-      final url = "$baseUrl/departments/$departmentId/members";
+      final data = await _rest.getDepartmentMembers(departmentId);
 
-      _logRequest("GET DEPARTMENT MEMBERS", url);
-
-      final token = await _getToken();
-      final response = await http.get(
-        Uri.parse(url),
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Backend trả về List<DepartmentMemberResponse>
-        if (data is List) {
-          return {
-            'members': data,
-            'totalElements': data.length,
-            'totalPages': 1,
-          };
-        }
+      if (data is List) {
         return {
-          'members': data['content'] ?? data['data'] ?? data,
-          'totalElements': data['totalElements'] ?? (data['content'] ?? data['data'] ?? []).length,
-          'totalPages': data['totalPages'] ?? 1,
+          'members': data,
+          'totalElements': data.length,
+          'totalPages': 1,
+        };
+      }
+      if (data is Map) {
+        final m = Map<String, dynamic>.from(data);
+        return {
+          'members': m['content'] ?? m['data'] ?? m,
+          'totalElements': m['totalElements'] ??
+              ((m['content'] ?? m['data'] ?? []) as List).length,
+          'totalPages': m['totalPages'] ?? 1,
         };
       }
 
       return {'members': [], 'totalElements': 0, 'totalPages': 0};
+    } on DioException catch (e) {
+      log('GET DEPARTMENT MEMBERS ERROR: $e');
+      return {'members': [], 'totalElements': 0, 'totalPages': 0};
     } catch (e) {
-      log("GET DEPARTMENT MEMBERS ERROR: $e");
+      log('GET DEPARTMENT MEMBERS ERROR: $e');
       return {'members': [], 'totalElements': 0, 'totalPages': 0};
     }
   }
 
   /// ================= GET PROJECT MANAGERS FOR DEPARTMENT =================
-  /// GET /api/departments/department/managers
-  /// assigned: true = đã có phòng ban, false = chưa có phòng ban, null = tất cả
+  /// GET /api/users/department/managers
   Future<Map<String, dynamic>> getProjectManagersForDepartment({
     String? keyword,
     bool? assigned,
@@ -315,45 +217,24 @@ class DepartmentService {
     int size = 10,
   }) async {
     try {
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (assigned != null) {
-        queryParams['assigned'] = assigned.toString();
-      }
-
-      final uri = Uri.parse("$baseUrl/users/department/managers").replace(
-        queryParameters: queryParams,
+      final raw = await _rest.getProjectManagersForDepartment(
+        page: page,
+        size: size,
+        keyword: keyword,
+        assigned: assigned,
       );
-
-      _logRequest("GET PROJECT MANAGERS FOR DEPARTMENT", uri.toString());
-
-      final token = await _getToken();
-      final response = await http.get(
-        uri,
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      if (raw is! Map) {
+        throw AppApiException(message: 'Failed to load project managers');
       }
-
-      throw Exception("Failed to load project managers");
-    } catch (e) {
-      log("GET PROJECT MANAGERS ERROR: $e");
-      rethrow;
+      return Map<String, dynamic>.from(raw);
+    } on DioException catch (e) {
+      log('GET PROJECT MANAGERS ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= GET PROJECT MEMBERS FOR DEPARTMENT =================
-  /// GET /api/departments/department/members
-  /// assigned: true = đã tham gia dự án, false = chưa tham gia dự án, null = tất cả
+  /// GET /api/users/department/members
   Future<Map<String, dynamic>> getProjectMembersForDepartment({
     String? keyword,
     String? role,
@@ -362,42 +243,20 @@ class DepartmentService {
     int size = 10,
   }) async {
     try {
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'size': size.toString(),
-      };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (role != null && role.isNotEmpty) {
-        queryParams['role'] = role;
-      }
-      if (assigned != null) {
-        queryParams['assigned'] = assigned.toString();
-      }
-
-      final uri = Uri.parse("$baseUrl/users/department/members").replace(
-        queryParameters: queryParams,
+      final raw = await _rest.getProjectMembersForDepartment(
+        page: page,
+        size: size,
+        keyword: keyword,
+        role: role,
+        assigned: assigned,
       );
-
-      _logRequest("GET PROJECT MEMBERS FOR DEPARTMENT", uri.toString());
-
-      final token = await _getToken();
-      final response = await http.get(
-        uri,
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      if (raw is! Map) {
+        throw AppApiException(message: 'Failed to load project members');
       }
-
-      throw Exception("Failed to load project members");
-    } catch (e) {
-      log("GET PROJECT MEMBERS ERROR: $e");
-      rethrow;
+      return Map<String, dynamic>.from(raw);
+    } on DioException catch (e) {
+      log('GET PROJECT MEMBERS ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
@@ -415,15 +274,15 @@ class DepartmentService {
       );
       if (matched.id != 0) {
         log(
-          "Found department for projectManagerId $projectManagerId: ${matched.id} - ${matched.name}",
+          'Found department for projectManagerId $projectManagerId: ${matched.id} - ${matched.name}',
         );
         return matched;
       }
 
-      log("No department found for projectManagerId: $projectManagerId");
+      log('No department found for projectManagerId: $projectManagerId');
       return null;
     } catch (e) {
-      log("GET DEPARTMENT BY PROJECT MANAGER ERROR: $e");
+      log('GET DEPARTMENT BY PROJECT MANAGER ERROR: $e');
       return null;
     }
   }
@@ -453,155 +312,115 @@ class DepartmentService {
     int size = 10,
   }) async {
     try {
-      final queryParams = <String, String>{
-        'departmentId': departmentId.toString(),
-        'page': page.toString(),
-        'size': size.toString(),
+      final raw = await _rest.getDepartmentCourses(
+        departmentId: departmentId,
+        page: page,
+        size: size,
+        keyword: keyword,
+        level: level,
+      );
+
+      List<dynamic> content;
+      if (raw is List) {
+        content = raw;
+      } else if (raw is Map) {
+        final data = Map<String, dynamic>.from(raw);
+        content = data['content'] as List<dynamic>? ??
+            data['data'] as List<dynamic>? ??
+            [];
+      } else {
+        return {'courses': [], 'totalElements': 0, 'totalPages': 0};
+      }
+
+      final Map<String, dynamic>? dataMap =
+          raw is Map ? Map<String, dynamic>.from(raw) : null;
+
+      return {
+        'courses': List<Map<String, dynamic>>.from(content),
+        'totalElements':
+            dataMap != null ? (dataMap['totalElements'] ?? content.length) : content.length,
+        'totalPages': dataMap != null ? (dataMap['totalPages'] ?? 1) : 1,
       };
-      if (keyword != null && keyword.isNotEmpty) {
-        queryParams['keyword'] = keyword;
-      }
-      if (level != null && level.isNotEmpty) {
-        queryParams['level'] = level;
-      }
-
-      final uri = Uri.parse("$baseUrl/lms/courses").replace(
-        queryParameters: queryParams,
-      );
-
-      _logRequest("GET DEPARTMENT COURSES", uri.toString());
-
-      final token = await _getToken();
-      final response = await http.get(
-        uri,
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        List<dynamic> content;
-        if (data is List) {
-          content = data;
-        } else {
-          content = data['content'] as List<dynamic>? ??
-              data['data'] as List<dynamic>? ??
-              [];
-        }
-        return {
-          'courses': List<Map<String, dynamic>>.from(content),
-          'totalElements': data is Map ? (data['totalElements'] ?? content.length) : content.length,
-          'totalPages': data is Map ? (data['totalPages'] ?? 1) : 1,
-        };
-      }
-
+    } on DioException catch (e) {
+      log('GET DEPARTMENT COURSES ERROR: $e');
       return {'courses': [], 'totalElements': 0, 'totalPages': 0};
     } catch (e) {
-      log("GET DEPARTMENT COURSES ERROR: $e");
+      log('GET DEPARTMENT COURSES ERROR: $e');
       return {'courses': [], 'totalElements': 0, 'totalPages': 0};
     }
   }
 
   /// ================= GET DEPARTMENT LEARNING PATHS =================
   /// GET /api/lms/learning-paths?departmentId={id}
-  Future<List<Map<String, dynamic>>> getDepartmentLearningPaths(int departmentId) async {
+  Future<List<Map<String, dynamic>>> getDepartmentLearningPaths(
+    int departmentId,
+  ) async {
     try {
-      final uri = Uri.parse("$baseUrl/lms/learning-paths").replace(
-        queryParameters: {
-          'departmentId': departmentId.toString(),
-          'page': '0',
-          'size': '100',
-        },
+      final raw = await _rest.getDepartmentLearningPaths(
+        departmentId: departmentId,
+        page: 0,
+        size: 100,
       );
 
-      _logRequest("GET DEPARTMENT LEARNING PATHS", uri.toString());
-
-      final token = await _getToken();
-      final response = await http.get(
-        uri,
-        headers: _headers(token!),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (raw is List) {
+        return List<Map<String, dynamic>>.from(raw);
+      }
+      if (raw is Map) {
+        final data = Map<String, dynamic>.from(raw);
         final content = data['content'] as List<dynamic>? ??
             data['data'] as List<dynamic>? ??
-            data as List<dynamic>;
+            <dynamic>[];
         return List<Map<String, dynamic>>.from(content);
       }
 
       return [];
+    } on DioException catch (e) {
+      log('GET DEPARTMENT LEARNING PATHS ERROR: $e');
+      return [];
     } catch (e) {
-      log("GET DEPARTMENT LEARNING PATHS ERROR: $e");
+      log('GET DEPARTMENT LEARNING PATHS ERROR: $e');
       return [];
     }
   }
 
   /// ================= TOGGLE ACTIVE =================
-  /// PUT /api/departments/toggleStatus/{id}
+  /// PATCH /api/departments/{id}/toggle-active
   Future<void> toggleDepartmentActive(int id) async {
     if (id == 0) {
-      log("ERROR: DEPARTMENT ID IS INVALID");
-      throw Exception("Department id is invalid");
+      log('ERROR: DEPARTMENT ID IS INVALID');
+      throw AppApiException(message: 'Department id is invalid');
     }
 
     try {
-      final url = "$baseUrl/departments/$id/toggle-active";
-
-      _logRequest("TOGGLE DEPARTMENT ACTIVE", url);
-
-      final token = await _getToken();
-      final res = await http.patch(
-        Uri.parse(url),
-        headers: _headers(token!),
-      );
-
-      _logResponse(res);
-
-      if (res.statusCode != 200) {
-        throw Exception("Toggle active failed: ${res.body}");
-      }
-    } catch (e) {
-      log("TOGGLE DEPARTMENT ACTIVE ERROR: $e");
-      log("DEPARTMENT ID: $id");
-      rethrow;
+      await _rest.toggleDepartmentActive(id);
+    } on DioException catch (e) {
+      log('TOGGLE DEPARTMENT ACTIVE ERROR: $e');
+      log('DEPARTMENT ID: $id');
+      throw AppApiException.fromDio(e);
     }
   }
 
   /// ================= REMOVE PROJECT MANAGER =================
-  /// Gỡ PM khỏi phòng ban bằng cách gọi PATCH với projectManagerId = 0.
-  /// Backend sẽ gọi assignUsers, tìm user id=0 → null → set PM về null.
   Future<DepartmentModel?> removeProjectManager(int departmentId) async {
     try {
-      final url = "$baseUrl/departments/$departmentId";
-
-      final body = {
-        "projectManagerId": 0,
-      };
-
-      _logRequest("REMOVE PROJECT MANAGER", url, body: jsonEncode(body));
-
-      final token = await _getToken();
-      final response = await http.patch(
-        Uri.parse(url),
-        headers: _headers(token!),
-        body: jsonEncode(body),
-      );
-
-      _logResponse(response);
-
-      if (response.statusCode == 200) {
-        return DepartmentModel.fromJson(jsonDecode(response.body));
+      final raw = await _rest.patchDepartment(departmentId, {
+        'projectManagerId': 0,
+      });
+      if (raw is! Map<String, dynamic>) {
+        log('REMOVE PM FAILED - unexpected body type');
+        return null;
       }
-
-      log("REMOVE PM FAILED - Status: ${response.statusCode}, Body: ${response.body}");
-      return null;
-    } catch (e) {
-      log("REMOVE PM ERROR: $e");
-      rethrow;
+      return DepartmentModel.fromJson(raw);
+    } on DioException catch (e) {
+      if (_isBadResponse(e)) {
+        log(
+          'REMOVE PM FAILED - Status: ${e.response?.statusCode}, '
+          'Body: ${e.response?.data}',
+        );
+        return null;
+      }
+      log('REMOVE PM ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 
@@ -615,36 +434,22 @@ class DepartmentService {
     int? projectManagerId,
   }) async {
     try {
-      final url = "$baseUrl/departments/$departmentId";
-
-      final body = {
-        "name": departmentName,
-        "code": departmentCode,
-        "isActive": isActive,
-        if (userIds.isNotEmpty) "userIds": userIds,
-        if (projectManagerId != null) "projectManagerId": projectManagerId,
+      final body = <String, dynamic>{
+        'name': departmentName,
+        'code': departmentCode,
+        'isActive': isActive,
+        if (userIds.isNotEmpty) 'userIds': userIds,
+        if (projectManagerId != null) 'projectManagerId': projectManagerId,
       };
 
-      _logRequest(
-        "ADD USERS TO DEPARTMENT (via update)",
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(body),
-      );
-
-      final token = await _getToken();
-      final response = await http.patch(
-        Uri.parse(url),
-        headers: _headers(token!),
-        body: jsonEncode(body),
-      );
-
-      _logResponse(response);
-
-      return response.statusCode == 200;
-    } catch (e) {
-      log("ADD USERS TO DEPARTMENT ERROR: $e");
-      rethrow;
+      await _rest.patchDepartment(departmentId, body);
+      return true;
+    } on DioException catch (e) {
+      if (_isBadResponse(e)) {
+        return false;
+      }
+      log('ADD USERS TO DEPARTMENT ERROR: $e');
+      throw AppApiException.fromDio(e);
     }
   }
 }
